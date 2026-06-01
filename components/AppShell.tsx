@@ -116,6 +116,19 @@ export default function AppShell({ children }: AppShellProps) {
           .single()
 
         if (insertError) {
+          // Se for erro de duplicidade (código PG 23505), o perfil já existe.
+          // Tentamos buscá-lo novamente de forma silenciosa para prosseguir.
+          if (insertError.code === '23505') {
+            const { data: retryProfile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single()
+            if (retryProfile) {
+              setProfile(retryProfile)
+              return
+            }
+          }
           showToast('Erro ao criar perfil de usuário', 'err')
           return
         }
