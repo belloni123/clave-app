@@ -1,0 +1,145 @@
+
+/Users/felipebelloni/Desktop/orkestria/clave-app/app/api/ai/analyze/route.ts
+    7:37  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+    8:15  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   59:75  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  132:48  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  176:17  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/felipebelloni/Desktop/orkestria/clave-app/app/layout.tsx
+  25:3  warning  'className' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/felipebelloni/Desktop/orkestria/clave-app/app/login/page.tsx
+    7:8   warning  'Toast' is defined but never used         @typescript-eslint/no-unused-vars
+    8:27  warning  'Key' is defined but never used           @typescript-eslint/no-unused-vars
+   68:19  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   94:19  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  142:19  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/felipebelloni/Desktop/orkestria/clave-app/components/ProjectSwitcher.tsx
+    7:31  warning  'Settings' is defined but never used      @typescript-eslint/no-unused-vars
+  134:20  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/felipebelloni/Desktop/orkestria/clave-app/components/modules/AcessoModule.tsx
+    6:23  warning  'UserRole' is defined but never used      @typescript-eslint/no-unused-vars
+    7:10  warning  'Plus' is defined but never used          @typescript-eslint/no-unused-vars
+    7:16  warning  'Trash' is defined but never used         @typescript-eslint/no-unused-vars
+    7:23  warning  'Shield' is defined but never used        @typescript-eslint/no-unused-vars
+    7:31  warning  'Users' is defined but never used         @typescript-eslint/no-unused-vars
+    7:38  warning  'Award' is defined but never used         @typescript-eslint/no-unused-vars
+    7:45  warning  'Briefcase' is defined but never used     @typescript-eslint/no-unused-vars
+    7:59  warning  'Edit' is defined but never used          @typescript-eslint/no-unused-vars
+   91:33  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  154:20  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  191:33  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  254:20  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/felipebelloni/Desktop/orkestria/clave-app/components/modules/ComunicacaoModule.tsx
+    7:10  warning  'Plus' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+    7:23  warning  'Check' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-unused-vars
+    7:30  warning  'X' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+    7:33  warning  'ShieldAlert' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  @typescript-eslint/no-unused-vars
+    7:46  warning  'Sparkles' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+   76:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/felipebelloni/Desktop/orkestria/clave-app/components/modules/ComunicacaoModule.tsx:76:7
+  74 |   useEffect(() => {
+  75 |     if (fields) {
+> 76 |       setVslTitle(fields['vsl-tt'] || '')
+     |       ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  77 |       setVslCopy(fields['vsl-copy'] || '')
+  78 |     }
+  79 |   }, [fields])  react-hooks/set-state-in-effect
+  259:54  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+
+/Users/felipebelloni/Desktop/orkestria/clave-app/components/modules/ConcepcaoModule.tsx
+    3:27  warning  'useEffect' is defined but never used       @typescript-eslint/no-unused-vars
+    7:10  warning  'Check' is defined but never used           @typescript-eslint/no-unused-vars
+    7:17  warning  'X' is defined but never used               @typescript-eslint/no-unused-vars
+    7:20  warning  'Info' is defined but never used            @typescript-eslint/no-unused-vars
+    7:39  warning  'HelpCircle' is defined but never used      @typescript-eslint/no-unused-vars
+  155:11  warning  'score' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  202:30  error    Unexpected any. Specify a different type    @typescript-eslint/no-explicit-any
+
+/Users/felipebelloni/Desktop/orkestria/clave-app/components/modules/FinanceiroModule.tsx
+    3:27  warning  'useEffect' is defined but never used                     @typescript-eslint/no-unused-vars
+    7:10  warning  'Plus' is defined but never used                          @typescript-eslint/no-unused-vars
+    7:45  warning  'DollarSign' is defined but never used                    @typescript-eslint/no-unused-vars
+  103:33  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  138:77  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  162:55  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  171:46  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  188:70  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  197:51  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  215:9   warning  'totalVendasLiquidas' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  217:24  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  229:67  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  304:54  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  506:36  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  591:44  error    Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+
+/Users/felipebelloni/Desktop/orkestria/clave-app/components/modules/HistoriasModule.tsx
+    7:10  warning  'Plus' is defined but never used                                 @typescript-eslint/no-unused-vars
+    7:33  warning  'BookOpen' is defined but never used                             @typescript-eslint/no-unused-vars
+    7:50  warning  'X' is defined but never used                                    @typescript-eslint/no-unused-vars
+  108:77  error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  191:19  error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  232:19  error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  250:54  error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  269:68  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  269:87  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  496:33  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  496:42  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  588:72  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  588:90  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+
+/Users/felipebelloni/Desktop/orkestria/clave-app/components/modules/LancamentosModule.tsx
+    7:30  warning  'AlertCircle' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-unused-vars
+    7:43  warning  'Save' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          @typescript-eslint/no-unused-vars
+  159:46  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  @typescript-eslint/no-explicit-any
+  165:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/felipebelloni/Desktop/orkestria/clave-app/components/modules/LancamentosModule.tsx:165:7
+  163 |       }
+  164 |
+> 165 |       setMote(getVal('mote', ''))
+      |       ^^^^^^^ Avoid calling setState() directly within an effect
+  166 |       setDataIni(getVal('dataIni', ''))
+  167 |       setDataFim(getVal('dataFim', ''))
+  168 |       setPreco(getVal('preco', 0))  react-hooks/set-state-in-effect
+  361:58  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  @typescript-eslint/no-explicit-any
+
+/Users/felipebelloni/Desktop/orkestria/clave-app/components/modules/PlanejadorModule.tsx
+   7:37  warning  'Plus' is defined but never used          @typescript-eslint/no-unused-vars
+  73:33  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/felipebelloni/Desktop/orkestria/clave-app/components/modules/UrlBuilderModule.tsx
+  186:40  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  332:23  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  397:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+/Users/felipebelloni/Desktop/orkestria/clave-app/components/modules/ValidacaoModule.tsx
+    7:31  warning  'Edit3' is defined but never used                                @typescript-eslint/no-unused-vars
+    7:59  warning  'Check' is defined but never used                                @typescript-eslint/no-unused-vars
+    7:69  warning  'Tag' is defined but never used                                  @typescript-eslint/no-unused-vars
+   95:33  error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  172:20  error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  350:70  error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  524:29  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  524:40  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  613:70  error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+
+✖ 86 problems (48 errors, 38 warnings)
+

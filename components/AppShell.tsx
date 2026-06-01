@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAppStore, MaturityLevel } from '@/store/useAppStore'
 import { createClient } from '@/utils/supabase/client'
@@ -20,6 +20,7 @@ import {
   Users,
   LogOut,
   Menu,
+  X,
 } from 'lucide-react'
 
 interface AppShellProps {
@@ -79,6 +80,8 @@ export default function AppShell({ children }: AppShellProps) {
     setProfile,
     showToast,
   } = useAppStore()
+
+  const [mobileOpen, setMobileOpen] = useState(false)
 
   // 1. VERIFICAR AUTENTICAÇÃO E CARREGAR PERFIL
   useEffect(() => {
@@ -176,28 +179,45 @@ export default function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex bg-bg">
-      {/* 1. SIDEBAR */}
+    <div className="h-screen w-screen overflow-hidden flex bg-bg relative">
+      {/* Mobile Backdrop Overlay */}
+      {mobileOpen && (
+        <div
+          onClick={() => setMobileOpen(false)}
+          className="fixed inset-0 bg-black/45 z-40 md:hidden backdrop-blur-[2px] transition-opacity duration-200"
+        />
+      )}
+
+      {/* 1. SIDEBAR (drawer on mobile, static on desktop) */}
       <aside
-        className={`bg-surface border-r border-border-custom flex flex-col h-full shrink-0 transition-all duration-200 ease-in-out ${
-          sidebarCollapsed ? 'w-[60px]' : 'w-[228px]'
-        }`}
+        className={`bg-surface border-r border-border-custom flex flex-col h-full shrink-0 z-50 transition-all duration-200 ease-in-out
+          fixed inset-y-0 left-0 md:static md:translate-x-0 ${
+            mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+          } ${
+            sidebarCollapsed ? 'md:w-[60px] w-[228px]' : 'w-[228px]'
+          }`}
       >
         {/* Top Header */}
         <div className="flex items-center gap-2.5 px-3 py-3.5 border-b border-border-custom h-14 shrink-0 min-w-0">
           <div className="w-7 h-7 rounded-lg bg-text-custom flex items-center justify-center shrink-0">
             <span className="text-white text-sm font-semibold select-none">C</span>
           </div>
-          {!sidebarCollapsed && (
+          {(!sidebarCollapsed || mobileOpen) && (
             <span className="text-sm font-semibold tracking-tight text-text-custom truncate flex-1">
               Clave
             </span>
           )}
           <button
             onClick={toggleSidebar}
-            className="p-1 text-text3 hover:text-text-custom hover:bg-surface2 rounded-md shrink-0 transition-colors"
+            className="p-1 text-text3 hover:text-text-custom hover:bg-surface2 rounded-md shrink-0 transition-colors md:block hidden"
           >
             <Menu className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setMobileOpen(false)}
+            className="p-1 text-text3 hover:text-text-custom hover:bg-surface2 rounded-md shrink-0 transition-colors md:hidden block"
+          >
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -208,7 +228,7 @@ export default function AppShell({ children }: AppShellProps) {
         <nav className="flex-1 overflow-y-auto pt-2 space-y-3 scrollbar-thin">
           {navItems.map((group, gIdx) => (
             <div key={gIdx} className="space-y-0.5">
-              {!sidebarCollapsed && (
+              {(!sidebarCollapsed || mobileOpen) && (
                 <div className="text-[10px] font-semibold tracking-wider text-text3 px-4 py-1.5 uppercase">
                   {group.group}
                 </div>
@@ -219,7 +239,10 @@ export default function AppShell({ children }: AppShellProps) {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setActiveModule(item.id)}
+                    onClick={() => {
+                      setActiveModule(item.id)
+                      setMobileOpen(false)
+                    }}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all duration-150 border-l-2 ${
                       isActive
                         ? 'bg-surface2/85 font-semibold text-text-custom border-purple-custom'
@@ -233,7 +256,7 @@ export default function AppShell({ children }: AppShellProps) {
                     >
                       <IconComponent className="w-4 h-4" />
                     </div>
-                    {!sidebarCollapsed && (
+                    {(!sidebarCollapsed || mobileOpen) && (
                       <span className="text-xs text-left truncate flex-1">{item.name}</span>
                     )}
                   </button>
@@ -250,29 +273,37 @@ export default function AppShell({ children }: AppShellProps) {
       {/* 2. MAIN PANEL */}
       <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
         {/* Topbar */}
-        <header className="h-14 border-b border-border-custom bg-surface flex items-center justify-between px-6 gap-3 shrink-0">
-          <div className="min-w-0 flex flex-col">
-            <h2 className="text-[14px] font-semibold text-text-custom leading-tight">
-              {getModuleTitle()}
-            </h2>
-            <p className="text-[11px] text-text3 truncate leading-normal">
-              {activeModule === 'home' && 'Seu painel estratégico de controle'}
-              {activeModule === 'concepcao' && 'Definição e análise do produto'}
-              {activeModule === 'comunicacao' && 'Roteiros de copy e funis de vendas'}
-              {activeModule === 'lancamentos' && 'Acompanhamento de eventos e picos de vendas'}
-              {activeModule === 'validacao' && 'Central de anúncios e CRM de networking'}
-              {activeModule === 'historias' && 'Banco de storytelling auxiliado por IA'}
-              {activeModule === 'financeiro' && 'Gestão de caixa e planejamento do DRE'}
-              {activeModule === 'planejador' && 'Calendário editorial e eventos anuais'}
-              {activeModule === 'urlbuilder' && 'Gere tags UTM, links de WhatsApp e QR Codes'}
-              {activeModule === 'acesso' && 'Permissões e equipe'}
-            </p>
+        <header className="h-14 border-b border-border-custom bg-surface flex items-center justify-between px-4 md:px-6 gap-3 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="p-1.5 text-text3 hover:text-text-custom hover:bg-surface2 rounded-md shrink-0 transition-colors md:hidden block"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <div className="min-w-0 flex flex-col">
+              <h2 className="text-[14px] font-semibold text-text-custom leading-tight">
+                {getModuleTitle()}
+              </h2>
+              <p className="text-[11px] text-text3 truncate leading-normal hidden sm:block">
+                {activeModule === 'home' && 'Seu painel estratégico de controle'}
+                {activeModule === 'concepcao' && 'Definição e análise do produto'}
+                {activeModule === 'comunicacao' && 'Roteiros de copy e funis de vendas'}
+                {activeModule === 'lancamentos' && 'Acompanhamento de eventos e picos de vendas'}
+                {activeModule === 'validacao' && 'Central de anúncios e CRM de networking'}
+                {activeModule === 'historias' && 'Banco de storytelling auxiliado por IA'}
+                {activeModule === 'financeiro' && 'Gestão de caixa e planejamento do DRE'}
+                {activeModule === 'planejador' && 'Calendário editorial e eventos anuais'}
+                {activeModule === 'urlbuilder' && 'Gere tags UTM, links de WhatsApp e QR Codes'}
+                {activeModule === 'acesso' && 'Permissões e equipe'}
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {/* Maturity Badge */}
             <div
-              className="flex items-center gap-1.5 px-3 py-1 border rounded-full text-xs font-medium cursor-default transition-all duration-150"
+              className="flex items-center gap-1.5 px-3 py-1 border rounded-full text-xs font-medium cursor-default transition-all duration-150 sm:flex hidden"
               style={{
                 background: lvlDetail.bg,
                 borderColor: lvlDetail.border,
@@ -288,28 +319,28 @@ export default function AppShell({ children }: AppShellProps) {
 
             <button
               onClick={() => setActiveModule('planejador')}
-              className="px-3 py-1.5 text-xs border border-border2 bg-surface text-text-custom font-medium rounded-md hover:bg-surface2 cursor-pointer transition-colors"
+              className="px-2.5 py-1.5 text-xs border border-border2 bg-surface text-text-custom font-medium rounded-md hover:bg-surface2 cursor-pointer transition-colors sm:block hidden"
             >
               Planejador
             </button>
             <button
               onClick={() => setActiveModule('urlbuilder')}
-              className="px-3 py-1.5 text-xs border border-border2 bg-surface text-text-custom font-medium rounded-md hover:bg-surface2 cursor-pointer transition-colors"
+              className="px-2.5 py-1.5 text-xs border border-border2 bg-surface text-text-custom font-medium rounded-md hover:bg-surface2 cursor-pointer transition-colors sm:block hidden"
             >
               Links & QR
             </button>
             <button
               onClick={handleLogout}
-              className="px-3 py-1.5 text-xs border border-red-t/30 bg-surface text-red-t font-medium rounded-md hover:bg-red-bg cursor-pointer transition-colors flex items-center gap-1.5"
+              className="px-2.5 py-1.5 text-xs border border-red-t/30 bg-surface text-red-t font-medium rounded-md hover:bg-red-bg cursor-pointer transition-colors flex items-center gap-1.5"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>Sair</span>
+              <span className="sm:inline hidden">Sair</span>
             </button>
           </div>
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 scrollbar-thin">
           <div className="max-w-6xl mx-auto w-full">{children}</div>
         </div>
       </main>

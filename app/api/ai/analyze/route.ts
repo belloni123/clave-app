@@ -3,9 +3,18 @@ import { NextResponse } from 'next/server'
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`
 
+interface StoryData {
+  title?: string
+  category?: string
+  emotion?: string
+  context?: string
+  result?: string
+  body?: string
+}
+
 // MOCK FALLBACKS (If GEMINI_API_KEY is not set)
-function mockIndividualStory(story: any) {
-  const cats: any = {
+function mockIndividualStory(story: StoryData) {
+  const cats: Record<string, string[]> = {
     'Superação': [
       'Como superei meu maior desafio e o que aprendi',
       'A virada que mudou tudo no meu negócio',
@@ -33,7 +42,7 @@ function mockIndividualStory(story: any) {
     ]
   }
 
-  const angulos = cats[story.category] || [
+  const angulos = cats[story.category || ''] || [
     'A história por trás do método',
     'Por que faço o que faço',
     'Minha principal revelação estratégica'
@@ -49,14 +58,14 @@ function mockIndividualStory(story: any) {
   const gatilhos = ['Urgência', 'Transformação', 'Autoridade', 'Reciprocidade']
 
   return {
-    resumo: `[MOCK IA] História da categoria "${story.category}" com foco em ${story.emotion || 'Identificação'}. Ponto de virada: ${story.result || 'não especificado'}.`,
+    resumo: `[MOCK IA] História da categoria "${story.category || ''}" com foco em ${story.emotion || 'Identificação'}. Ponto de virada: ${story.result || 'não especificado'}.`,
     angulos,
     formatos,
     gatilhos
   }
 }
 
-function mockGlobalConsultation(intent: string, context: string, stories: any[]) {
+function mockGlobalConsultation(intent: string, context: string, stories: StoryData[]) {
   const list = stories.map((s, i) => `${i + 1}. "${s.title}" (Virada: ${s.result || 'Nenhuma'})`).join('\n')
   return `[MOCK SUGGESTION - IA CONFIG EM FALTA]\n\nSugestão de roteiro para: ${intent}\nInstrução do usuário: "${context || 'Nenhuma'}"\n\nEstrutura sugerida com base em suas histórias:\n${list}\n\nRecomendação: Posicione a história de maior impacto emocional na introdução para capturar a atenção imediata (0-60s) e feche o loop conectando com a oferta principal.`
 }
@@ -129,13 +138,13 @@ História Completa: ${story.body}
       return NextResponse.json({ analysis })
 
     } else if (task === 'global_consultation') {
-      const formattedStories = stories.map((s: any, idx: number) => `
+      const formattedStories = stories.map((s: StoryData, idx: number) => `
 História ${idx + 1}:
-Título: ${s.title}
-Categoria: ${s.category}
-Emoção: ${s.emotion}
-Contexto: ${s.context}
-Virada: ${s.result}
+Título: ${s.title || ''}
+Categoria: ${s.category || ''}
+Emoção: ${s.emotion || ''}
+Contexto: ${s.context || ''}
+Virada: ${s.result || ''}
 `).join('\n')
 
       const prompt = `
@@ -173,8 +182,9 @@ Cruze as histórias disponíveis para gerar uma sugestão de roteiro estruturada
 
     return NextResponse.json({ error: 'Task inválida' }, { status: 400 })
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error(err)
-    return NextResponse.json({ error: err.message || 'Erro interno no servidor de IA' }, { status: 500 })
+    const errMsg = err instanceof Error ? err.message : 'Erro interno no servidor de IA'
+    return NextResponse.json({ error: errMsg }, { status: 500 })
   }
 }

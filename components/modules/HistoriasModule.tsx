@@ -4,7 +4,7 @@ import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
-import { Plus, Trash, Sparkles, BookOpen, Check, X, BookOpenCheck } from 'lucide-react'
+import { Trash, Sparkles, Check, BookOpenCheck } from 'lucide-react'
 
 interface Story {
   id: string
@@ -105,7 +105,7 @@ export default function HistoriasModule() {
   })
 
   const updateStoryMutation = useMutation({
-    mutationFn: async (payload: { id: string; used?: boolean; ai_analysis?: any }) => {
+    mutationFn: async (payload: { id: string; used?: boolean; ai_analysis?: Story['ai_analysis'] }) => {
       const { error } = await supabase
         .from('stories')
         .update(payload)
@@ -188,8 +188,9 @@ export default function HistoriasModule() {
         ai_analysis: data.analysis,
       })
       showToast('Análise de IA concluída!')
-    } catch (err: any) {
-      showToast('Erro na análise da IA: ' + err.message, 'err')
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Erro inesperado'
+      showToast('Erro na análise da IA: ' + errMsg, 'err')
     } finally {
       setAiLoadingId(null)
     }
@@ -229,8 +230,9 @@ export default function HistoriasModule() {
       if (!res.ok) throw new Error('Falha na API de IA')
       const data = await res.json()
       setIaGlobalResult(data.suggestion)
-    } catch (err: any) {
-      showToast('Erro ao consultar IA: ' + err.message, 'err')
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Erro inesperado'
+      showToast('Erro ao consultar IA: ' + errMsg, 'err')
     } finally {
       setIaGlobalLoading(false)
     }
@@ -240,14 +242,14 @@ export default function HistoriasModule() {
     <div className="space-y-6">
       {/* Subtabs header */}
       <div className="flex gap-1 border-b border-border-custom flex-wrap mb-4">
-        {[
+        {([
           { id: 'lista', name: 'Minhas Histórias' },
           { id: 'add', name: 'Cadastrar História' },
           { id: 'consulta', name: 'Criador de Conteúdo com IA' },
-        ].map((tab) => (
+        ] as const).map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveSubTab(tab.id as any)}
+            onClick={() => setActiveSubTab(tab.id)}
             className={`px-4 py-2 text-xs font-semibold cursor-pointer border-b-2 bg-transparent transition-colors duration-150 ${
               activeSubTab === tab.id
                 ? 'border-text-custom text-text-custom'
@@ -266,7 +268,7 @@ export default function HistoriasModule() {
         <div className="space-y-4 animate-[fadeUp_0.15s_ease_both]">
           {stories.length === 0 ? (
             <div className="py-12 bg-surface border border-border-custom rounded-xl text-center text-text3 text-xs">
-              Nenhuma história cadastrada para este projeto. Vá em "Cadastrar História" para começar.
+              Nenhuma história cadastrada para este projeto. Vá em &quot;Cadastrar História&quot; para começar.
             </div>
           ) : (
             stories.map((story) => (
@@ -493,7 +495,7 @@ export default function HistoriasModule() {
                 onChange={(e) => setUsed(e.target.checked)}
                 className="rounded border-border2 text-text-custom focus:ring-0"
               />
-              <span>Marcar como "Já Usada" em criativos</span>
+              <span>Marcar como &quot;Já Usada&quot; em criativos</span>
             </label>
 
             <button
@@ -585,7 +587,7 @@ export default function HistoriasModule() {
                   </div>
                 ) : (
                   <p className="text-xs text-text3 text-center py-20">
-                    Ajuste os parâmetros na coluna ao lado e clique em "Estruturar com IA" para gerar.
+                    Ajuste os parâmetros na coluna ao lado e clique em &quot;Estruturar com IA&quot; para gerar.
                   </p>
                 )}
               </div>

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore, Project } from '@/store/useAppStore'
-import { Pencil, Plus, Check, Settings, Trash2, X } from 'lucide-react'
+import { Pencil, Plus, Check, Trash2, X } from 'lucide-react'
 
 const PROJ_COLORS = [
   '#534AB7', // Purple
@@ -131,7 +131,7 @@ export default function ProjectSwitcher() {
       showToast(editId ? 'Projeto atualizado' : 'Projeto criado com sucesso')
       closeModal()
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       showToast(err.message || 'Erro ao salvar projeto', 'err')
     },
   })

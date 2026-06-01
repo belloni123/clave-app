@@ -3,8 +3,24 @@
 import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
-import { useAppStore, UserRole } from '@/store/useAppStore'
-import { Plus, Trash, Shield, Users, Award, Briefcase, X, Edit, Check } from 'lucide-react'
+import { useAppStore } from '@/store/useAppStore'
+import { X, Check } from 'lucide-react'
+
+interface SaveColabPayload {
+  id?: string
+  name: string
+  role: string
+  email: string
+  permissions: string[]
+}
+
+interface SaveClientPayload {
+  id?: string
+  name: string
+  company: string
+  niche: string
+  networking_enabled: boolean
+}
 
 interface TeamMember {
   id: string
@@ -88,7 +104,7 @@ export default function AcessoModule() {
   })
 
   const saveColabMutation = useMutation({
-    mutationFn: async (payload: any) => {
+    mutationFn: async (payload: SaveColabPayload) => {
       if (payload.id) {
         const { error } = await supabase
           .from('team_members')
@@ -151,7 +167,7 @@ export default function AcessoModule() {
 
   const handleSaveColab = () => {
     if (!colabName.trim() || !colabEmail.trim()) return
-    const payload: any = {
+    const payload: SaveColabPayload = {
       name: colabName.trim(),
       role: colabRole,
       email: colabEmail.trim(),
@@ -188,7 +204,7 @@ export default function AcessoModule() {
   })
 
   const saveClientMutation = useMutation({
-    mutationFn: async (payload: any) => {
+    mutationFn: async (payload: SaveClientPayload) => {
       if (payload.id) {
         const { error } = await supabase
           .from('clients')
@@ -251,7 +267,7 @@ export default function AcessoModule() {
 
   const handleSaveClient = () => {
     if (!clientName.trim() || !clientCompany.trim()) return
-    const payload: any = {
+    const payload: SaveClientPayload = {
       name: clientName.trim(),
       company: clientCompany.trim(),
       niche: clientNiche.trim(),
@@ -542,7 +558,7 @@ export default function AcessoModule() {
               clients.map((c) => (
                 <div
                   key={c.id}
-                  className="p-4 bg-surface2 border border-border-custom rounded-xl flex items-center justify-between shadow-sm"
+                  className="p-4 bg-surface2 border border-border-custom rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm"
                 >
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
@@ -568,7 +584,7 @@ export default function AcessoModule() {
                   {isAdmin && (
                     <button
                       onClick={() => openClientModal(c)}
-                      className="px-2.5 py-1.5 border border-border2 text-[10px] text-text-custom hover:bg-surface rounded cursor-pointer shrink-0 transition-colors"
+                      className="px-2.5 py-1.5 border border-border2 text-[10px] text-text-custom hover:bg-surface rounded cursor-pointer shrink-0 transition-colors self-end sm:self-auto"
                     >
                       Editar
                     </button>

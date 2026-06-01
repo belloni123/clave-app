@@ -4,7 +4,7 @@ import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
-import { ChevronLeft, ChevronRight, Plus, Calendar, X, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, X, Trash2 } from 'lucide-react'
 
 type EventType = 'Lançamento' | 'Conteúdo' | 'Anúncio' | 'Reunião' | 'Outro'
 
@@ -14,6 +14,13 @@ interface CalendarEvent {
   title: string
   date: string
   type: EventType
+}
+
+interface SaveEventPayload {
+  id?: string
+  title: string
+  type: EventType
+  date: string
 }
 
 const EVENT_COLORS: Record<EventType, { text: string; bg: string; dot: string }> = {
@@ -70,7 +77,7 @@ export default function PlanejadorModule() {
 
   // 2. MUTATIONS
   const saveEventMutation = useMutation({
-    mutationFn: async (payload: any) => {
+    mutationFn: async (payload: SaveEventPayload) => {
       if (!activeProjectId) return
       if (payload.id) {
         const { error } = await supabase

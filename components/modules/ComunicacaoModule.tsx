@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
-import { Plus, Trash, Check, X, ShieldAlert, Sparkles } from 'lucide-react'
+import { Trash } from 'lucide-react'
 
 const VSL_S = [
   { id: 'promessa', l: 'Promessa QFD', must: true, kw: ['promessa', 'resultado', 'garanto', 'você vai', 'vou te mostrar', 'descubra', 'nesse vídeo'] },
@@ -73,8 +73,11 @@ export default function ComunicacaoModule() {
   // Carregar VSL localmente após a query carregar
   useEffect(() => {
     if (fields) {
-      setVslTitle(fields['vsl-tt'] || '')
-      setVslCopy(fields['vsl-copy'] || '')
+      const timer = setTimeout(() => {
+        setVslTitle(fields['vsl-tt'] || '')
+        setVslCopy(fields['vsl-copy'] || '')
+      }, 0)
+      return () => clearTimeout(timer)
     }
   }, [fields])
 
@@ -247,16 +250,16 @@ export default function ComunicacaoModule() {
     <div className="space-y-6">
       {/* Sub-tabs header */}
       <div className="flex gap-1 border-b border-border-custom flex-wrap mb-4">
-        {[
+        {([
           { id: 'id', name: 'Identidades' },
           { id: 'urg', name: 'Urgências ocultas' },
           { id: 'bloq', name: 'Bloqueios e Objeções' },
           { id: 'vsl', name: 'Estrutura VSL' },
           { id: 'pag', name: 'Página de vendas' },
-        ].map((tab) => (
+        ] as const).map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveSubTab(tab.id as any)}
+            onClick={() => setActiveSubTab(tab.id)}
             className={`px-4 py-2 text-xs font-semibold cursor-pointer border-b-2 bg-transparent transition-colors duration-150 ${
               activeSubTab === tab.id
                 ? 'border-text-custom text-text-custom'

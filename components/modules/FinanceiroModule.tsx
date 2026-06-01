@@ -1,10 +1,34 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
-import { Plus, Trash, AlertTriangle, Check, DollarSign } from 'lucide-react'
+import { Trash, AlertTriangle, Check } from 'lucide-react'
+
+interface Offer {
+  n: string
+  ticket: number
+  vendas: number
+  cancel: number
+  taxa_pct: number
+  taxa_fix: number
+}
+
+interface Investment {
+  nome: string
+  valor: number
+}
+
+interface FinancialDataPayload {
+  id?: string
+  briefing: Record<string, string | number | boolean>
+  params: Record<string, number>
+  offers: Offer[]
+  investments: Investment[]
+  trafego_real?: number
+  curCen: number
+}
 
 // DEFAULT OBJECT FOR FINANCIAL SHEETS
 const finDefaultData = () => ({
@@ -100,7 +124,7 @@ export default function FinanceiroModule() {
 
   // 2. MUTATION SAVE FINANCIAL DATA
   const saveFinMutation = useMutation({
-    mutationFn: async (payload: any) => {
+    mutationFn: async (payload: FinancialDataPayload) => {
       if (!activeProjectId) return
       if (payload.id) {
         const { error } = await supabase
@@ -135,7 +159,7 @@ export default function FinanceiroModule() {
     },
   })
 
-  const updateSubField = (section: 'briefing' | 'params', key: string, val: any) => {
+  const updateSubField = (section: 'briefing' | 'params', key: string, val: string | number) => {
     if (!dbFin) return
     const updated = {
       ...dbFin,
@@ -159,16 +183,16 @@ export default function FinanceiroModule() {
     saveFinMutation.mutate({ ...dbFin, offers: list })
   }
 
-  const updateOffer = (idx: number, key: string, val: any) => {
+  const updateOffer = (idx: number, key: string, val: string | number) => {
     if (!dbFin) return
     const list = [...dbFin.offers]
-    list[idx] = { ...list[idx], [key]: val }
+    list[idx] = { ...list[idx], [key]: val } as Offer
     saveFinMutation.mutate({ ...dbFin, offers: list })
   }
 
   const deleteOffer = (idx: number) => {
     if (!dbFin) return
-    const list = dbFin.offers.filter((_item: any, i: number) => i !== idx)
+    const list = dbFin.offers.filter((_item: Offer, i: number) => i !== idx)
     saveFinMutation.mutate({ ...dbFin, offers: list })
     showToast('Oferta excluída')
   }
@@ -185,16 +209,16 @@ export default function FinanceiroModule() {
     saveFinMutation.mutate({ ...dbFin, investments: list })
   }
 
-  const updateInvestment = (idx: number, key: 'nome' | 'valor', val: any) => {
+  const updateInvestment = (idx: number, key: 'nome' | 'valor', val: string | number) => {
     if (!dbFin) return
     const list = [...dbFin.investments]
-    list[idx] = { ...list[idx], [key]: val }
+    list[idx] = { ...list[idx], [key]: val } as Investment
     saveFinMutation.mutate({ ...dbFin, investments: list })
   }
 
   const deleteInvestment = (idx: number) => {
     if (!dbFin) return
-    const list = dbFin.investments.filter((_item: any, i: number) => i !== idx)
+    const list = dbFin.investments.filter((_item: Investment, i: number) => i !== idx)
     saveFinMutation.mutate({ ...dbFin, investments: list })
     showToast('Investimento removido')
   }
@@ -212,21 +236,19 @@ export default function FinanceiroModule() {
     // 1. Receitas de Ofertas
     let fatBruto = 0
     let totalTaxasPlat = 0
-    let totalVendasLiquidas = 0
 
-    offers.forEach((o: any) => {
+    offers.forEach((o: Offer) => {
       const liqSales = (o.vendas || 0) - (o.cancel || 0)
       const rev = liqSales * (o.ticket || 0)
       const fee = rev * ((o.taxa_pct || 0) / 100) + liqSales * (o.taxa_fix || 0)
       fatBruto += rev
       totalTaxasPlat += fee
-      totalVendasLiquidas += liqSales
     })
 
     const recLiquida = fatBruto - totalTaxasPlat
 
     // 2. Investimentos
-    const totalInvestido = investments.reduce((sum: number, item: any) => sum + (+item.valor || 0), 0)
+    const totalInvestido = investments.reduce((sum: number, item: Investment) => sum + (+item.valor || 0), 0)
 
     // 3. Imposto e Comissões
     const impostoVal = fatBruto * ((p.imposto || 0) / 100)
@@ -290,7 +312,7 @@ export default function FinanceiroModule() {
     <div className="space-y-6">
       {/* Subtabs Navigation */}
       <div className="flex gap-1 border-b border-border-custom flex-wrap mb-4">
-        {[
+        {([
           { id: 'brief', name: 'Briefing' },
           { id: 'params', name: 'Parâmetros' },
           { id: 'prov', name: 'Provisionamento' },
@@ -298,10 +320,10 @@ export default function FinanceiroModule() {
           { id: 'inv', name: 'Investimentos' },
           { id: 'dre', name: 'DRE' },
           { id: 'comm', name: 'Comissões' },
-        ].map((tab) => (
+        ] as const).map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveSubTab(tab.id as any)}
+            onClick={() => setActiveSubTab(tab.id)}
             className={`px-3 py-2 text-xs font-semibold cursor-pointer border-b-2 bg-transparent transition-colors duration-150 ${
               activeSubTab === tab.id
                 ? 'border-text-custom text-text-custom'
@@ -503,7 +525,7 @@ export default function FinanceiroModule() {
             {dbFin.offers.length === 0 ? (
               <p className="text-xs text-text3 text-center py-6">Nenhuma oferta registrada.</p>
             ) : (
-              dbFin.offers.map((o: any, idx: number) => {
+              dbFin.offers.map((o: Offer, idx: number) => {
                 const netSales = (o.vendas || 0) - (o.cancel || 0)
                 const rev = netSales * (o.ticket || 0)
                 return (
@@ -588,7 +610,7 @@ export default function FinanceiroModule() {
             {dbFin.investments.length === 0 ? (
               <p className="text-xs text-text3 text-center py-6">Nenhum custo registrado.</p>
             ) : (
-              dbFin.investments.map((item: any, idx: number) => (
+              dbFin.investments.map((item: Investment, idx: number) => (
                 <div
                   key={idx}
                   className="flex gap-3 items-center border-b border-border-custom pb-2 last:border-none"

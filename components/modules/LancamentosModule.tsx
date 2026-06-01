@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
-import { ChevronLeft, Check, AlertCircle, Save } from 'lucide-react'
+import { ChevronLeft, Check } from 'lucide-react'
 
 type LaunchType = 'val' | 'ep' | 'pv'
 
@@ -156,26 +156,27 @@ export default function LancamentosModule() {
   // Atualizar states locais quando os dados da query carregarem ou trocar de launch ativo
   useEffect(() => {
     if (textFields && activeLaunch) {
-      const getVal = (key: string, fallback: any) => {
+      const getVal = (key: string, fallback: string | number) => {
         const raw = textFields[`${activeLaunch}-${key}`]
         if (raw === undefined) return fallback
         return typeof fallback === 'number' ? +raw : raw
       }
 
-      setMote(getVal('mote', ''))
-      setDataIni(getVal('dataIni', ''))
-      setDataFim(getVal('dataFim', ''))
-      setPreco(getVal('preco', 0))
-      setMeta(getVal('meta', 0))
-
-      setLeads(getVal('leads', 0))
-      setVendas(getVal('vendas', 0))
-      setReceita(getVal('receita', 0))
-      setInvestido(getVal('investido', 0))
-
-      setDebGeral(getVal('debGeral', ''))
-      setDebErros(getVal('debErros', ''))
-      setDebMelhorias(getVal('debMelhorias', ''))
+      const timer = setTimeout(() => {
+        setMote(getVal('mote', '') as string)
+        setDataIni(getVal('dataIni', '') as string)
+        setDataFim(getVal('dataFim', '') as string)
+        setPreco(getVal('preco', 0) as number)
+        setMeta(getVal('meta', 0) as number)
+        setLeads(getVal('leads', 0) as number)
+        setVendas(getVal('vendas', 0) as number)
+        setReceita(getVal('receita', 0) as number)
+        setInvestido(getVal('investido', 0) as number)
+        setDebGeral(getVal('debGeral', '') as string)
+        setDebErros(getVal('debErros', '') as string)
+        setDebMelhorias(getVal('debMelhorias', '') as string)
+      }, 0)
+      return () => clearTimeout(timer)
     }
   }, [textFields, activeLaunch])
 
@@ -350,15 +351,15 @@ export default function LancamentosModule() {
 
           {/* Subtabs de Navegação */}
           <div className="flex gap-1 border-b border-border-custom flex-wrap mb-4">
-            {[
+            {([
               { id: 'checklist', name: 'Checklist' },
               { id: 'defs', name: 'Definições' },
               { id: 'nums', name: 'Números' },
               { id: 'deb', name: 'Debriefing' },
-            ].map((tab) => (
+            ] as const).map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveSubTab(tab.id as any)}
+                onClick={() => setActiveSubTab(tab.id)}
                 className={`px-4 py-2 text-xs font-semibold cursor-pointer border-b-2 bg-transparent transition-colors duration-150 ${
                   activeSubTab === tab.id
                     ? 'border-text-custom text-text-custom'

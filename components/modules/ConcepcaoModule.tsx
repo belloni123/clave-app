@@ -1,10 +1,10 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
-import { Check, X, Info, Plus, Trash, HelpCircle } from 'lucide-react'
+import { Plus, Trash } from 'lucide-react'
 
 // PERGUNTAS DA MATRIZ DO PERPÉTUO
 const PERGS = [
@@ -152,7 +152,7 @@ export default function ConcepcaoModule() {
     return { score, strength, weakness, text }
   }
 
-  const { score, strength, weakness, text: diagnosticText } = calculateMatrixScore()
+  const { strength, weakness, text: diagnosticText } = calculateMatrixScore()
 
   // ==========================================
   // 2. SUB-TAB: SIMULADOR DE PRECIFICAÇÃO
@@ -199,7 +199,7 @@ export default function ConcepcaoModule() {
   })
 
   const savePricingMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: Record<string, number>) => {
       if (!activeProjectId) return
       const { data: existing } = await supabase
         .from('pricing_scenarios')

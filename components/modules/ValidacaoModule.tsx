@@ -4,7 +4,7 @@ import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
-import { Plus, Trash, Search, Edit3, CheckSquare, Square, Check, X, Tag } from 'lucide-react'
+import { Plus, Trash, Search, CheckSquare, Square, X } from 'lucide-react'
 
 // AD PLATFORMS & STATUS OPTIONS
 const PLATFORMS = ['Facebook Ads', 'Instagram Ads', 'Google Ads', 'YouTube Ads']
@@ -92,7 +92,7 @@ export default function ValidacaoModule() {
   })
 
   const saveAdMutation = useMutation({
-    mutationFn: async (payload: any) => {
+    mutationFn: async (payload: Partial<Ad>) => {
       if (!activeProjectId) return
       if (payload.id) {
         // update
@@ -169,7 +169,7 @@ export default function ValidacaoModule() {
 
   const handleSaveAd = () => {
     if (!adName.trim()) return
-    const payload: any = {
+    const payload: Partial<Ad> = {
       name: adName.trim(),
       platform: adPlatform,
       status: adStatus,
@@ -347,7 +347,7 @@ export default function ValidacaoModule() {
     saveSubProjectsMutation.mutate(list)
   }
 
-  const updateSubProject = (idx: number, key: keyof SubProject, val: any) => {
+  const updateSubProject = (idx: number, key: keyof SubProject, val: SubProject[keyof SubProject]) => {
     if (!subProjects) return
     const list = [...subProjects]
     list[idx] = { ...list[idx], [key]: val } as SubProject
@@ -521,7 +521,7 @@ export default function ValidacaoModule() {
                         </div>
                         {ad.notes && (
                           <p className="text-[11px] text-text2 mt-2 leading-relaxed italic">
-                            "{ad.notes}"
+                            &quot;{ad.notes}&quot;
                           </p>
                         )}
                       </div>
@@ -610,7 +610,7 @@ export default function ValidacaoModule() {
                     <select
                       className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
                       value={adStatus}
-                      onChange={(e) => setAdStatus(e.target.value as any)}
+                      onChange={(e) => setAdStatus(e.target.value as Ad['status'])}
                     >
                       {AD_STATUS.map((s) => (
                         <option key={s} value={s}>

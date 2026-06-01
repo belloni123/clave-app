@@ -4,8 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
-import Toast from '@/components/Toast'
-import { Star, ArrowLeft, Key, Lock, Mail, Eye, EyeOff } from 'lucide-react'
+import { Star, ArrowLeft, Lock, Mail, Eye, EyeOff } from 'lucide-react'
 
 type LoginState = 'login' | 'esqueci' | 'ativar' | 'clave'
 
@@ -65,9 +64,10 @@ export default function LoginPage() {
         showToast('Bem-vindo ao Clave!')
         router.push('/')
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setLoading(false)
-      showToast(err.message || 'Erro inesperado no login', 'err')
+      const errMsg = err instanceof Error ? err.message : 'Erro inesperado no login'
+      showToast(errMsg, 'err')
     }
   }
 
@@ -91,9 +91,10 @@ export default function LoginPage() {
         setRecoverySent(true)
         showToast('E-mail de recuperação enviado!')
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setLoading(false)
-      showToast(err.message || 'Erro inesperado na recuperação', 'err')
+      const errMsg = err instanceof Error ? err.message : 'Erro inesperado na recuperação'
+      showToast(errMsg, 'err')
     }
   }
 
@@ -139,9 +140,10 @@ export default function LoginPage() {
           setPassword(actPass1)
         }, 1500)
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setLoading(false)
-      showToast(err.message || 'Erro inesperado na ativação', 'err')
+      const errMsg = err instanceof Error ? err.message : 'Erro inesperado na ativação'
+      showToast(errMsg, 'err')
     }
   }
 

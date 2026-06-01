@@ -173,17 +173,17 @@ export default function UrlBuilderModule() {
     <div className="space-y-6">
       {/* Abas Superiores de Navegação */}
       <div className="flex gap-1 border-b border-border-custom flex-wrap mb-4">
-        {[
+        {([
           { id: 'utm', name: 'Gerador de UTMs', icon: Link },
           { id: 'whatsapp', name: 'Link do WhatsApp', icon: MessageSquare },
           { id: 'qrcode', name: 'Criador de QR Code', icon: QrCode },
-        ].map((tab) => {
+        ] as const).map((tab) => {
           const Icon = tab.icon
           return (
             <button
               key={tab.id}
               onClick={() => {
-                setActiveTab(tab.id as any)
+                setActiveTab(tab.id)
                 setShowQrOutput(false)
               }}
               className={`px-4 py-2.5 text-xs font-semibold cursor-pointer border-b-2 bg-transparent transition-all duration-150 flex items-center gap-2 ${
@@ -329,6 +329,7 @@ export default function UrlBuilderModule() {
                 {qrLink.trim() && (
                   <div className="p-5 bg-surface2 border border-border2 rounded-xl flex flex-col items-center gap-4 animate-[fadeUp_0.1s_ease_both]">
                     <div className="bg-white p-3 rounded-lg shadow-sm border border-border-custom/50">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrLink.trim())}`}
                         alt="QR Code"
@@ -394,6 +395,7 @@ export default function UrlBuilderModule() {
               {showQrOutput && (
                 <div className="border-t border-border-custom/50 pt-4 flex flex-col sm:flex-row items-center justify-center gap-5 animate-[fadeUp_0.12s_ease_both]">
                   <div className="bg-white p-3 rounded-lg border border-border-custom shadow-sm">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(generatedUrl)}`}
                       alt="QR Code do Link"
