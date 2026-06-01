@@ -73,22 +73,27 @@ export default function LoginPage() {
 
   const handleRecovery = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!recoveryEmail) {
-      showToast('Informe o seu e-mail cadastrado.', 'err')
-      return
-    }
+    try {
+      if (!recoveryEmail) {
+        showToast('Informe o seu e-mail cadastrado.', 'err')
+        return
+      }
 
-    setLoading(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(recoveryEmail, {
-      redirectTo: `${window.location.origin}/auth/callback`,
-    })
+      setLoading(true)
+      const { error } = await supabase.auth.resetPasswordForEmail(recoveryEmail, {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      })
 
-    setLoading(false)
-    if (error) {
-      showToast(error.message || 'Erro ao enviar e-mail de recuperação', 'err')
-    } else {
-      setRecoverySent(true)
-      showToast('E-mail de recuperação enviado!')
+      setLoading(false)
+      if (error) {
+        showToast(error.message || 'Erro ao enviar e-mail de recuperação', 'err')
+      } else {
+        setRecoverySent(true)
+        showToast('E-mail de recuperação enviado!')
+      }
+    } catch (err: any) {
+      setLoading(false)
+      showToast(err.message || 'Erro inesperado na recuperação', 'err')
     }
   }
 
