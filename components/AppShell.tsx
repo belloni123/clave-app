@@ -161,7 +161,7 @@ export default function AppShell({ children }: AppShellProps) {
       group: 'FERRAMENTAS',
       items: [
         { id: 'planejador', name: 'Planejador', icon: Calendar },
-        { id: 'urlbuilder', name: 'URL Builder', icon: Link2 },
+        { id: 'urlbuilder', name: 'Links & QR Code', icon: Link2 },
         { id: 'acesso', name: 'Central de acesso', icon: Users },
       ],
     },
@@ -220,10 +220,10 @@ export default function AppShell({ children }: AppShellProps) {
                   <button
                     key={item.id}
                     onClick={() => setActiveModule(item.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors duration-100 ${
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-all duration-150 border-l-2 ${
                       isActive
-                        ? 'bg-surface2 font-medium text-text-custom'
-                        : 'text-text2 hover:bg-surface2 hover:text-text-custom'
+                        ? 'bg-surface2/85 font-semibold text-text-custom border-purple-custom'
+                        : 'text-text2 hover:bg-surface2/40 hover:text-text-custom border-transparent hover:translate-x-0.5'
                     }`}
                   >
                     <div
@@ -264,7 +264,7 @@ export default function AppShell({ children }: AppShellProps) {
               {activeModule === 'historias' && 'Banco de storytelling auxiliado por IA'}
               {activeModule === 'financeiro' && 'Gestão de caixa e planejamento do DRE'}
               {activeModule === 'planejador' && 'Calendário editorial e eventos anuais'}
-              {activeModule === 'urlbuilder' && 'Parâmetros UTM em tempo real'}
+              {activeModule === 'urlbuilder' && 'Gere tags UTM, links de WhatsApp e QR Codes'}
               {activeModule === 'acesso' && 'Permissões e equipe'}
             </p>
           </div>
@@ -296,7 +296,7 @@ export default function AppShell({ children }: AppShellProps) {
               onClick={() => setActiveModule('urlbuilder')}
               className="px-3 py-1.5 text-xs border border-border2 bg-surface text-text-custom font-medium rounded-md hover:bg-surface2 cursor-pointer transition-colors"
             >
-              URL Builder
+              Links & QR
             </button>
             <button
               onClick={handleLogout}

@@ -142,20 +142,20 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-bg relative px-4 overflow-hidden">
       {/* Background Gradients */}
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(29,158,117,0.06)_0%,transparent_50%),radial-gradient(circle_at_80%_80%,rgba(83,74,183,0.06)_0%,transparent_50%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_25%,rgba(83,74,183,0.08)_0%,transparent_50%),radial-gradient(circle_at_85%_75%,rgba(29,158,117,0.07)_0%,transparent_50%)] pointer-events-none" />
 
       <div className="w-full max-w-[400px] z-10 animate-[fadeUp_0.4s_ease_both]">
         {/* Logo Section */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-xl bg-text-custom flex items-center justify-center mb-3 shadow-md">
+          <div className="w-12 h-12 rounded-2xl bg-text-custom flex items-center justify-center mb-3 shadow-lg shadow-text-custom/10 border border-white/10 transition-transform duration-300 hover:scale-105">
             <span className="text-white text-xl font-bold select-none">C</span>
           </div>
-          <h1 className="text-xl font-semibold tracking-tight text-text-custom">Clave</h1>
-          <p className="text-xs text-text2 mt-1">Plataforma de gestão de marketing</p>
+          <h1 className="text-xl font-bold tracking-tight text-text-custom">Clave</h1>
+          <p className="text-xs text-text2 mt-1 font-medium">Plataforma de gestão de marketing</p>
         </div>
 
-        {/* Card Form */}
-        <div className="bg-surface border border-border-custom rounded-xl p-6 shadow-md">
+        {/* Card Form - Glassmorphism Premium */}
+        <div className="bg-surface/75 backdrop-blur-md border border-white/25 rounded-2xl p-7 shadow-xl relative before:absolute before:inset-0 before:rounded-2xl before:border before:border-black/[0.04] before:pointer-events-none">
           {/* STATE: LOGIN */}
           {state === 'login' && (
             <form onSubmit={handleLogin}>
