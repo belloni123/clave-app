@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
+import Toast from '@/components/Toast'
 import { Star, ArrowLeft, Key, Lock, Mail, Eye, EyeOff } from 'lucide-react'
 
 type LoginState = 'login' | 'esqueci' | 'ativar' | 'clave'
