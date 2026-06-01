@@ -45,23 +45,28 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email || !password) {
-      showToast('Preencha o e-mail e a senha.', 'err')
-      return
-    }
+    try {
+      if (!email || !password) {
+        showToast('Preencha o e-mail e a senha.', 'err')
+        return
+      }
 
-    setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+      setLoading(true)
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-    setLoading(false)
-    if (error) {
-      showToast(error.message || 'Credenciais inválidas', 'err')
-    } else {
-      showToast('Bem-vindo ao Clave!')
-      router.push('/')
+      setLoading(false)
+      if (error) {
+        showToast(error.message || 'Credenciais inválidas', 'err')
+      } else {
+        showToast('Bem-vindo ao Clave!')
+        router.push('/')
+      }
+    } catch (err: any) {
+      setLoading(false)
+      showToast(err.message || 'Erro inesperado no login', 'err')
     }
   }
 
@@ -88,44 +93,49 @@ export default function LoginPage() {
 
   const handleActivation = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!actEmail || !actCode || !actPass1 || !actPass2) {
-      showToast('Todos os campos são obrigatórios.', 'err')
-      return
-    }
+    try {
+      if (!actEmail || !actCode || !actPass1 || !actPass2) {
+        showToast('Todos os campos são obrigatórios.', 'err')
+        return
+      }
 
-    if (actPass1 !== actPass2) {
-      showToast('As senhas não coincidem.', 'err')
-      return
-    }
+      if (actPass1 !== actPass2) {
+        showToast('As senhas não coincidem.', 'err')
+        return
+      }
 
-    if (actPass1.length < 8) {
-      showToast('A senha precisa ter no mínimo 8 caracteres.', 'err')
-      return
-    }
+      if (actPass1.length < 8) {
+        showToast('A senha precisa ter no mínimo 8 caracteres.', 'err')
+        return
+      }
 
-    // Mock validation do código de ativação
-    if (!actCode.startsWith('CLAVE-')) {
-      showToast('Código de ativação inválido. Deve começar com CLAVE-', 'err')
-      return
-    }
+      // Mock validation do código de ativação
+      if (!actCode.startsWith('CLAVE-')) {
+        showToast('Código de ativação inválido. Deve começar com CLAVE-', 'err')
+        return
+      }
 
-    setLoading(true)
-    const { error } = await supabase.auth.signUp({
-      email: actEmail,
-      password: actPass1,
-    })
+      setLoading(true)
+      const { error } = await supabase.auth.signUp({
+        email: actEmail,
+        password: actPass1,
+      })
 
-    setLoading(false)
-    if (error) {
-      showToast(error.message || 'Erro ao criar conta', 'err')
-    } else {
-      setActSuccess(true)
-      showToast('Conta ativada com sucesso!')
-      setTimeout(() => {
-        setState('login')
-        setEmail(actEmail)
-        setPassword(actPass1)
-      }, 1500)
+      setLoading(false)
+      if (error) {
+        showToast(error.message || 'Erro ao criar conta', 'err')
+      } else {
+        setActSuccess(true)
+        showToast('Conta ativada com sucesso!')
+        setTimeout(() => {
+          setState('login')
+          setEmail(actEmail)
+          setPassword(actPass1)
+        }, 1500)
+      }
+    } catch (err: any) {
+      setLoading(false)
+      showToast(err.message || 'Erro inesperado na ativação', 'err')
     }
   }
 
