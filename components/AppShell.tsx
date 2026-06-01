@@ -186,11 +186,11 @@ export default function AppShell({ children }: AppShellProps) {
         {/* Top Header */}
         <div className="flex items-center gap-2.5 px-3 py-3.5 border-b border-border-custom h-14 shrink-0 min-w-0">
           <div className="w-7 h-7 rounded-lg bg-text-custom flex items-center justify-center shrink-0">
-            <span className="text-white text-sm font-semibold select-none">O</span>
+            <span className="text-white text-sm font-semibold select-none">C</span>
           </div>
           {!sidebarCollapsed && (
             <span className="text-sm font-semibold tracking-tight text-text-custom truncate flex-1">
-              Orkestria
+              Clave
             </span>
           )}
           <button

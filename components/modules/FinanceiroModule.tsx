@@ -356,7 +356,7 @@ export default function FinanceiroModule() {
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
                 value={dbFin.briefing.metodo}
                 onChange={(e) => updateSubField('briefing', 'metodo', e.target.value)}
-                placeholder="Ex: Método Orkestrado"
+                placeholder="Ex: Método Clave"
               />
             </div>
           </div>

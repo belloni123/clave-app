@@ -311,7 +311,7 @@ export default function ComunicacaoModule() {
                   className="w-full p-3 text-xs border border-border2 rounded bg-surface text-text-custom outline-none focus:border-text-custom h-20"
                   defaultValue={fields?.['id-met'] || ''}
                   onBlur={(e) => handleFieldBlur('id-met', e.target.value)}
-                  placeholder="Qual é a sua ferramenta/veículo único de transformação? Ex: Método Orkestrado."
+                  placeholder="Qual é a sua ferramenta/veículo único de transformação? Ex: Método Clave."
                 />
               </div>
               <div>

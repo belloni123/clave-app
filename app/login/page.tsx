@@ -6,7 +6,7 @@ import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
 import { Star, ArrowLeft, Key, Lock, Mail, Eye, EyeOff } from 'lucide-react'
 
-type LoginState = 'login' | 'esqueci' | 'ativar' | 'orkestrado'
+type LoginState = 'login' | 'esqueci' | 'ativar' | 'clave'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -104,8 +104,8 @@ export default function LoginPage() {
     }
 
     // Mock validation do código de ativação
-    if (!actCode.startsWith('ORKST-')) {
-      showToast('Código de ativação inválido. Deve começar com ORKST-', 'err')
+    if (!actCode.startsWith('CLAVE-')) {
+      showToast('Código de ativação inválido. Deve começar com CLAVE-', 'err')
       return
     }
 
@@ -138,7 +138,7 @@ export default function LoginPage() {
         {/* Logo Section */}
         <div className="flex flex-col items-center mb-8">
           <div className="w-12 h-12 rounded-xl bg-text-custom flex items-center justify-center mb-3 shadow-md">
-            <span className="text-white text-xl font-bold select-none">O</span>
+            <span className="text-white text-xl font-bold select-none">C</span>
           </div>
           <h1 className="text-xl font-semibold tracking-tight text-text-custom">Clave</h1>
           <p className="text-xs text-text2 mt-1">Plataforma de gestão de marketing</p>
@@ -215,10 +215,10 @@ export default function LoginPage() {
               <div className="flex justify-between border-t border-border-custom mt-6 pt-4 text-xs">
                 <button
                   type="button"
-                  onClick={() => setState('orkestrado')}
+                  onClick={() => setState('clave')}
                   className="text-text2 hover:text-text-custom underline text-left"
                 >
-                  O método Orkestrado
+                  O método Clave
                 </button>
                 <button
                   type="button"
@@ -313,7 +313,7 @@ export default function LoginPage() {
                     className="w-full px-3 py-1.5 text-xs border border-border2 rounded-md bg-surface text-text-custom font-mono outline-none focus:border-text-custom transition-colors uppercase"
                     value={actCode}
                     onChange={(e) => setActCode(e.target.value)}
-                    placeholder="ORKST-XXXX-XXXX"
+                    placeholder="CLAVE-XXXX-XXXX"
                     required
                   />
                 </div>
@@ -370,15 +370,15 @@ export default function LoginPage() {
             </form>
           )}
 
-          {/* STATE: MÉTODOS ORKESTRADO */}
-          {state === 'orkestrado' && (
+          {/* STATE: MÉTODOS CLAVE */}
+          {state === 'clave' && (
             <div className="space-y-4 animate-[fadeUp_0.2s_ease_both]">
               <div className="flex items-center gap-3 border-b border-border-custom pb-3">
                 <div className="w-9 h-9 rounded-lg bg-purple-bg flex items-center justify-center shrink-0">
                   <Star className="w-5 h-5 text-purple-custom" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-text-custom">O Método Orkestrado</p>
+                  <p className="text-xs font-bold text-text-custom">O Método Clave</p>
                   <p className="text-[10px] text-text2">A metodologia por trás do Clave</p>
                 </div>
               </div>
