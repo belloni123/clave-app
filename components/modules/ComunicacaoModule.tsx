@@ -46,6 +46,9 @@ export default function ComunicacaoModule() {
   const [vslTitle, setVslTitle] = useState('')
   const [vslCopy, setVslCopy] = useState('')
 
+  // Local state for all fields (including urgs, objs, faqs, pags arrays) to avoid keypress mutations
+  const [localFields, setLocalFields] = useState<Record<string, string> | null>(null)
+
   // 1. CARREGAR TODOS OS CAMPOS DO SUPABASE
   const { data: fields } = useQuery({
     queryKey: ['text_fields', activeProjectId],
@@ -69,6 +72,24 @@ export default function ComunicacaoModule() {
     },
     enabled: !!activeProjectId,
   })
+
+  // Clear local states when switching projects so they reload for the new project
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLocalFields(null)
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [activeProjectId])
+
+  // Sincronizar estado local (com setTimeout para evitar renderizações em cascata síncronas)
+  useEffect(() => {
+    if (fields && localFields === null) {
+      const timer = setTimeout(() => {
+        setLocalFields(fields)
+      }, 0)
+      return () => clearTimeout(timer)
+    }
+  }, [fields, localFields])
 
   // Carregar VSL localmente após a query carregar
   useEffect(() => {
@@ -118,7 +139,7 @@ export default function ComunicacaoModule() {
 
   // Helper getters para arrays
   const getArrayField = <T,>(key: string, fallback: T[]): T[] => {
-    const raw = fields?.[key]
+    const raw = (localFields || fields)?.[key]
     if (!raw) return fallback
     try {
       return JSON.parse(raw) as T[]
@@ -133,17 +154,26 @@ export default function ComunicacaoModule() {
   const urgs = getArrayField<string>('urgs', [])
   const addUrg = () => {
     const updated = [...urgs, '']
+    const updatedFields = { ...(localFields || fields || {}), urgs: JSON.stringify(updated) }
+    setLocalFields(updatedFields)
     saveFieldMutation.mutate({ key: 'urgs', value: JSON.stringify(updated) })
   }
 
-  const updateUrg = (idx: number, val: string) => {
+  const updateLocalUrg = (idx: number, val: string) => {
     const updated = [...urgs]
     updated[idx] = val
-    saveFieldMutation.mutate({ key: 'urgs', value: JSON.stringify(updated) })
+    const updatedFields = { ...(localFields || fields || {}), urgs: JSON.stringify(updated) }
+    setLocalFields(updatedFields)
+  }
+
+  const handleUrgBlur = () => {
+    saveFieldMutation.mutate({ key: 'urgs', value: JSON.stringify(urgs) })
   }
 
   const deleteUrg = (idx: number) => {
     const updated = urgs.filter((_, i) => i !== idx)
+    const updatedFields = { ...(localFields || fields || {}), urgs: JSON.stringify(updated) }
+    setLocalFields(updatedFields)
     saveFieldMutation.mutate({ key: 'urgs', value: JSON.stringify(updated) })
     showToast('Urgência removida')
   }
@@ -156,17 +186,26 @@ export default function ComunicacaoModule() {
   const objs = getArrayField<Objection>('objs', [])
   const addObj = () => {
     const updated = [...objs, { o: '', r: '' }]
+    const updatedFields = { ...(localFields || fields || {}), objs: JSON.stringify(updated) }
+    setLocalFields(updatedFields)
     saveFieldMutation.mutate({ key: 'objs', value: JSON.stringify(updated) })
   }
 
-  const updateObj = (idx: number, field: keyof Objection, val: string) => {
+  const updateLocalObj = (idx: number, field: keyof Objection, val: string) => {
     const updated = [...objs]
     updated[idx] = { ...updated[idx], [field]: val }
-    saveFieldMutation.mutate({ key: 'objs', value: JSON.stringify(updated) })
+    const updatedFields = { ...(localFields || fields || {}), objs: JSON.stringify(updated) }
+    setLocalFields(updatedFields)
+  }
+
+  const handleObjBlur = () => {
+    saveFieldMutation.mutate({ key: 'objs', value: JSON.stringify(objs) })
   }
 
   const deleteObj = (idx: number) => {
     const updated = objs.filter((_, i) => i !== idx)
+    const updatedFields = { ...(localFields || fields || {}), objs: JSON.stringify(updated) }
+    setLocalFields(updatedFields)
     saveFieldMutation.mutate({ key: 'objs', value: JSON.stringify(updated) })
     showToast('Objeção removida')
   }
@@ -174,17 +213,26 @@ export default function ComunicacaoModule() {
   const faqs = getArrayField<FAQ>('faqs', [])
   const addFaq = () => {
     const updated = [...faqs, { p: '', r: '' }]
+    const updatedFields = { ...(localFields || fields || {}), faqs: JSON.stringify(updated) }
+    setLocalFields(updatedFields)
     saveFieldMutation.mutate({ key: 'faqs', value: JSON.stringify(updated) })
   }
 
-  const updateFaq = (idx: number, field: keyof FAQ, val: string) => {
+  const updateLocalFaq = (idx: number, field: keyof FAQ, val: string) => {
     const updated = [...faqs]
     updated[idx] = { ...updated[idx], [field]: val }
-    saveFieldMutation.mutate({ key: 'faqs', value: JSON.stringify(updated) })
+    const updatedFields = { ...(localFields || fields || {}), faqs: JSON.stringify(updated) }
+    setLocalFields(updatedFields)
+  }
+
+  const handleFaqBlur = () => {
+    saveFieldMutation.mutate({ key: 'faqs', value: JSON.stringify(faqs) })
   }
 
   const deleteFaq = (idx: number) => {
     const updated = faqs.filter((_, i) => i !== idx)
+    const updatedFields = { ...(localFields || fields || {}), faqs: JSON.stringify(updated) }
+    setLocalFields(updatedFields)
     saveFieldMutation.mutate({ key: 'faqs', value: JSON.stringify(updated) })
     showToast('Pergunta de FAQ removida')
   }
@@ -231,17 +279,26 @@ export default function ComunicacaoModule() {
   const pags = getArrayField<PageStructure>('pags', [])
   const addPag = () => {
     const updated = [...pags, { n: `Página ${pags.length + 1}`, d: '' }]
+    const updatedFields = { ...(localFields || fields || {}), pags: JSON.stringify(updated) }
+    setLocalFields(updatedFields)
     saveFieldMutation.mutate({ key: 'pags', value: JSON.stringify(updated) })
   }
 
-  const updatePag = (idx: number, field: keyof PageStructure, val: string) => {
+  const updateLocalPag = (idx: number, field: keyof PageStructure, val: string) => {
     const updated = [...pags]
     updated[idx] = { ...updated[idx], [field]: val }
-    saveFieldMutation.mutate({ key: 'pags', value: JSON.stringify(updated) })
+    const updatedFields = { ...(localFields || fields || {}), pags: JSON.stringify(updated) }
+    setLocalFields(updatedFields)
+  }
+
+  const handlePagBlur = () => {
+    saveFieldMutation.mutate({ key: 'pags', value: JSON.stringify(pags) })
   }
 
   const deletePag = (idx: number) => {
     const updated = pags.filter((_, i) => i !== idx)
+    const updatedFields = { ...(localFields || fields || {}), pags: JSON.stringify(updated) }
+    setLocalFields(updatedFields)
     saveFieldMutation.mutate({ key: 'pags', value: JSON.stringify(updated) })
     showToast('Página removida')
   }
@@ -454,7 +511,8 @@ export default function ComunicacaoModule() {
                   <input
                     className="flex-1 px-2.5 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                     value={u}
-                    onChange={(e) => updateUrg(idx, e.target.value)}
+                    onChange={(e) => updateLocalUrg(idx, e.target.value)}
+                    onBlur={handleUrgBlur}
                     placeholder="Ex: Medo oculto de ser demitido mesmo parecendo bem-sucedido"
                   />
                   <button
@@ -509,7 +567,8 @@ export default function ComunicacaoModule() {
                       <input
                         className="w-full px-2.5 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                         value={o.o}
-                        onChange={(e) => updateObj(idx, 'o', e.target.value)}
+                        onChange={(e) => updateLocalObj(idx, 'o', e.target.value)}
+                        onBlur={handleObjBlur}
                         placeholder="Ex: Não tenho tempo..."
                       />
                     </div>
@@ -518,7 +577,8 @@ export default function ComunicacaoModule() {
                       <textarea
                         className="w-full px-2.5 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none h-14"
                         value={o.r}
-                        onChange={(e) => updateObj(idx, 'r', e.target.value)}
+                        onChange={(e) => updateLocalObj(idx, 'r', e.target.value)}
+                        onBlur={handleObjBlur}
                         placeholder="Ex: O método foi desenhado para ser executado em 15 min..."
                       />
                     </div>
@@ -562,7 +622,8 @@ export default function ComunicacaoModule() {
                       <input
                         className="w-full px-2.5 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                         value={f.p}
-                        onChange={(e) => updateFaq(idx, 'p', e.target.value)}
+                        onChange={(e) => updateLocalFaq(idx, 'p', e.target.value)}
+                        onBlur={handleFaqBlur}
                         placeholder="Ex: Quanto tempo tenho de suporte?"
                       />
                     </div>
@@ -571,7 +632,8 @@ export default function ComunicacaoModule() {
                       <textarea
                         className="w-full px-2.5 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none h-14"
                         value={f.r}
-                        onChange={(e) => updateFaq(idx, 'r', e.target.value)}
+                        onChange={(e) => updateLocalFaq(idx, 'r', e.target.value)}
+                        onBlur={handleFaqBlur}
                         placeholder="Ex: Suporte diário por e-mail e Discord..."
                       />
                     </div>
@@ -721,7 +783,8 @@ export default function ComunicacaoModule() {
                     <input
                       className="w-full px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none focus:border-text-custom font-semibold"
                       value={p.n}
-                      onChange={(e) => updatePag(idx, 'n', e.target.value)}
+                      onChange={(e) => updateLocalPag(idx, 'n', e.target.value)}
+                      onBlur={handlePagBlur}
                       placeholder="Ex: Landing Page de Validação"
                     />
                   </div>
@@ -730,7 +793,8 @@ export default function ComunicacaoModule() {
                     <textarea
                       className="w-full px-2.5 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none h-20"
                       value={p.d}
-                      onChange={(e) => updatePag(idx, 'd', e.target.value)}
+                      onChange={(e) => updateLocalPag(idx, 'd', e.target.value)}
+                      onBlur={handlePagBlur}
                       placeholder="Ex: Sessão 1: Promessa forte + VSL. Sessão 2: Dores do avatar (Urgências)..."
                     />
                   </div>

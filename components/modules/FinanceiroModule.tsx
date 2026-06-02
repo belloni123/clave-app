@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
@@ -92,6 +92,17 @@ export default function FinanceiroModule() {
 
   const [activeSubTab, setActiveSubTab] = useState<'brief' | 'params' | 'prov' | 'real' | 'inv' | 'dre' | 'comm'>('brief')
 
+  // Local state for typing optimization
+  const [localFin, setLocalFin] = useState<FinancialDataPayload | null>(null)
+
+  // Clear local state when project changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLocalFin(null)
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [activeProjectId])
+
   // 1. QUERY FINANCIAL DATA
   const { data: dbFin } = useQuery({
     queryKey: ['financial_data', activeProjectId],
@@ -121,6 +132,17 @@ export default function FinanceiroModule() {
     },
     enabled: !!activeProjectId,
   })
+
+  // Sync query data into local state
+  useEffect(() => {
+    if (dbFin && localFin === null) {
+      const timer = setTimeout(() => {
+        setLocalFin(dbFin)
+      }, 0)
+      return () => clearTimeout(timer)
+    }
+  }, [dbFin, localFin])
+
 
   // 2. MUTATION SAVE FINANCIAL DATA
   const saveFinMutation = useMutation({
@@ -159,41 +181,62 @@ export default function FinanceiroModule() {
     },
   })
 
-  const updateSubField = (section: 'briefing' | 'params', key: string, val: string | number) => {
-    if (!dbFin) return
+  const updateLocalSubField = (section: 'briefing' | 'params', key: string, val: string | number) => {
+    const base = localFin || dbFin
+    if (!base) return
     const updated = {
-      ...dbFin,
+      ...base,
       [section]: {
-        ...dbFin[section],
+        ...base[section],
         [key]: val
       }
     }
-    saveFinMutation.mutate(updated)
+    setLocalFin(updated)
+  }
+
+  const handleFinBlur = () => {
+    const dataToSave = localFin || dbFin
+    if (!dataToSave) return
+    saveFinMutation.mutate(dataToSave)
   }
 
   // ==========================================
   // REALIZADO & VENDAS (OFFERS CRUD)
   // ==========================================
   const addOffer = () => {
-    if (!dbFin) return
+    const base = localFin || dbFin
+    if (!base) return
     const list = [
-      ...dbFin.offers,
-      { n: `Oferta ${dbFin.offers.length + 1}`, ticket: 797, vendas: 0, cancel: 0, taxa_pct: 4.5, taxa_fix: 2.49 }
+      ...base.offers,
+      { n: `Oferta ${base.offers.length + 1}`, ticket: 797, vendas: 0, cancel: 0, taxa_pct: 4.5, taxa_fix: 2.49 }
     ]
-    saveFinMutation.mutate({ ...dbFin, offers: list })
+    const updated = { ...base, offers: list }
+    setLocalFin(updated)
+    saveFinMutation.mutate(updated)
   }
 
-  const updateOffer = (idx: number, key: string, val: string | number) => {
-    if (!dbFin) return
-    const list = [...dbFin.offers]
+  const updateLocalOffer = (idx: number, key: string, val: string | number) => {
+    const base = localFin || dbFin
+    if (!base) return
+    const list = [...base.offers]
     list[idx] = { ...list[idx], [key]: val } as Offer
-    saveFinMutation.mutate({ ...dbFin, offers: list })
+    const updated = { ...base, offers: list }
+    setLocalFin(updated)
+  }
+
+  const handleOfferBlur = () => {
+    const dataToSave = localFin || dbFin
+    if (!dataToSave) return
+    saveFinMutation.mutate(dataToSave)
   }
 
   const deleteOffer = (idx: number) => {
-    if (!dbFin) return
-    const list = dbFin.offers.filter((_item: Offer, i: number) => i !== idx)
-    saveFinMutation.mutate({ ...dbFin, offers: list })
+    const base = localFin || dbFin
+    if (!base) return
+    const list = base.offers.filter((_item: Offer, i: number) => i !== idx)
+    const updated = { ...base, offers: list }
+    setLocalFin(updated)
+    saveFinMutation.mutate(updated)
     showToast('Oferta excluída')
   }
 
@@ -201,25 +244,39 @@ export default function FinanceiroModule() {
   // INVESTIMENTOS CRUD
   // ==========================================
   const addInvestment = () => {
-    if (!dbFin) return
+    const base = localFin || dbFin
+    if (!base) return
     const list = [
-      ...dbFin.investments,
+      ...base.investments,
       { nome: '', valor: 0 }
     ]
-    saveFinMutation.mutate({ ...dbFin, investments: list })
+    const updated = { ...base, investments: list }
+    setLocalFin(updated)
+    saveFinMutation.mutate(updated)
   }
 
-  const updateInvestment = (idx: number, key: 'nome' | 'valor', val: string | number) => {
-    if (!dbFin) return
-    const list = [...dbFin.investments]
+  const updateLocalInvestment = (idx: number, key: 'nome' | 'valor', val: string | number) => {
+    const base = localFin || dbFin
+    if (!base) return
+    const list = [...base.investments]
     list[idx] = { ...list[idx], [key]: val } as Investment
-    saveFinMutation.mutate({ ...dbFin, investments: list })
+    const updated = { ...base, investments: list }
+    setLocalFin(updated)
+  }
+
+  const handleInvestmentBlur = () => {
+    const dataToSave = localFin || dbFin
+    if (!dataToSave) return
+    saveFinMutation.mutate(dataToSave)
   }
 
   const deleteInvestment = (idx: number) => {
-    if (!dbFin) return
-    const list = dbFin.investments.filter((_item: Investment, i: number) => i !== idx)
-    saveFinMutation.mutate({ ...dbFin, investments: list })
+    const base = localFin || dbFin
+    if (!base) return
+    const list = base.investments.filter((_item: Investment, i: number) => i !== idx)
+    const updated = { ...base, investments: list }
+    setLocalFin(updated)
+    saveFinMutation.mutate(updated)
     showToast('Investimento removido')
   }
 
@@ -229,9 +286,9 @@ export default function FinanceiroModule() {
   const calcFin = () => {
     if (!dbFin) return null
 
-    const p = dbFin.params
-    const offers = dbFin.offers || []
-    const investments = dbFin.investments || []
+    const p = (localFin || dbFin).params
+    const offers = (localFin || dbFin).offers || []
+    const investments = (localFin || dbFin).investments || []
 
     // 1. Receitas de Ofertas
     let fatBruto = 0
@@ -305,7 +362,7 @@ export default function FinanceiroModule() {
   if (!dbFin || !f) return <div className="text-xs text-text3 py-6 text-center">Carregando...</div>
 
   // Sum check validation for divisions
-  const sumDivisions = +(dbFin.params.luc_mae || 0) + +(dbFin.params.luc_b16 || 0) + +(dbFin.params.luc_fund || 0)
+  const sumDivisions = +((localFin || dbFin).params.luc_mae || 0) + +((localFin || dbFin).params.luc_b16 || 0) + +((localFin || dbFin).params.luc_fund || 0)
   const isDivisionSumValid = Math.abs(sumDivisions - 100) < 0.05
 
   return (
@@ -349,8 +406,8 @@ export default function FinanceiroModule() {
               <label className="text-[10px] font-bold text-text2 mb-1 block">Nome do Produto</label>
               <input
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                value={dbFin.briefing.produto}
-                onChange={(e) => updateSubField('briefing', 'produto', e.target.value)}
+                value={(localFin || dbFin).briefing.produto}
+                onChange={(e) => updateLocalSubField('briefing', 'produto', e.target.value)} onBlur={handleFinBlur}
                 placeholder="Ex: Mentoria Maestro"
               />
             </div>
@@ -358,8 +415,8 @@ export default function FinanceiroModule() {
               <label className="text-[10px] font-bold text-text2 mb-1 block">Expert / Produtor</label>
               <input
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                value={dbFin.briefing.expert}
-                onChange={(e) => updateSubField('briefing', 'expert', e.target.value)}
+                value={(localFin || dbFin).briefing.expert}
+                onChange={(e) => updateLocalSubField('briefing', 'expert', e.target.value)} onBlur={handleFinBlur}
                 placeholder="Ex: Robson Freitas"
               />
             </div>
@@ -367,8 +424,8 @@ export default function FinanceiroModule() {
               <label className="text-[10px] font-bold text-text2 mb-1 block">Categoria</label>
               <input
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                value={dbFin.briefing.cat}
-                onChange={(e) => updateSubField('briefing', 'cat', e.target.value)}
+                value={(localFin || dbFin).briefing.cat}
+                onChange={(e) => updateLocalSubField('briefing', 'cat', e.target.value)} onBlur={handleFinBlur}
                 placeholder="Ex: Negócios & Marketing"
               />
             </div>
@@ -376,8 +433,8 @@ export default function FinanceiroModule() {
               <label className="text-[10px] font-bold text-text2 mb-1 block">Metodologia</label>
               <input
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                value={dbFin.briefing.metodo}
-                onChange={(e) => updateSubField('briefing', 'metodo', e.target.value)}
+                value={(localFin || dbFin).briefing.metodo}
+                onChange={(e) => updateLocalSubField('briefing', 'metodo', e.target.value)} onBlur={handleFinBlur}
                 placeholder="Ex: Método Clave"
               />
             </div>
@@ -400,8 +457,8 @@ export default function FinanceiroModule() {
               <input
                 type="number"
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                value={dbFin.params.ticket}
-                onChange={(e) => updateSubField('params', 'ticket', +e.target.value)}
+                value={(localFin || dbFin).params.ticket}
+                onChange={(e) => updateLocalSubField('params', 'ticket', +e.target.value)} onBlur={handleFinBlur}
               />
             </div>
             <div>
@@ -409,8 +466,8 @@ export default function FinanceiroModule() {
               <input
                 type="number"
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                value={dbFin.params.verba}
-                onChange={(e) => updateSubField('params', 'verba', +e.target.value)}
+                value={(localFin || dbFin).params.verba}
+                onChange={(e) => updateLocalSubField('params', 'verba', +e.target.value)} onBlur={handleFinBlur}
               />
             </div>
             <div>
@@ -419,8 +476,8 @@ export default function FinanceiroModule() {
                 type="number"
                 step="0.1"
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                value={dbFin.params.cpl}
-                onChange={(e) => updateSubField('params', 'cpl', +e.target.value)}
+                value={(localFin || dbFin).params.cpl}
+                onChange={(e) => updateLocalSubField('params', 'cpl', +e.target.value)} onBlur={handleFinBlur}
               />
             </div>
             <div>
@@ -429,8 +486,8 @@ export default function FinanceiroModule() {
                 type="number"
                 step="0.01"
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                value={dbFin.params.conv}
-                onChange={(e) => updateSubField('params', 'conv', +e.target.value)}
+                value={(localFin || dbFin).params.conv}
+                onChange={(e) => updateLocalSubField('params', 'conv', +e.target.value)} onBlur={handleFinBlur}
               />
             </div>
             <div>
@@ -439,8 +496,8 @@ export default function FinanceiroModule() {
                 type="number"
                 step="0.1"
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                value={dbFin.params.imposto}
-                onChange={(e) => updateSubField('params', 'imposto', +e.target.value)}
+                value={(localFin || dbFin).params.imposto}
+                onChange={(e) => updateLocalSubField('params', 'imposto', +e.target.value)} onBlur={handleFinBlur}
               />
             </div>
             <div>
@@ -449,8 +506,8 @@ export default function FinanceiroModule() {
                 type="number"
                 step="0.1"
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                value={dbFin.params.com_est}
-                onChange={(e) => updateSubField('params', 'com_est', +e.target.value)}
+                value={(localFin || dbFin).params.com_est}
+                onChange={(e) => updateLocalSubField('params', 'com_est', +e.target.value)} onBlur={handleFinBlur}
               />
             </div>
           </div>
@@ -465,17 +522,17 @@ export default function FinanceiroModule() {
           <div className="p-4 bg-surface border border-border-custom rounded-xl">
             <p className="text-xs font-bold text-text-custom">Provisionamento de Leads</p>
             <p className="text-xs text-text2 mt-1">
-              Com base no orçamento de <strong>{f.formatCurrency(dbFin.params.verba)}</strong> e meta CPL de{' '}
-              <strong>{f.formatCurrency(dbFin.params.cpl)}</strong>, a projeção é captar{' '}
+              Com base no orçamento de <strong>{f.formatCurrency((localFin || dbFin).params.verba)}</strong> e meta CPL de{' '}
+              <strong>{f.formatCurrency((localFin || dbFin).params.cpl)}</strong>, a projeção é captar{' '}
               <strong>{Math.round(f.leadsProjected).toLocaleString('pt-BR')}</strong> leads.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
-              { title: 'Cenário Baixo (Conversão: ' + (dbFin.params.conv * 0.7).toFixed(2) + '%)', data: f.scLow, border: 'border-border-custom', bg: 'bg-surface' },
-              { title: 'Cenário Esperado (Conversão: ' + dbFin.params.conv.toFixed(2) + '%)', data: f.scMed, border: 'border-blue-custom/30', bg: 'bg-blue-bg/20' },
-              { title: 'Cenário Alto (Conversão: ' + (dbFin.params.conv * 1.3).toFixed(2) + '%)', data: f.scHigh, border: 'border-green-custom/30', bg: 'bg-green-bg/20' },
+              { title: 'Cenário Baixo (Conversão: ' + ((localFin || dbFin).params.conv * 0.7).toFixed(2) + '%)', data: f.scLow, border: 'border-border-custom', bg: 'bg-surface' },
+              { title: 'Cenário Esperado (Conversão: ' + (localFin || dbFin).params.conv.toFixed(2) + '%)', data: f.scMed, border: 'border-blue-custom/30', bg: 'bg-blue-bg/20' },
+              { title: 'Cenário Alto (Conversão: ' + ((localFin || dbFin).params.conv * 1.3).toFixed(2) + '%)', data: f.scHigh, border: 'border-green-custom/30', bg: 'bg-green-bg/20' },
             ].map((cen, idx) => (
               <div
                 key={idx}
@@ -522,10 +579,10 @@ export default function FinanceiroModule() {
           </div>
 
           <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1 scrollbar-thin">
-            {dbFin.offers.length === 0 ? (
+            {(localFin || dbFin).offers.length === 0 ? (
               <p className="text-xs text-text3 text-center py-6">Nenhuma oferta registrada.</p>
             ) : (
-              dbFin.offers.map((o: Offer, idx: number) => {
+              (localFin || dbFin).offers.map((o: Offer, idx: number) => {
                 const netSales = (o.vendas || 0) - (o.cancel || 0)
                 const rev = netSales * (o.ticket || 0)
                 return (
@@ -545,7 +602,7 @@ export default function FinanceiroModule() {
                       <input
                         className="w-full px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none font-semibold"
                         value={o.n}
-                        onChange={(e) => updateOffer(idx, 'n', e.target.value)}
+                        onChange={(e) => updateLocalOffer(idx, 'n', e.target.value)} onBlur={handleOfferBlur}
                         placeholder="Ex: Oferta Principal"
                       />
                     </div>
@@ -555,7 +612,7 @@ export default function FinanceiroModule() {
                         type="number"
                         className="w-full px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                         value={o.ticket}
-                        onChange={(e) => updateOffer(idx, 'ticket', +e.target.value)}
+                        onChange={(e) => updateLocalOffer(idx, 'ticket', +e.target.value)} onBlur={handleOfferBlur}
                       />
                     </div>
                     <div>
@@ -564,7 +621,7 @@ export default function FinanceiroModule() {
                         type="number"
                         className="w-full px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                         value={o.vendas}
-                        onChange={(e) => updateOffer(idx, 'vendas', +e.target.value)}
+                        onChange={(e) => updateLocalOffer(idx, 'vendas', +e.target.value)} onBlur={handleOfferBlur}
                       />
                     </div>
                     <div>
@@ -573,7 +630,7 @@ export default function FinanceiroModule() {
                         type="number"
                         className="w-full px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                         value={o.cancel}
-                        onChange={(e) => updateOffer(idx, 'cancel', +e.target.value)}
+                        onChange={(e) => updateLocalOffer(idx, 'cancel', +e.target.value)} onBlur={handleOfferBlur}
                       />
                     </div>
                     <div className="bg-surface border border-border-custom p-2 rounded text-center">
@@ -607,10 +664,10 @@ export default function FinanceiroModule() {
           </div>
 
           <div className="space-y-3">
-            {dbFin.investments.length === 0 ? (
+            {(localFin || dbFin).investments.length === 0 ? (
               <p className="text-xs text-text3 text-center py-6">Nenhum custo registrado.</p>
             ) : (
-              dbFin.investments.map((item: Investment, idx: number) => (
+              (localFin || dbFin).investments.map((item: Investment, idx: number) => (
                 <div
                   key={idx}
                   className="flex gap-3 items-center border-b border-border-custom pb-2 last:border-none"
@@ -618,14 +675,14 @@ export default function FinanceiroModule() {
                   <input
                     className="flex-1 px-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                     value={item.nome}
-                    onChange={(e) => updateInvestment(idx, 'nome', e.target.value)}
+                    onChange={(e) => updateLocalInvestment(idx, 'nome', e.target.value)} onBlur={handleInvestmentBlur}
                     placeholder="Descrição do custo (Ex: Coprodução, Designer...)"
                   />
                   <input
                     type="number"
                     className="w-36 px-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                     value={item.valor}
-                    onChange={(e) => updateInvestment(idx, 'valor', +e.target.value)}
+                    onChange={(e) => updateLocalInvestment(idx, 'valor', +e.target.value)} onBlur={handleInvestmentBlur}
                     placeholder="Valor (R$)"
                   />
                   <button
@@ -696,29 +753,29 @@ export default function FinanceiroModule() {
               <div className="space-y-4 text-xs">
                 <div>
                   <div className="flex justify-between text-text2 mb-1">
-                    <span>Expert ({dbFin.params.luc_mae}%)</span>
+                    <span>Expert ({(localFin || dbFin).params.luc_mae}%)</span>
                     <span className="font-semibold">{f.formatCurrency(f.divExpert)}</span>
                   </div>
                   <div className="w-full bg-surface2 h-1.5 rounded-full overflow-hidden">
-                    <div className="h-full bg-purple-custom" style={{ width: `${dbFin.params.luc_mae}%` }} />
+                    <div className="h-full bg-purple-custom" style={{ width: `${(localFin || dbFin).params.luc_mae}%` }} />
                   </div>
                 </div>
                 <div>
                   <div className="flex justify-between text-text2 mb-1">
-                    <span>Agência B16 ({dbFin.params.luc_b16}%)</span>
+                    <span>Agência B16 ({(localFin || dbFin).params.luc_b16}%)</span>
                     <span className="font-semibold">{f.formatCurrency(f.divB16)}</span>
                   </div>
                   <div className="w-full bg-surface2 h-1.5 rounded-full overflow-hidden">
-                    <div className="h-full bg-green-custom" style={{ width: `${dbFin.params.luc_b16}%` }} />
+                    <div className="h-full bg-green-custom" style={{ width: `${(localFin || dbFin).params.luc_b16}%` }} />
                   </div>
                 </div>
                 <div>
                   <div className="flex justify-between text-text2 mb-1">
-                    <span>Fundo Lançamento ({dbFin.params.luc_fund}%)</span>
+                    <span>Fundo Lançamento ({(localFin || dbFin).params.luc_fund}%)</span>
                     <span className="font-semibold">{f.formatCurrency(f.divFundo)}</span>
                   </div>
                   <div className="w-full bg-surface2 h-1.5 rounded-full overflow-hidden">
-                    <div className="h-full bg-coral-custom" style={{ width: `${dbFin.params.luc_fund}%` }} />
+                    <div className="h-full bg-coral-custom" style={{ width: `${(localFin || dbFin).params.luc_fund}%` }} />
                   </div>
                 </div>
               </div>
@@ -769,8 +826,8 @@ export default function FinanceiroModule() {
                 type="number"
                 step="0.001"
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                value={dbFin.params.luc_mae}
-                onChange={(e) => updateSubField('params', 'luc_mae', +e.target.value)}
+                value={(localFin || dbFin).params.luc_mae}
+                onChange={(e) => updateLocalSubField('params', 'luc_mae', +e.target.value)} onBlur={handleFinBlur}
               />
             </div>
             <div>
@@ -779,8 +836,8 @@ export default function FinanceiroModule() {
                 type="number"
                 step="0.001"
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                value={dbFin.params.luc_b16}
-                onChange={(e) => updateSubField('params', 'luc_b16', +e.target.value)}
+                value={(localFin || dbFin).params.luc_b16}
+                onChange={(e) => updateLocalSubField('params', 'luc_b16', +e.target.value)} onBlur={handleFinBlur}
               />
             </div>
             <div>
@@ -789,8 +846,8 @@ export default function FinanceiroModule() {
                 type="number"
                 step="0.001"
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                value={dbFin.params.luc_fund}
-                onChange={(e) => updateSubField('params', 'luc_fund', +e.target.value)}
+                value={(localFin || dbFin).params.luc_fund}
+                onChange={(e) => updateLocalSubField('params', 'luc_fund', +e.target.value)} onBlur={handleFinBlur}
               />
             </div>
           </div>

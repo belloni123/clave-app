@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
@@ -48,6 +48,16 @@ export default function ValidacaoModule() {
   const queryClient = useQueryClient()
   const supabase = createClient()
   const { activeProjectId, showToast } = useAppStore()
+
+  // Local states to avoid keypress mutations
+  const [localContacts, setLocalContacts] = useState<NetworkContact[] | null>(null)
+  const [localSubProjects, setLocalSubProjects] = useState<SubProject[] | null>(null)
+
+  // Clear local states on project switch
+  useEffect(() => {
+    setLocalContacts(null)
+    setLocalSubProjects(null)
+  }, [activeProjectId])
 
   const [activeSubTab, setActiveSubTab] = useState<'ads' | 'net' | 'pjs'>('ads')
 
@@ -253,26 +263,31 @@ export default function ValidacaoModule() {
   })
 
   const addContact = () => {
-    if (!contactsData) return
-    const list = [...contactsData, { nm: '', tp: 'Produtor' as const, ni: '', ig: '', ob: '' }]
+    const list = [...(localContacts || contactsData || []), { nm: '', tp: 'Produtor' as const, ni: '', ig: '', ob: '' }]
+    setLocalContacts(list)
     saveContactsMutation.mutate(list)
   }
 
-  const updateContact = (idx: number, key: keyof NetworkContact, val: string) => {
-    if (!contactsData) return
-    const list = [...contactsData]
+  const updateLocalContact = (idx: number, key: keyof NetworkContact, val: string) => {
+    const list = [...(localContacts || contactsData || [])]
     list[idx] = { ...list[idx], [key]: val } as NetworkContact
-    saveContactsMutation.mutate(list)
+    setLocalContacts(list)
+  }
+
+  const handleContactBlur = () => {
+    if (!localContacts) return
+    saveContactsMutation.mutate(localContacts)
   }
 
   const deleteContact = (idx: number) => {
-    if (!contactsData) return
-    const list = contactsData.filter((_, i) => i !== idx)
+    const list = (localContacts || contactsData || []).filter((_, i) => i !== idx)
+    setLocalContacts(list)
     saveContactsMutation.mutate(list)
     showToast('Contato removido')
   }
 
-  const filteredContacts = (contactsData || []).filter((c) => {
+
+  const filteredContacts = (localContacts || contactsData || []).filter((c) => {
     const query = netSearch.toLowerCase()
     const matchesSearch =
       !query || c.nm.toLowerCase().includes(query) || c.ni.toLowerCase().includes(query)
@@ -302,6 +317,25 @@ export default function ValidacaoModule() {
     },
     enabled: !!activeProjectId,
   })
+
+  // Sincronizar estados locais após queries terminarem (setTimeout para evitar warning de render em cascata)
+  useEffect(() => {
+    if (contactsData && localContacts === null) {
+      const timer = setTimeout(() => {
+        setLocalContacts(contactsData)
+      }, 0)
+      return () => clearTimeout(timer)
+    }
+  }, [contactsData, localContacts])
+
+  useEffect(() => {
+    if (subProjects && localSubProjects === null) {
+      const timer = setTimeout(() => {
+        setLocalSubProjects(subProjects)
+      }, 0)
+      return () => clearTimeout(timer)
+    }
+  }, [subProjects, localSubProjects])
 
   const saveSubProjectsMutation = useMutation({
     mutationFn: async (list: SubProject[]) => {
@@ -333,9 +367,8 @@ export default function ValidacaoModule() {
   })
 
   const addSubProject = () => {
-    if (!subProjects) return
     const list: SubProject[] = [
-      ...subProjects,
+      ...(localSubProjects || subProjects || []),
       {
         id: 'sp_' + Date.now(),
         nm: '',
@@ -344,50 +377,61 @@ export default function ValidacaoModule() {
         tasks: [],
       },
     ]
+    setLocalSubProjects(list)
     saveSubProjectsMutation.mutate(list)
   }
 
-  const updateSubProject = (idx: number, key: keyof SubProject, val: SubProject[keyof SubProject]) => {
-    if (!subProjects) return
-    const list = [...subProjects]
+  const updateLocalSubProject = (idx: number, key: keyof SubProject, val: SubProject[keyof SubProject]) => {
+    const list = [...(localSubProjects || subProjects || [])]
     list[idx] = { ...list[idx], [key]: val } as SubProject
-    saveSubProjectsMutation.mutate(list)
+    setLocalSubProjects(list)
+  }
+
+  const handleSubProjectBlur = () => {
+    if (!localSubProjects) return
+    saveSubProjectsMutation.mutate(localSubProjects)
   }
 
   const deleteSubProject = (idx: number) => {
-    if (!subProjects) return
-    const list = subProjects.filter((_, i) => i !== idx)
+    const list = (localSubProjects || subProjects || []).filter((_, i) => i !== idx)
+    setLocalSubProjects(list)
     saveSubProjectsMutation.mutate(list)
     showToast('Sub-projeto removido')
   }
 
   const toggleSubTask = (pIdx: number, tIdx: number) => {
-    if (!subProjects) return
-    const list = [...subProjects]
+    const base = localSubProjects || subProjects
+    if (!base) return
+    const list = [...base]
     const proj = { ...list[pIdx] }
     const tasks = [...proj.tasks]
     tasks[tIdx] = { ...tasks[tIdx], d: !tasks[tIdx].d }
     proj.tasks = tasks
     list[pIdx] = proj
+    setLocalSubProjects(list)
     saveSubProjectsMutation.mutate(list)
   }
 
   const addSubTask = (pIdx: number, text: string) => {
-    if (!text.trim() || !subProjects) return
-    const list = [...subProjects]
+    if (!text.trim()) return
+    const base = localSubProjects || subProjects
+    if (!base) return
+    const list = [...base]
     const proj = { ...list[pIdx] }
     proj.tasks = [...proj.tasks, { t: text.trim(), d: false }]
     list[pIdx] = proj
+    setLocalSubProjects(list)
     saveSubProjectsMutation.mutate(list)
   }
 
   const removeSubTask = (pIdx: number, tIdx: number) => {
-    if (!subProjects) return
-    const list = [...subProjects]
+    const base = localSubProjects || subProjects
+    if (!base) return
+    const list = [...base]
     const proj = { ...list[pIdx] }
     proj.tasks = proj.tasks.filter((_, i) => i !== tIdx)
     list[pIdx] = proj
-    saveSubProjectsMutation.mutate(list)
+    setLocalSubProjects(list)
   }
 
   return (
@@ -699,7 +743,7 @@ export default function ValidacaoModule() {
       {/* ==========================================
           TAB: NETWORKING DIRECTORY
           ========================================== */}
-      {activeSubTab === 'net' && contactsData && (
+      {activeSubTab === 'net' && (localContacts || contactsData) && (
         <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4 animate-[fadeUp_0.15s_ease_both]">
           {/* Header Search & Filter */}
           <div className="flex justify-between items-center border-b border-border-custom pb-3 flex-wrap gap-3">
@@ -749,14 +793,14 @@ export default function ValidacaoModule() {
                     <input
                       className="w-full sm:flex-1 px-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none font-semibold"
                       value={c.nm}
-                      onChange={(e) => updateContact(idx, 'nm', e.target.value)}
+                      onChange={(e) => updateLocalContact(idx, 'nm', e.target.value)} onBlur={handleContactBlur}
                       placeholder="Nome do Contato"
                     />
 
                     <select
                       className="w-full sm:w-32 px-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                       value={c.tp}
-                      onChange={(e) => updateContact(idx, 'tp', e.target.value)}
+                      onChange={(e) => updateLocalContact(idx, 'tp', e.target.value)} onBlur={handleContactBlur}
                     >
                       <option value="Produtor">Produtor</option>
                       <option value="Especialista">Especialista</option>
@@ -767,14 +811,14 @@ export default function ValidacaoModule() {
                     <input
                       className="w-full sm:w-32 px-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                       value={c.ni}
-                      onChange={(e) => updateContact(idx, 'ni', e.target.value)}
+                      onChange={(e) => updateLocalContact(idx, 'ni', e.target.value)} onBlur={handleContactBlur}
                       placeholder="Nicho de atuação"
                     />
 
                     <input
                       className="w-full sm:w-36 px-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom font-mono outline-none"
                       value={c.ig}
-                      onChange={(e) => updateContact(idx, 'ig', e.target.value)}
+                      onChange={(e) => updateLocalContact(idx, 'ig', e.target.value)} onBlur={handleContactBlur}
                       placeholder="@instagram"
                     />
                   </div>
@@ -783,7 +827,7 @@ export default function ValidacaoModule() {
                     <input
                       className="flex-1 md:w-56 px-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                       value={c.ob}
-                      onChange={(e) => updateContact(idx, 'ob', e.target.value)}
+                      onChange={(e) => updateLocalContact(idx, 'ob', e.target.value)} onBlur={handleContactBlur}
                       placeholder="Oportunidade / Notas"
                     />
 
@@ -804,7 +848,7 @@ export default function ValidacaoModule() {
       {/* ==========================================
           TAB: PROJETOS / TAREFAS INTERNAS
           ========================================== */}
-      {activeSubTab === 'pjs' && subProjects && (
+      {activeSubTab === 'pjs' && (localSubProjects || subProjects) && (
         <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4 animate-[fadeUp_0.15s_ease_both]">
           <div className="flex justify-between items-center border-b border-border-custom pb-3">
             <div>
@@ -820,10 +864,10 @@ export default function ValidacaoModule() {
           </div>
 
           <div className="space-y-6 max-h-[460px] overflow-y-auto pr-1 scrollbar-thin">
-            {subProjects.length === 0 ? (
+            {(localSubProjects || subProjects || []).length === 0 ? (
               <p className="text-xs text-text3 text-center py-6">Nenhum projeto cadastrado.</p>
             ) : (
-              subProjects.map((p, pIdx) => {
+              (localSubProjects || subProjects || []).map((p, pIdx) => {
                 const totalTasks = p.tasks.length
                 const completedTasks = p.tasks.filter((t) => t.d).length
                 const progressPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
@@ -842,13 +886,13 @@ export default function ValidacaoModule() {
                       <input
                         className="w-full sm:flex-1 px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none font-bold"
                         value={p.nm}
-                        onChange={(e) => updateSubProject(pIdx, 'nm', e.target.value)}
+                        onChange={(e) => updateLocalSubProject(pIdx, 'nm', e.target.value)} onBlur={handleSubProjectBlur}
                         placeholder="Nome do Sub-projeto"
                       />
                       <select
                         className="w-full sm:w-32 px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                         value={p.st}
-                        onChange={(e) => updateSubProject(pIdx, 'st', e.target.value)}
+                        onChange={(e) => updateLocalSubProject(pIdx, 'st', e.target.value)} onBlur={handleSubProjectBlur}
                       >
                         <option value="planejado">Planejado</option>
                         <option value="em andamento">Em Andamento</option>
@@ -858,7 +902,7 @@ export default function ValidacaoModule() {
                         type="date"
                         className="w-full sm:w-36 px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                         value={p.prazo}
-                        onChange={(e) => updateSubProject(pIdx, 'prazo', e.target.value)}
+                        onChange={(e) => updateLocalSubProject(pIdx, 'prazo', e.target.value)} onBlur={handleSubProjectBlur}
                       />
                     </div>
 
