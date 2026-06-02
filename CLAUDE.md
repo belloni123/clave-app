@@ -18,3 +18,5 @@
 2.  **Renders em Cascata (react-hooks/set-state-in-effect)**: Não execute atualizações de estado síncronas em efeitos. Para dependências locais complexas, utilize um timer adiado (`setTimeout(..., 0)`) ou redesenhe o fluxo de propriedades.
 3.  **Entidades JSX**: Aspas e caracteres especiais no JSX devem ser devidamente escapados (ex: `&quot;` em vez de `"`, ou wrap com `{"\""}`).
 4.  **Imagens**: Imagens estáticas devem usar `<Image />` do `next/image`. Para geradores de QR Code externos dinâmicos, adicione o comentário de desativação do linter: `{/* eslint-disable-next-line @next/next/no-img-element */}`.
+5.  **Evitar Recursão Infinita em Políticas RLS**: Nunca cruze referências diretas de tabelas (Tabela A -> Tabela B -> Tabela A) em regras RLS, pois isso gera erros de recursão infinita (código de erro Postgres `42P17`). Utilize funções auxiliares declaradas como `SECURITY DEFINER` (que rodam como `postgres`, bypassando o RLS) para realizar consultas cruzadas sem disparar loops de regras RLS.
+
