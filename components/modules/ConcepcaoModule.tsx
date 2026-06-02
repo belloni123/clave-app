@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
@@ -45,6 +45,19 @@ export default function ConcepcaoModule() {
   const supabase = createClient()
   const { activeProjectId, showToast } = useAppStore()
   const [activeSubTab, setActiveSubTab] = useState<'matriz' | 'preco' | 'bench'>('matriz')
+
+  // Local state for pricing and competitors to avoid saving on every keypress
+  const [localPricing, setLocalPricing] = useState<Record<string, number> | null>(null)
+  const [localCompetitors, setLocalCompetitors] = useState<Competitor[] | null>(null)
+
+  // Clear local states when switching projects so they reload for the new project
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLocalPricing(null)
+      setLocalCompetitors(null)
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [activeProjectId])
 
   // ==========================================
   // 1. SUB-TAB: MATRIZ DO PERPÉTUO LOGIC
@@ -225,38 +238,45 @@ export default function ConcepcaoModule() {
     },
   })
 
-  const handlePricingChange = (key: string, val: number) => {
-    if (!pricingData) return
-    const updated = { ...pricingData, [key]: val }
-    savePricingMutation.mutate(updated)
+  const handleLocalPricingChange = (key: string, val: number) => {
+    const base = localPricing || pricingData
+    if (!base) return
+    setLocalPricing({ ...base, [key]: val })
   }
 
-  // Cálculos financeiros
+  const handlePricingBlur = () => {
+    const dataToSave = localPricing || pricingData
+    if (!dataToSave) return
+    savePricingMutation.mutate(dataToSave)
+  }
+
+  // Cálculos financeiros baseados no estado local (para responsividade instantânea)
   const calcFin = () => {
-    if (!pricingData) return null
+    const data = localPricing || pricingData
+    if (!data) return null
 
-    const p = pricingData.preco || 0
-    const q = pricingData.vendasDia || 0
-    const cpa = pricingData.cpa || 0
+    const p = data.preco || 0
+    const q = data.vendasDia || 0
+    const cpa = data.cpa || 0
 
-    const gw = (pricingData.gateway || 0) / 100
-    const re = (pricingData.reembolso || 0) / 100
-    const imp = (pricingData.imposto || 0) / 100
-    const mmq = (pricingData.outrosVar || 0) / 100
+    const gw = (data.gateway || 0) / 100
+    const re = (data.reembolso || 0) / 100
+    const imp = (data.imposto || 0) / 100
+    const mmq = (data.outrosVar || 0) / 100
 
-    const host = pricingData.hospedagem || 0
-    const plat = pricingData.outrosFixos || 0
+    const host = data.hospedagem || 0
+    const plat = data.outrosFixos || 0
 
-    const fPro = pricingData.proLabore || 0
-    const fFunc = pricingData.funcionarios || 0
-    const fInt = pricingData.integracoes || 0
-    const fEml = pricingData.emailMkt || 0
-    const fCrm = pricingData.crm || 0
-    const fEsc = pricingData.escritorio || 0
+    const fPro = data.proLabore || 0
+    const fFunc = data.funcionarios || 0
+    const fInt = data.integracoes || 0
+    const fEml = data.emailMkt || 0
+    const fCrm = data.crm || 0
+    const fEsc = data.escritorio || 0
 
-    const lm = (pricingData.loopRetirada || 0) / 100
-    const lpP = (pricingData.loopInvestimento || 0) / 100
-    const la = (pricingData.loopOutros || 0) / 100
+    const lm = (data.loopRetirada || 0) / 100
+    const lpP = (data.loopInvestimento || 0) / 100
+    const la = (data.loopOutros || 0) / 100
 
     const v = q * 365
     const rec = p * v
@@ -369,22 +389,45 @@ export default function ConcepcaoModule() {
     },
   })
 
+  // Sincronizar estados locais após carregamento das queries (adiado para evitar cascading renders síncronos)
+  useEffect(() => {
+    if (pricingData && localPricing === null) {
+      const timer = setTimeout(() => {
+        setLocalPricing(pricingData)
+      }, 0)
+      return () => clearTimeout(timer)
+    }
+  }, [pricingData, localPricing])
+
+  useEffect(() => {
+    if (competitors && localCompetitors === null) {
+      const timer = setTimeout(() => {
+        setLocalCompetitors(competitors)
+      }, 0)
+      return () => clearTimeout(timer)
+    }
+  }, [competitors, localCompetitors])
+
   const addCompetitor = () => {
-    if (!competitors) return
-    const list = [...competitors, { n: '', s: '', i: '' }]
+    const list = [...(localCompetitors || competitors || []), { n: '', s: '', i: '' }]
+    setLocalCompetitors(list)
     saveCompetitorsMutation.mutate(list)
   }
 
-  const updateCompetitor = (index: number, key: keyof Competitor, val: string) => {
-    if (!competitors) return
-    const list = [...competitors]
+  const handleLocalCompetitorChange = (index: number, key: keyof Competitor, val: string) => {
+    const list = [...(localCompetitors || competitors || [])]
     list[index] = { ...list[index], [key]: val }
-    saveCompetitorsMutation.mutate(list)
+    setLocalCompetitors(list)
+  }
+
+  const handleCompetitorBlur = () => {
+    if (!localCompetitors) return
+    saveCompetitorsMutation.mutate(localCompetitors)
   }
 
   const removeCompetitor = (index: number) => {
-    if (!competitors) return
-    const list = competitors.filter((_, i) => i !== index)
+    const list = (localCompetitors || competitors || []).filter((_, i) => i !== index)
+    setLocalCompetitors(list)
     saveCompetitorsMutation.mutate(list)
     showToast('Concorrente removido')
   }
@@ -509,7 +552,7 @@ export default function ConcepcaoModule() {
       {/* ==========================================
           SUBTAB CONTENT: PRECIFICAÇÃO SIMULATOR
           ========================================== */}
-      {activeSubTab === 'preco' && pricingData && f && (
+      {activeSubTab === 'preco' && (localPricing || pricingData) && f && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-[fadeUp_0.15s_ease_both]">
           {/* Column 1: Config Parameters */}
           <div className="md:col-span-2 space-y-6">
@@ -523,8 +566,9 @@ export default function ConcepcaoModule() {
                   <label className="text-[10px] font-bold text-text2 mb-1 block">Preço (R$)</label>
                   <input
                     type="number"
-                    value={pricingData.preco}
-                    onChange={(e) => handlePricingChange('preco', +e.target.value)}
+                    value={(localPricing || pricingData)?.preco ?? ''}
+                    onChange={(e) => handleLocalPricingChange('preco', +e.target.value)}
+                    onBlur={handlePricingBlur}
                     className="w-full px-3 py-2 text-xs border border-border2 rounded bg-surface text-text-custom outline-none focus:border-text-custom"
                   />
                 </div>
@@ -532,8 +576,9 @@ export default function ConcepcaoModule() {
                   <label className="text-[10px] font-bold text-text2 mb-1 block">Vendas / dia</label>
                   <input
                     type="number"
-                    value={pricingData.vendasDia}
-                    onChange={(e) => handlePricingChange('vendasDia', +e.target.value)}
+                    value={(localPricing || pricingData)?.vendasDia ?? ''}
+                    onChange={(e) => handleLocalPricingChange('vendasDia', +e.target.value)}
+                    onBlur={handlePricingBlur}
                     className="w-full px-3 py-2 text-xs border border-border2 rounded bg-surface text-text-custom outline-none focus:border-text-custom"
                   />
                 </div>
@@ -541,8 +586,9 @@ export default function ConcepcaoModule() {
                   <label className="text-[10px] font-bold text-text2 mb-1 block">CPA (R$)</label>
                   <input
                     type="number"
-                    value={pricingData.cpa}
-                    onChange={(e) => handlePricingChange('cpa', +e.target.value)}
+                    value={(localPricing || pricingData)?.cpa ?? ''}
+                    onChange={(e) => handleLocalPricingChange('cpa', +e.target.value)}
+                    onBlur={handlePricingBlur}
                     className="w-full px-3 py-2 text-xs border border-border2 rounded bg-surface text-text-custom outline-none focus:border-text-custom"
                   />
                 </div>
@@ -558,8 +604,9 @@ export default function ConcepcaoModule() {
                   <input
                     type="number"
                     step="0.1"
-                    value={pricingData.gateway}
-                    onChange={(e) => handlePricingChange('gateway', +e.target.value)}
+                    value={(localPricing || pricingData)?.gateway ?? ''}
+                    onChange={(e) => handleLocalPricingChange('gateway', +e.target.value)}
+                    onBlur={handlePricingBlur}
                     className="w-full px-2.5 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom"
                   />
                 </div>
@@ -568,8 +615,9 @@ export default function ConcepcaoModule() {
                   <input
                     type="number"
                     step="0.1"
-                    value={pricingData.reembolso}
-                    onChange={(e) => handlePricingChange('reembolso', +e.target.value)}
+                    value={(localPricing || pricingData)?.reembolso ?? ''}
+                    onChange={(e) => handleLocalPricingChange('reembolso', +e.target.value)}
+                    onBlur={handlePricingBlur}
                     className="w-full px-2.5 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom"
                   />
                 </div>
@@ -578,8 +626,9 @@ export default function ConcepcaoModule() {
                   <input
                     type="number"
                     step="0.1"
-                    value={pricingData.imposto}
-                    onChange={(e) => handlePricingChange('imposto', +e.target.value)}
+                    value={(localPricing || pricingData)?.imposto ?? ''}
+                    onChange={(e) => handleLocalPricingChange('imposto', +e.target.value)}
+                    onBlur={handlePricingBlur}
                     className="w-full px-2.5 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom"
                   />
                 </div>
@@ -588,8 +637,9 @@ export default function ConcepcaoModule() {
                   <input
                     type="number"
                     step="0.1"
-                    value={pricingData.outrosVar}
-                    onChange={(e) => handlePricingChange('outrosVar', +e.target.value)}
+                    value={(localPricing || pricingData)?.outrosVar ?? ''}
+                    onChange={(e) => handleLocalPricingChange('outrosVar', +e.target.value)}
+                    onBlur={handlePricingBlur}
                     className="w-full px-2.5 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom"
                   />
                 </div>
@@ -604,8 +654,9 @@ export default function ConcepcaoModule() {
                   <label className="text-[9px] text-text2 mb-0.5 block">Pró-Labore</label>
                   <input
                     type="number"
-                    value={pricingData.proLabore}
-                    onChange={(e) => handlePricingChange('proLabore', +e.target.value)}
+                    value={(localPricing || pricingData)?.proLabore ?? ''}
+                    onChange={(e) => handleLocalPricingChange('proLabore', +e.target.value)}
+                    onBlur={handlePricingBlur}
                     className="w-full px-2.5 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom"
                   />
                 </div>
@@ -613,8 +664,9 @@ export default function ConcepcaoModule() {
                   <label className="text-[9px] text-text2 mb-0.5 block">Funcionários</label>
                   <input
                     type="number"
-                    value={pricingData.funcionarios}
-                    onChange={(e) => handlePricingChange('funcionarios', +e.target.value)}
+                    value={(localPricing || pricingData)?.funcionarios ?? ''}
+                    onChange={(e) => handleLocalPricingChange('funcionarios', +e.target.value)}
+                    onBlur={handlePricingBlur}
                     className="w-full px-2.5 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom"
                   />
                 </div>
@@ -622,8 +674,9 @@ export default function ConcepcaoModule() {
                   <label className="text-[9px] text-text2 mb-0.5 block">Ferramentas/Infra</label>
                   <input
                     type="number"
-                    value={pricingData.integracoes}
-                    onChange={(e) => handlePricingChange('integracoes', +e.target.value)}
+                    value={(localPricing || pricingData)?.integracoes ?? ''}
+                    onChange={(e) => handleLocalPricingChange('integracoes', +e.target.value)}
+                    onBlur={handlePricingBlur}
                     className="w-full px-2.5 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom"
                   />
                 </div>
@@ -638,8 +691,9 @@ export default function ConcepcaoModule() {
                   <label className="text-[9px] text-text2 mb-0.5 block">Retirada Mão</label>
                   <input
                     type="number"
-                    value={pricingData.loopRetirada}
-                    onChange={(e) => handlePricingChange('loopRetirada', +e.target.value)}
+                    value={(localPricing || pricingData)?.loopRetirada ?? ''}
+                    onChange={(e) => handleLocalPricingChange('loopRetirada', +e.target.value)}
+                    onBlur={handlePricingBlur}
                     className="w-full px-2.5 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom"
                   />
                 </div>
@@ -647,8 +701,9 @@ export default function ConcepcaoModule() {
                   <label className="text-[9px] text-text2 mb-0.5 block">Fundo Caixa</label>
                   <input
                     type="number"
-                    value={pricingData.loopInvestimento}
-                    onChange={(e) => handlePricingChange('loopInvestimento', +e.target.value)}
+                    value={(localPricing || pricingData)?.loopInvestimento ?? ''}
+                    onChange={(e) => handleLocalPricingChange('loopInvestimento', +e.target.value)}
+                    onBlur={handlePricingBlur}
                     className="w-full px-2.5 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom"
                   />
                 </div>
@@ -656,8 +711,9 @@ export default function ConcepcaoModule() {
                   <label className="text-[9px] text-text2 mb-0.5 block">Reserva Extra</label>
                   <input
                     type="number"
-                    value={pricingData.loopOutros}
-                    onChange={(e) => handlePricingChange('loopOutros', +e.target.value)}
+                    value={(localPricing || pricingData)?.loopOutros ?? ''}
+                    onChange={(e) => handleLocalPricingChange('loopOutros', +e.target.value)}
+                    onBlur={handlePricingBlur}
                     className="w-full px-2.5 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom"
                   />
                 </div>
@@ -781,7 +837,7 @@ export default function ConcepcaoModule() {
       {/* ==========================================
           SUBTAB CONTENT: BENCHMARKING (COMPETITORS)
           ========================================== */}
-      {activeSubTab === 'bench' && competitors && (
+      {activeSubTab === 'bench' && (localCompetitors || competitors) && (
         <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4 animate-[fadeUp_0.15s_ease_both]">
           <div className="flex justify-between items-center border-b border-border-custom pb-3">
             <span className="text-xs font-bold text-text-custom">Principais Concorrentes</span>
@@ -795,10 +851,10 @@ export default function ConcepcaoModule() {
           </div>
 
           <div className="space-y-3">
-            {competitors.length === 0 ? (
+            {(!localCompetitors || localCompetitors.length === 0) ? (
               <p className="text-xs text-text3 text-center py-6">Nenhum concorrente cadastrado.</p>
             ) : (
-              competitors.map((c, idx) => (
+              localCompetitors.map((c, idx) => (
                 <div
                   key={idx}
                   className="flex flex-col sm:flex-row gap-3 items-center border-b border-border-custom pb-3 last:border-none last:pb-0"
@@ -806,19 +862,22 @@ export default function ConcepcaoModule() {
                   <input
                     className="w-full sm:flex-1 px-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                     value={c.n}
-                    onChange={(e) => updateCompetitor(idx, 'n', e.target.value)}
+                    onChange={(e) => handleLocalCompetitorChange(idx, 'n', e.target.value)}
+                    onBlur={handleCompetitorBlur}
                     placeholder="Nome do Concorrente / Player"
                   />
                   <input
                     className="w-full sm:flex-1 px-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                     value={c.s}
-                    onChange={(e) => updateCompetitor(idx, 's', e.target.value)}
+                    onChange={(e) => handleLocalCompetitorChange(idx, 's', e.target.value)}
+                    onBlur={handleCompetitorBlur}
                     placeholder="Site / Link"
                   />
                   <input
                     className="w-full sm:flex-1 px-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom font-mono outline-none"
                     value={c.i}
-                    onChange={(e) => updateCompetitor(idx, 'i', e.target.value)}
+                    onChange={(e) => handleLocalCompetitorChange(idx, 'i', e.target.value)}
+                    onBlur={handleCompetitorBlur}
                     placeholder="@instagram"
                   />
                   <button
