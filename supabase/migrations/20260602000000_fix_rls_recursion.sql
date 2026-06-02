@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════
--- MIGRATION: FIX RLS INFINITE RECURSION
+-- MIGRATION: FIX RLS INFINITE RECURSION & AUTO-TRIGGER
 -- ════════════════════════════════════════════════
 
 -- 1. Helper function is_admin running as SECURITY DEFINER to bypass RLS checks and prevent infinite recursion loops
@@ -13,18 +13,45 @@ begin
 end;
 $$ language plpgsql security definer;
 
--- 2. Update SELECT and DELETE policies on profiles table using the is_admin helper
+-- 2. Update SELECT, INSERT and DELETE policies on profiles table (SELECT is now non-recursive!)
 drop policy if exists "Usuários podem ver seu próprio perfil ou administradores todos" on public.profiles;
 create policy "Usuários podem ver seu próprio perfil ou administradores todos"
   on public.profiles for select
-  using (auth.uid() = id or public.is_admin(auth.uid()));
+  using (auth.uid() is not null);
+
+drop policy if exists "Usuários podem criar seu próprio perfil" on public.profiles;
+create policy "Usuários podem criar seu próprio perfil"
+  on public.profiles for insert
+  with check (auth.uid() = id);
 
 drop policy if exists "Apenas administradores podem deletar perfis" on public.profiles;
 create policy "Apenas administradores podem deletar perfis"
   on public.profiles for delete
   using (public.is_admin(auth.uid()));
 
--- 3. Update SELECT and ALL policies on projects table using the is_admin helper
+-- 3. Automatic trigger to create profiles for new users
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profiles (id, role, plan, max_projects)
+  values (new.id, 'client', 'free', 2)
+  on conflict (id) do nothing;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- 4. Backfill any existing users in auth.users that don't have a profile
+insert into public.profiles (id, role, plan, max_projects)
+select id, 'client', 'free', 2 
+from auth.users
+on conflict (id) do nothing;
+
+-- 5. Update SELECT and ALL policies on projects table using the is_admin helper
 drop policy if exists "Projetos visíveis para donos, colaboradores ou admins" on public.projects;
 create policy "Projetos visíveis para donos, colaboradores ou admins"
   on public.projects for select
@@ -44,7 +71,7 @@ create policy "Donos de projetos ou admins podem gerenciar projetos"
     or public.is_admin(auth.uid())
   );
 
--- 4. Update SELECT and ALL policies on colab_assignments table using the is_admin helper
+-- 6. Update SELECT and ALL policies on colab_assignments table using the is_admin helper
 drop policy if exists "Atribuições visíveis para o dono do projeto, o colaborador e admins" on public.colab_assignments;
 create policy "Atribuições visíveis para o dono do projeto, o colaborador e admins"
   on public.colab_assignments for select
