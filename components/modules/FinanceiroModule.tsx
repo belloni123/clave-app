@@ -8,25 +8,25 @@ import { Trash, AlertTriangle, Check } from 'lucide-react'
 
 interface Offer {
   n: string
-  ticket: number
-  vendas: number
-  cancel: number
-  taxa_pct: number
-  taxa_fix: number
+  ticket: number | string
+  vendas: number | string
+  cancel: number | string
+  taxa_pct: number | string
+  taxa_fix: number | string
 }
 
 interface Investment {
   nome: string
-  valor: number
+  valor: number | string
 }
 
 interface FinancialDataPayload {
   id?: string
   briefing: Record<string, string | number | boolean>
-  params: Record<string, number>
+  params: Record<string, number | string>
   offers: Offer[]
   investments: Investment[]
-  trafego_real?: number
+  trafego_real?: number | string
   curCen: number
 }
 
@@ -148,15 +148,38 @@ export default function FinanceiroModule() {
   const saveFinMutation = useMutation({
     mutationFn: async (payload: FinancialDataPayload) => {
       if (!activeProjectId) return
+
+      // Sanitize values for database storage
+      const cleanParams: Record<string, number> = {}
+      for (const [k, v] of Object.entries(payload.params || {})) {
+        cleanParams[k] = v === '' ? 0 : +v
+      }
+
+      const cleanOffers = (payload.offers || []).map((o) => ({
+        ...o,
+        ticket: o.ticket === '' ? 0 : +o.ticket,
+        vendas: o.vendas === '' ? 0 : +o.vendas,
+        cancel: o.cancel === '' ? 0 : +o.cancel,
+        taxa_pct: o.taxa_pct === '' ? 0 : +o.taxa_pct,
+        taxa_fix: o.taxa_fix === '' ? 0 : +o.taxa_fix,
+      }))
+
+      const cleanInvestments = (payload.investments || []).map((inv) => ({
+        ...inv,
+        valor: inv.valor === '' ? 0 : +inv.valor,
+      }))
+
+      const cleanTrafegoReal = payload.trafego_real === '' ? 0 : +(payload.trafego_real || 0)
+
       if (payload.id) {
         const { error } = await supabase
           .from('financial_data')
           .update({
             briefing: payload.briefing,
-            params: payload.params,
-            offers: payload.offers,
-            investments: payload.investments,
-            trafego_real: payload.trafego_real,
+            params: cleanParams,
+            offers: cleanOffers,
+            investments: cleanInvestments,
+            trafego_real: cleanTrafegoReal,
             curCen: payload.curCen
           })
           .eq('id', payload.id)
@@ -167,10 +190,10 @@ export default function FinanceiroModule() {
           .insert({
             project_id: activeProjectId,
             briefing: payload.briefing,
-            params: payload.params,
-            offers: payload.offers,
-            investments: payload.investments,
-            trafego_real: payload.trafego_real,
+            params: cleanParams,
+            offers: cleanOffers,
+            investments: cleanInvestments,
+            trafego_real: cleanTrafegoReal,
             curCen: payload.curCen
           })
         if (error) throw error
@@ -295,9 +318,9 @@ export default function FinanceiroModule() {
     let totalTaxasPlat = 0
 
     offers.forEach((o: Offer) => {
-      const liqSales = (o.vendas || 0) - (o.cancel || 0)
-      const rev = liqSales * (o.ticket || 0)
-      const fee = rev * ((o.taxa_pct || 0) / 100) + liqSales * (o.taxa_fix || 0)
+      const liqSales = +(o.vendas || 0) - +(o.cancel || 0)
+      const rev = liqSales * +(o.ticket || 0)
+      const fee = rev * (+(o.taxa_pct || 0) / 100) + liqSales * +(o.taxa_fix || 0)
       fatBruto += rev
       totalTaxasPlat += fee
     })
@@ -308,26 +331,26 @@ export default function FinanceiroModule() {
     const totalInvestido = investments.reduce((sum: number, item: Investment) => sum + (+item.valor || 0), 0)
 
     // 3. Imposto e Comissões
-    const impostoVal = fatBruto * ((p.imposto || 0) / 100)
-    const comissaoEstrategista = recLiquida * ((p.com_est || 0) / 100)
+    const impostoVal = fatBruto * (+(p.imposto || 0) / 100)
+    const comissaoEstrategista = recLiquida * (+(p.com_est || 0) / 100)
 
     // 4. Lucro Líquido Distribuível
     const lucroLiquido = recLiquida - totalInvestido - impostoVal - comissaoEstrategista
 
     // 5. Divisão de lucros
-    const divExpert = Math.max(0, lucroLiquido) * ((p.luc_mae || 0) / 100)
-    const divB16 = Math.max(0, lucroLiquido) * ((p.luc_b16 || 0) / 100)
-    const divFundo = Math.max(0, lucroLiquido) * ((p.luc_fund || 0) / 100)
+    const divExpert = Math.max(0, lucroLiquido) * (+(p.luc_mae || 0) / 100)
+    const divB16 = Math.max(0, lucroLiquido) * (+(p.luc_b16 || 0) / 100)
+    const divFundo = Math.max(0, lucroLiquido) * (+(p.luc_fund || 0) / 100)
 
     // 6. Provisionamento
-    const leadsProjected = p.verba / Math.max(p.cpl, 1)
+    const leadsProjected = +(p.verba || 0) / Math.max(+(p.cpl || 0), 1)
 
     // Cenários de conversão
     const getScenario = (factor: number) => {
-      const conv = p.conv * factor
+      const conv = +(p.conv || 0) * factor
       const buyers = leadsProjected * (conv / 100)
-      const rev = buyers * p.ticket
-      const roas = p.verba > 0 ? (rev / p.verba).toFixed(2) + 'x' : '0x'
+      const rev = buyers * +(p.ticket || 0)
+      const roas = +(p.verba || 0) > 0 ? (rev / +(p.verba || 0)).toFixed(2) + 'x' : '0x'
       return { conv, buyers: Math.round(buyers), rev, roas }
     }
 
@@ -458,7 +481,7 @@ export default function FinanceiroModule() {
                 type="number"
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
                 value={(localFin || dbFin).params.ticket}
-                onChange={(e) => updateLocalSubField('params', 'ticket', +e.target.value)} onBlur={handleFinBlur}
+                onChange={(e) => updateLocalSubField('params', 'ticket', e.target.value === '' ? '' : +e.target.value)} onBlur={handleFinBlur}
               />
             </div>
             <div>
@@ -467,7 +490,7 @@ export default function FinanceiroModule() {
                 type="number"
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
                 value={(localFin || dbFin).params.verba}
-                onChange={(e) => updateLocalSubField('params', 'verba', +e.target.value)} onBlur={handleFinBlur}
+                onChange={(e) => updateLocalSubField('params', 'verba', e.target.value === '' ? '' : +e.target.value)} onBlur={handleFinBlur}
               />
             </div>
             <div>
@@ -477,7 +500,7 @@ export default function FinanceiroModule() {
                 step="0.1"
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
                 value={(localFin || dbFin).params.cpl}
-                onChange={(e) => updateLocalSubField('params', 'cpl', +e.target.value)} onBlur={handleFinBlur}
+                onChange={(e) => updateLocalSubField('params', 'cpl', e.target.value === '' ? '' : +e.target.value)} onBlur={handleFinBlur}
               />
             </div>
             <div>
@@ -487,7 +510,7 @@ export default function FinanceiroModule() {
                 step="0.01"
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
                 value={(localFin || dbFin).params.conv}
-                onChange={(e) => updateLocalSubField('params', 'conv', +e.target.value)} onBlur={handleFinBlur}
+                onChange={(e) => updateLocalSubField('params', 'conv', e.target.value === '' ? '' : +e.target.value)} onBlur={handleFinBlur}
               />
             </div>
             <div>
@@ -497,7 +520,7 @@ export default function FinanceiroModule() {
                 step="0.1"
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
                 value={(localFin || dbFin).params.imposto}
-                onChange={(e) => updateLocalSubField('params', 'imposto', +e.target.value)} onBlur={handleFinBlur}
+                onChange={(e) => updateLocalSubField('params', 'imposto', e.target.value === '' ? '' : +e.target.value)} onBlur={handleFinBlur}
               />
             </div>
             <div>
@@ -507,7 +530,7 @@ export default function FinanceiroModule() {
                 step="0.1"
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
                 value={(localFin || dbFin).params.com_est}
-                onChange={(e) => updateLocalSubField('params', 'com_est', +e.target.value)} onBlur={handleFinBlur}
+                onChange={(e) => updateLocalSubField('params', 'com_est', e.target.value === '' ? '' : +e.target.value)} onBlur={handleFinBlur}
               />
             </div>
           </div>
@@ -583,8 +606,8 @@ export default function FinanceiroModule() {
               <p className="text-xs text-text3 text-center py-6">Nenhuma oferta registrada.</p>
             ) : (
               (localFin || dbFin).offers.map((o: Offer, idx: number) => {
-                const netSales = (o.vendas || 0) - (o.cancel || 0)
-                const rev = netSales * (o.ticket || 0)
+                const netSales = +(o.vendas || 0) - +(o.cancel || 0)
+                const rev = netSales * +(o.ticket || 0)
                 return (
                   <div
                     key={idx}
@@ -612,7 +635,7 @@ export default function FinanceiroModule() {
                         type="number"
                         className="w-full px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                         value={o.ticket}
-                        onChange={(e) => updateLocalOffer(idx, 'ticket', +e.target.value)} onBlur={handleOfferBlur}
+                        onChange={(e) => updateLocalOffer(idx, 'ticket', e.target.value === '' ? '' : +e.target.value)} onBlur={handleOfferBlur}
                       />
                     </div>
                     <div>
@@ -621,7 +644,7 @@ export default function FinanceiroModule() {
                         type="number"
                         className="w-full px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                         value={o.vendas}
-                        onChange={(e) => updateLocalOffer(idx, 'vendas', +e.target.value)} onBlur={handleOfferBlur}
+                        onChange={(e) => updateLocalOffer(idx, 'vendas', e.target.value === '' ? '' : +e.target.value)} onBlur={handleOfferBlur}
                       />
                     </div>
                     <div>
@@ -630,7 +653,7 @@ export default function FinanceiroModule() {
                         type="number"
                         className="w-full px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                         value={o.cancel}
-                        onChange={(e) => updateLocalOffer(idx, 'cancel', +e.target.value)} onBlur={handleOfferBlur}
+                        onChange={(e) => updateLocalOffer(idx, 'cancel', e.target.value === '' ? '' : +e.target.value)} onBlur={handleOfferBlur}
                       />
                     </div>
                     <div className="bg-surface border border-border-custom p-2 rounded text-center">
@@ -682,7 +705,7 @@ export default function FinanceiroModule() {
                     type="number"
                     className="w-36 px-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
                     value={item.valor}
-                    onChange={(e) => updateLocalInvestment(idx, 'valor', +e.target.value)} onBlur={handleInvestmentBlur}
+                    onChange={(e) => updateLocalInvestment(idx, 'valor', e.target.value === '' ? '' : +e.target.value)} onBlur={handleInvestmentBlur}
                     placeholder="Valor (R$)"
                   />
                   <button
@@ -827,7 +850,7 @@ export default function FinanceiroModule() {
                 step="0.001"
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
                 value={(localFin || dbFin).params.luc_mae}
-                onChange={(e) => updateLocalSubField('params', 'luc_mae', +e.target.value)} onBlur={handleFinBlur}
+                onChange={(e) => updateLocalSubField('params', 'luc_mae', e.target.value === '' ? '' : +e.target.value)} onBlur={handleFinBlur}
               />
             </div>
             <div>
@@ -837,7 +860,7 @@ export default function FinanceiroModule() {
                 step="0.001"
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
                 value={(localFin || dbFin).params.luc_b16}
-                onChange={(e) => updateLocalSubField('params', 'luc_b16', +e.target.value)} onBlur={handleFinBlur}
+                onChange={(e) => updateLocalSubField('params', 'luc_b16', e.target.value === '' ? '' : +e.target.value)} onBlur={handleFinBlur}
               />
             </div>
             <div>
@@ -847,7 +870,7 @@ export default function FinanceiroModule() {
                 step="0.001"
                 className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
                 value={(localFin || dbFin).params.luc_fund}
-                onChange={(e) => updateLocalSubField('params', 'luc_fund', +e.target.value)} onBlur={handleFinBlur}
+                onChange={(e) => updateLocalSubField('params', 'luc_fund', e.target.value === '' ? '' : +e.target.value)} onBlur={handleFinBlur}
               />
             </div>
           </div>

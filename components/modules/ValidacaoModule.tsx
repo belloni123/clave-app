@@ -55,8 +55,11 @@ export default function ValidacaoModule() {
 
   // Clear local states on project switch
   useEffect(() => {
-    setLocalContacts(null)
-    setLocalSubProjects(null)
+    const timer = setTimeout(() => {
+      setLocalContacts(null)
+      setLocalSubProjects(null)
+    }, 0)
+    return () => clearTimeout(timer)
   }, [activeProjectId])
 
   const [activeSubTab, setActiveSubTab] = useState<'ads' | 'net' | 'pjs'>('ads')
