@@ -113,8 +113,9 @@ export default function ProjectSwitcher() {
         if (error) throw error
       } else {
         // Create
-        if (profile?.max_projects && projects.length >= profile.max_projects) {
-          throw new Error(`Limite de ${profile.max_projects} projetos atingido.`)
+        const maxLimit = profile?.role === 'admin' ? Infinity : 3
+        if (projects.length >= maxLimit) {
+          throw new Error(`Limite de ${maxLimit} projetos atingido.`)
         }
         const { error } = await supabase
           .from('projects')
@@ -210,7 +211,8 @@ export default function ProjectSwitcher() {
     }
   }
 
-  const maxReached = !!profile?.max_projects && projects.length >= profile.max_projects
+  const maxLimit = profile?.role === 'admin' ? Infinity : 3
+  const maxReached = projects.length >= maxLimit
 
   return (
     <div className="relative px-3 py-2 border-b border-border-custom" ref={dropdownRef}>
@@ -291,7 +293,7 @@ export default function ProjectSwitcher() {
 
           {maxReached ? (
             <div className="m-2 p-2 bg-amber-bg text-amber-t rounded text-[11px]">
-              Limite de {profile?.max_projects} projetos atingido.
+              Limite de {profile?.role === 'admin' ? 'Infinitos' : '3'} projetos atingido.
             </div>
           ) : (
             <button

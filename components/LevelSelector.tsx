@@ -6,11 +6,11 @@ import { createClient } from '@/utils/supabase/client'
 import { useAppStore, MaturityLevel } from '@/store/useAppStore'
 
 const LEVELS: { key: MaturityLevel; name: string; color: string }[] = [
-  { key: 'newbie', name: 'Newbie', color: '#888780' },
-  { key: 'soft', name: 'Soft', color: '#1D9E75' },
-  { key: 'hard', name: 'Hard', color: '#185FA5' },
-  { key: 'pro', name: 'Pro', color: '#534AB7' },
-  { key: 'master', name: 'Master', color: '#D85A30' },
+  { key: 'newbie', name: 'Fundação', color: '#888780' },
+  { key: 'soft', name: 'Estruturação', color: '#1D9E75' },
+  { key: 'hard', name: 'Tração', color: '#185FA5' },
+  { key: 'pro', name: 'Expansão', color: '#534AB7' },
+  { key: 'master', name: 'Escala', color: '#D85A30' },
 ]
 
 export default function LevelSelector() {
@@ -47,7 +47,14 @@ export default function LevelSelector() {
     onSuccess: (_, level) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] })
       setCurrentLevel(level)
-      showToast(`Maturidade atualizada para ${level.toUpperCase()}`)
+      const levelNames: Record<MaturityLevel, string> = {
+        newbie: 'Fundação',
+        soft: 'Estruturação',
+        hard: 'Tração',
+        pro: 'Expansão',
+        master: 'Escala',
+      }
+      showToast(`Maturidade atualizada para ${levelNames[level]}`)
     },
     onError: () => {
       showToast('Erro ao atualizar maturidade', 'err')

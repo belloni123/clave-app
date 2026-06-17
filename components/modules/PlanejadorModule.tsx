@@ -41,6 +41,41 @@ export default function PlanejadorModule() {
   const supabase = createClient()
   const { activeProjectId, showToast } = useAppStore()
 
+  // Google Calendar Simulation State
+  const [isSynced, setIsSynced] = useState<boolean>(() => {
+    if (typeof window !== 'undefined' && activeProjectId) {
+      return localStorage.getItem(`clave_gcal_synced_${activeProjectId}`) === 'true'
+    }
+    return false
+  })
+  const [syncing, setSyncing] = useState(false)
+
+  React.useEffect(() => {
+    if (activeProjectId) {
+      setIsSynced(localStorage.getItem(`clave_gcal_synced_${activeProjectId}`) === 'true')
+    }
+  }, [activeProjectId])
+
+  const handleToggleSync = () => {
+    if (isSynced) {
+      setIsSynced(false)
+      if (activeProjectId) {
+        localStorage.removeItem(`clave_gcal_synced_${activeProjectId}`)
+      }
+      showToast('Desconectado do Google Agenda')
+    } else {
+      setSyncing(true)
+      setTimeout(() => {
+        setSyncing(false)
+        setIsSynced(true)
+        if (activeProjectId) {
+          localStorage.setItem(`clave_gcal_synced_${activeProjectId}`, 'true')
+        }
+        showToast('Sincronizado com Google Agenda! Eventos importados.')
+      }, 1500)
+    }
+  }
+
   // Calendar dates
   const [currentDate, setCurrentDate] = useState(() => new Date())
   const currentMonth = currentDate.getMonth()
@@ -227,7 +262,44 @@ export default function PlanejadorModule() {
 
   // Mapear eventos por data local
   const getEventsForDay = (dateStr: string) => {
-    return (dbEvents || []).filter((e) => e.date === dateStr)
+    const events = [...(dbEvents || []).filter((e) => e.date === dateStr)]
+
+    if (isSynced) {
+      const pad = (num: number) => String(num).padStart(2, '0')
+      const gCalDate1 = `${currentYear}-${pad(currentMonth + 1)}-10`
+      const gCalDate2 = `${currentYear}-${pad(currentMonth + 1)}-18`
+      const gCalDate3 = `${currentYear}-${pad(currentMonth + 1)}-25`
+
+      if (dateStr === gCalDate1) {
+        events.push({
+          id: 'gcal-1',
+          project_id: activeProjectId || '',
+          title: 'Reunião de Alinhamento (Google Agenda)',
+          date: gCalDate1,
+          type: 'Reunião'
+        })
+      }
+      if (dateStr === gCalDate2) {
+        events.push({
+          id: 'gcal-2',
+          project_id: activeProjectId || '',
+          title: 'Anúncios de Tração (Google Agenda)',
+          date: gCalDate2,
+          type: 'Anúncio'
+        })
+      }
+      if (dateStr === gCalDate3) {
+        events.push({
+          id: 'gcal-3',
+          project_id: activeProjectId || '',
+          title: 'Post de Conteúdo (Google Agenda)',
+          date: gCalDate3,
+          type: 'Conteúdo'
+        })
+      }
+    }
+
+    return events
   }
 
   const isToday = (d: Date) => {
@@ -241,10 +313,52 @@ export default function PlanejadorModule() {
     <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-5 animate-[fadeUp_0.15s_ease_both]">
       {/* Calendar Header Navigation */}
       <div className="flex justify-between items-center border-b border-border-custom pb-3.5 flex-wrap gap-3">
-        <h4 className="text-xs font-bold text-text-custom flex items-center gap-1.5">
-          <Calendar className="w-4 h-4 text-text3" />
-          <span>Planejador Editorial Anual</span>
-        </h4>
+        <div className="flex items-center gap-4 flex-wrap">
+          <h4 className="text-xs font-bold text-text-custom flex items-center gap-1.5">
+            <Calendar className="w-4 h-4 text-text3" />
+            <span>Planejador Editorial Anual</span>
+          </h4>
+
+          {/* Google Agenda Connection simulation */}
+          <div>
+            {syncing ? (
+              <div className="flex items-center gap-1 text-[10px] text-text3 animate-pulse bg-surface2 px-2 py-0.5 rounded border border-border2">
+                <svg className="animate-spin h-3 w-3 text-text-custom" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Conectando...</span>
+              </div>
+            ) : isSynced ? (
+              <div className="flex items-center gap-1.5 bg-green-bg/20 border border-green-t/20 px-2 py-0.5 rounded">
+                <span className="flex h-1.5 w-1.5 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-custom opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-custom"></span>
+                </span>
+                <span className="text-[9px] font-bold text-green-t uppercase tracking-wider">Sincronizado</span>
+                <button
+                  onClick={handleToggleSync}
+                  className="text-[9px] text-red-t hover:underline font-medium cursor-pointer ml-1"
+                >
+                  Desconectar
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleToggleSync}
+                className="flex items-center gap-1 bg-surface2 border border-border2 hover:border-text-custom hover:bg-surface px-2 py-0.5 rounded text-[10px] text-text2 hover:text-text-custom font-semibold transition-all cursor-pointer"
+              >
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M21.35 11.1h-9.17v2.73h6.51c-.3 1.56-1.56 2.95-3.24 3.5v2.9h5.15c3.01-2.78 4.75-6.87 4.75-11.63 0-.5-.04-1-.15-1.5z" fill="#4285F4"/>
+                  <path d="M12.18 21.4c2.75 0 5.06-.91 6.75-2.46l-5.15-2.9c-.83.56-1.92.89-3.23.89-2.5 0-4.6-1.69-5.35-3.97H.01v2.98C1.72 17.51 6.55 21.4 12.18 21.4z" fill="#34A853"/>
+                  <path d="M6.83 13.06a5.9 5.9 0 0 1 0-3.75V6.33H1.2a11.94 11.94 0 0 0 0 10.48l5.63-3.75z" fill="#FBBC05"/>
+                  <path d="M12.18 5.07c1.5 0 2.85.51 3.91 1.52l2.93-2.93C17.29 1.96 14.99.93 12.18.93 6.55.93 1.72 4.82.01 9.31l5.63-3.75c.75-2.28 2.85-3.97 5.35-3.97z" fill="#EA4335"/>
+                </svg>
+                <span>Google Agenda</span>
+              </button>
+            )}
+          </div>
+        </div>
 
         <div className="flex items-center gap-4 text-xs font-semibold">
           <button

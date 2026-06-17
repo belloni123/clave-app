@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
-import { Trash, AlertTriangle, Check } from 'lucide-react'
+import { Trash, AlertTriangle, Check, Plus, Sparkles } from 'lucide-react'
 
 interface Offer {
   n: string
@@ -18,6 +18,31 @@ interface Offer {
 interface Investment {
   nome: string
   valor: number | string
+}
+
+interface PricingConfig {
+  price: number
+  sales: number
+  gatewayVal: number
+  gatewayType: 'fixed' | 'percent'
+  impostoVal: number
+  impostoType: 'fixed' | 'percent'
+  reembolsoVal: number
+  reembolsoType: 'fixed' | 'percent'
+  outrosVal: number
+  outrosType: 'fixed' | 'percent'
+  fixedCosts: number
+}
+
+interface AlternativeRange {
+  id: string
+  price: number
+}
+
+interface PricingScenario {
+  id: string
+  name: string
+  config: PricingConfig
 }
 
 interface FinancialDataPayload {
@@ -90,7 +115,7 @@ export default function FinanceiroModule() {
   const supabase = createClient()
   const { activeProjectId, showToast } = useAppStore()
 
-  const [activeSubTab, setActiveSubTab] = useState<'brief' | 'params' | 'prov' | 'real' | 'inv' | 'dre' | 'comm'>('brief')
+  const [activeSubTab, setActiveSubTab] = useState<'brief' | 'params' | 'price' | 'prov' | 'real' | 'inv' | 'dre' | 'comm'>('brief')
 
   // Local state for typing optimization
   const [localFin, setLocalFin] = useState<FinancialDataPayload | null>(null)
@@ -102,6 +127,184 @@ export default function FinanceiroModule() {
     }, 0)
     return () => clearTimeout(timer)
   }, [activeProjectId])
+
+  // ==========================================
+  // UNIFIED PRICING SIMULATOR LOGIC & STATE
+  // ==========================================
+  const [priceConfig, setPriceConfig] = useState<PricingConfig>({
+    price: 997,
+    sales: 50,
+    gatewayVal: 4.5,
+    gatewayType: 'percent',
+    impostoVal: 6,
+    impostoType: 'percent',
+    reembolsoVal: 2,
+    reembolsoType: 'percent',
+    outrosVal: 10,
+    outrosType: 'fixed',
+    fixedCosts: 5000,
+  })
+
+  const [altRanges, setAltRanges] = useState<AlternativeRange[]>([
+    { id: '1', price: 497 },
+    { id: '2', price: 1997 },
+  ])
+
+  const [scenarios, setScenarios] = useState<PricingScenario[]>([])
+
+  // Load from localStorage on project load
+  useEffect(() => {
+    if (!activeProjectId) return
+    const storedConfig = localStorage.getItem(`clave_price_config_${activeProjectId}`)
+    if (storedConfig) {
+      try {
+        setPriceConfig(JSON.parse(storedConfig))
+      } catch (e) {
+        console.error(e)
+      }
+    } else {
+      setPriceConfig({
+        price: 997,
+        sales: 50,
+        gatewayVal: 4.5,
+        gatewayType: 'percent',
+        impostoVal: 6,
+        impostoType: 'percent',
+        reembolsoVal: 2,
+        reembolsoType: 'percent',
+        outrosVal: 10,
+        outrosType: 'fixed',
+        fixedCosts: 5000,
+      })
+    }
+
+    const storedAlt = localStorage.getItem(`clave_price_alt_${activeProjectId}`)
+    if (storedAlt) {
+      try {
+        setAltRanges(JSON.parse(storedAlt))
+      } catch (e) {
+        console.error(e)
+      }
+    } else {
+      setAltRanges([
+        { id: '1', price: 497 },
+        { id: '2', price: 1997 },
+      ])
+    }
+
+    const storedScenarios = localStorage.getItem(`clave_price_scenarios_${activeProjectId}`)
+    if (storedScenarios) {
+      try {
+        setScenarios(JSON.parse(storedScenarios))
+      } catch (e) {
+        console.error(e)
+      }
+    } else {
+      setScenarios([])
+    }
+  }, [activeProjectId])
+
+  const savePriceConfig = (newConfig: PricingConfig) => {
+    setPriceConfig(newConfig)
+    if (activeProjectId) {
+      localStorage.setItem(`clave_price_config_${activeProjectId}`, JSON.stringify(newConfig))
+    }
+  }
+
+  const saveAltRanges = (newAlt: AlternativeRange[]) => {
+    setAltRanges(newAlt)
+    if (activeProjectId) {
+      localStorage.setItem(`clave_price_alt_${activeProjectId}`, JSON.stringify(newAlt))
+    }
+  }
+
+  const saveScenarios = (newScenarios: PricingScenario[]) => {
+    setScenarios(newScenarios)
+    if (activeProjectId) {
+      localStorage.setItem(`clave_price_scenarios_${activeProjectId}`, JSON.stringify(newScenarios))
+    }
+  }
+
+  // Query benchmarking competitors to calculate average price
+  const { data: competitors } = useQuery({
+    queryKey: ['benchmarking', activeProjectId],
+    queryFn: async () => {
+      if (!activeProjectId) return []
+      const { data, error } = await supabase
+        .from('text_fields')
+        .select('*')
+        .eq('project_id', activeProjectId)
+        .eq('key', 'benchmarking')
+        .maybeSingle()
+      if (error) return []
+      return data ? (JSON.parse(data.value) as { n: string; s: string; i: string; p?: string | number }[]) : []
+    },
+    enabled: !!activeProjectId,
+  })
+
+  const competitorPrices = (competitors || [])
+    .map((c) => parseFloat(String(c.p || 0)))
+    .filter((p) => p > 0)
+  const avgCompetitorPrice = competitorPrices.length > 0
+    ? competitorPrices.reduce((sum, p) => sum + p, 0) / competitorPrices.length
+    : 0
+
+  const handleToggle = (field: 'gatewayType' | 'impostoType' | 'reembolsoType' | 'outrosType') => {
+    const updated = {
+      ...priceConfig,
+      [field]: priceConfig[field] === 'percent' ? 'fixed' : 'percent'
+    } as PricingConfig
+    savePriceConfig(updated)
+  }
+
+  const handleConfigChange = (field: keyof PricingConfig, val: string | number) => {
+    const updated = {
+      ...priceConfig,
+      [field]: val === '' ? 0 : +val
+    } as PricingConfig
+    savePriceConfig(updated)
+  }
+
+  const addAltPriceRange = () => {
+    const updated = [...altRanges, { id: 'alt_' + Date.now(), price: 497 }]
+    saveAltRanges(updated)
+  }
+
+  const changeAltPrice = (id: string, price: number) => {
+    const updated = altRanges.map((r) => r.id === id ? { ...r, price } : r)
+    saveAltRanges(updated)
+  }
+
+  const removeAltRange = (id: string) => {
+    const updated = altRanges.filter((r) => r.id !== id)
+    saveAltRanges(updated)
+  }
+
+  const handleSaveScenario = () => {
+    const name = prompt('Digite o nome do cenário de precificação (Ex: "Cenário Promocional"):')
+    if (!name || !name.trim()) return
+    const newScenario: PricingScenario = {
+      id: 'sc_' + Date.now(),
+      name: name.trim(),
+      config: { ...priceConfig }
+    }
+    const updated = [...scenarios, newScenario]
+    saveScenarios(updated)
+    showToast('Cenário de precificação salvo!')
+  }
+
+  const handleLoadScenario = (sc: PricingScenario) => {
+    savePriceConfig(sc.config)
+    showToast(`Cenário "${sc.name}" carregado com sucesso!`)
+  }
+
+  const handleDeleteScenario = (id: string) => {
+    if (confirm('Deseja excluir este cenário de precificação permanentemente?')) {
+      const updated = scenarios.filter((sc) => sc.id !== id)
+      saveScenarios(updated)
+      showToast('Cenário excluído')
+    }
+  }
 
   // 1. QUERY FINANCIAL DATA
   const { data: dbFin } = useQuery({
@@ -395,6 +598,7 @@ export default function FinanceiroModule() {
         {([
           { id: 'brief', name: 'Briefing' },
           { id: 'params', name: 'Parâmetros' },
+          { id: 'price', name: 'Precificação' },
           { id: 'prov', name: 'Provisionamento' },
           { id: 'real', name: 'Realizado & Vendas' },
           { id: 'inv', name: 'Investimentos' },
@@ -532,6 +736,426 @@ export default function FinanceiroModule() {
                 value={(localFin || dbFin).params.com_est}
                 onChange={(e) => updateLocalSubField('params', 'com_est', e.target.value === '' ? '' : +e.target.value)} onBlur={handleFinBlur}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      )}
+
+      {/* ==========================================
+          TAB: PRECIFICAÇÃO (SIMULATOR)
+          ========================================== */}
+      {activeSubTab === 'price' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-[fadeUp_0.15s_ease_both]">
+          {/* Configs Column */}
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+              <div className="flex justify-between items-center border-b border-border-custom pb-2 flex-wrap gap-2">
+                <div>
+                  <h4 className="text-xs font-bold text-text-custom">Configuração de Cenário Atual</h4>
+                  <p className="text-[10px] text-text3 mt-0.5">Defina o preço, metas mensais e custos de venda</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveScenario}
+                  className="px-2.5 py-1.5 bg-text-custom text-white hover:opacity-90 rounded text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Salvar como Cenário</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                <div>
+                  <label className="text-[10px] font-bold text-text2 mb-1 block">Preço do Produto (R$)</label>
+                  <input
+                    type="number"
+                    className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom font-semibold outline-none"
+                    value={priceConfig.price || ''}
+                    onChange={(e) => handleConfigChange('price', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-text2 mb-1 block">Meta de Vendas Mensais</label>
+                  <input
+                    type="number"
+                    className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                    value={priceConfig.sales || ''}
+                    onChange={(e) => handleConfigChange('sales', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-text2 mb-1 block">Custo Fixo Mensal (R$)</label>
+                  <input
+                    type="number"
+                    className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                    value={priceConfig.fixedCosts || ''}
+                    onChange={(e) => handleConfigChange('fixedCosts', e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Variáveis (Gateway, Imposto, Reembolso, Outros) */}
+              <div className="border-t border-border-custom pt-4 space-y-4">
+                <h5 className="text-[11px] font-bold text-text-custom">Custos Variáveis e Taxas por Venda</h5>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  {/* Gateway */}
+                  <div className="flex flex-col gap-1.5 p-3 bg-surface2 border border-border2 rounded-lg">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-text2 uppercase">Gateway / Plataforma</span>
+                      <div className="flex items-center gap-1 bg-surface border border-border2 rounded p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => handleToggle('gatewayType')}
+                          className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-bold transition-colors ${
+                            priceConfig.gatewayType === 'percent' ? 'bg-text-custom text-white' : 'bg-transparent text-text3'
+                          }`}
+                        >
+                          %
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggle('gatewayType')}
+                          className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-bold transition-colors ${
+                            priceConfig.gatewayType === 'fixed' ? 'bg-text-custom text-white' : 'bg-transparent text-text3'
+                          }`}
+                        >
+                          R$
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="w-full px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
+                      value={priceConfig.gatewayVal || ''}
+                      onChange={(e) => handleConfigChange('gatewayVal', e.target.value)}
+                    />
+                  </div>
+
+                  {/* Imposto */}
+                  <div className="flex flex-col gap-1.5 p-3 bg-surface2 border border-border2 rounded-lg">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-text2 uppercase">Imposto de Venda</span>
+                      <div className="flex items-center gap-1 bg-surface border border-border2 rounded p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => handleToggle('impostoType')}
+                          className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-bold transition-colors ${
+                            priceConfig.impostoType === 'percent' ? 'bg-text-custom text-white' : 'bg-transparent text-text3'
+                          }`}
+                        >
+                          %
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggle('impostoType')}
+                          className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-bold transition-colors ${
+                            priceConfig.impostoType === 'fixed' ? 'bg-text-custom text-white' : 'bg-transparent text-text3'
+                          }`}
+                        >
+                          R$
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="w-full px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
+                      value={priceConfig.impostoVal || ''}
+                      onChange={(e) => handleConfigChange('impostoVal', e.target.value)}
+                    />
+                  </div>
+
+                  {/* Reembolso */}
+                  <div className="flex flex-col gap-1.5 p-3 bg-surface2 border border-border2 rounded-lg">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-text2 uppercase">Projeção de Reembolso</span>
+                      <div className="flex items-center gap-1 bg-surface border border-border2 rounded p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => handleToggle('reembolsoType')}
+                          className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-bold transition-colors ${
+                            priceConfig.reembolsoType === 'percent' ? 'bg-text-custom text-white' : 'bg-transparent text-text3'
+                          }`}
+                        >
+                          %
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggle('reembolsoType')}
+                          className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-bold transition-colors ${
+                            priceConfig.reembolsoType === 'fixed' ? 'bg-text-custom text-white' : 'bg-transparent text-text3'
+                          }`}
+                        >
+                          R$
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="w-full px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
+                      value={priceConfig.reembolsoVal || ''}
+                      onChange={(e) => handleConfigChange('reembolsoVal', e.target.value)}
+                    />
+                  </div>
+
+                  {/* Outros / MMQ */}
+                  <div className="flex flex-col gap-1.5 p-3 bg-surface2 border border-border2 rounded-lg">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-text2 uppercase">MMQ / Outros Custos</span>
+                      <div className="flex items-center gap-1 bg-surface border border-border2 rounded p-0.5">
+                        <button
+                          type="button"
+                          onClick={() => handleToggle('outrosType')}
+                          className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-bold transition-colors ${
+                            priceConfig.outrosType === 'percent' ? 'bg-text-custom text-white' : 'bg-transparent text-text3'
+                          }`}
+                        >
+                          %
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggle('outrosType')}
+                          className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-bold transition-colors ${
+                            priceConfig.outrosType === 'fixed' ? 'bg-text-custom text-white' : 'bg-transparent text-text3'
+                          }`}
+                        >
+                          R$
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="w-full px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
+                      value={priceConfig.outrosVal || ''}
+                      onChange={(e) => handleConfigChange('outrosVal', e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Alternative price ranges table */}
+            <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+              <div className="flex justify-between items-center border-b border-border-custom pb-2">
+                <div>
+                  <h4 className="text-xs font-bold text-text-custom">Tabela de Faixas de Preço Alternativas</h4>
+                  <p className="text-[10px] text-text3 mt-0.5">Analise o volume necessário e lucratividade para outros preços</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={addAltPriceRange}
+                  className="px-2.5 py-1.5 border border-border2 text-[10px] text-text-custom rounded hover:bg-surface2 transition-colors cursor-pointer"
+                >
+                  + Faixa de Preço
+                </button>
+              </div>
+
+              <div className="overflow-x-auto text-xs leading-normal">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b border-border-custom text-text2 text-[10px] font-bold uppercase text-left">
+                      <th className="py-2 pr-4">Preço Alternativo</th>
+                      <th className="py-2 px-4">CM Unitária</th>
+                      <th className="py-2 px-4">Vendas p/ Meta</th>
+                      <th className="py-2 px-4">CPA Máximo</th>
+                      <th className="py-2 px-4">Lucro Projetado (Vol. Atual)</th>
+                      <th className="py-2 pl-4 text-right">Ação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {altRanges.map((r) => {
+                      const altPrice = r.price
+                      const altGateway = priceConfig.gatewayType === 'percent' ? altPrice * (priceConfig.gatewayVal / 100) : priceConfig.gatewayVal
+                      const altImposto = priceConfig.impostoType === 'percent' ? altPrice * (priceConfig.impostoVal / 100) : priceConfig.impostoVal
+                      const altReembolso = priceConfig.reembolsoType === 'percent' ? altPrice * (priceConfig.reembolsoVal / 100) : priceConfig.reembolsoVal
+                      const altOutros = priceConfig.outrosType === 'percent' ? altPrice * (priceConfig.outrosVal / 100) : priceConfig.outrosVal
+                      const altVarCosts = altGateway + altImposto + altReembolso + altOutros
+                      const altCM = altPrice - altVarCosts
+                      const targetProfit = monthlyProfit
+                      const altNecessarySales = altCM > 0 ? (priceConfig.fixedCosts + Math.max(0, targetProfit)) / altCM : 0
+                      const altCpa = altNecessarySales > 0 ? altCM - (priceConfig.fixedCosts / altNecessarySales) : 0
+                      const altProjProfit = (altCM * priceConfig.sales) - priceConfig.fixedCosts
+
+                      return (
+                        <tr key={r.id} className="border-b border-border-custom last:border-none">
+                          <td className="py-2.5 pr-4">
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-text3 font-semibold">R$</span>
+                              <input
+                                type="number"
+                                className="w-20 px-2 py-0.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none font-semibold"
+                                value={r.price || ''}
+                                onChange={(e) => changeAltPrice(r.id, e.target.value === '' ? 0 : +e.target.value)}
+                              />
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-4 font-mono font-semibold">
+                            {f.formatCurrency(altCM)}
+                          </td>
+                          <td className="py-2.5 px-4 font-semibold text-text-custom">
+                            {altNecessarySales === Infinity || altNecessarySales === 0
+                              ? '—'
+                              : Math.ceil(altNecessarySales) + ' vendas'}
+                          </td>
+                          <td className="py-2.5 px-4 font-mono text-amber-t">
+                            {altNecessarySales > 0 ? f.formatCurrency(altCpa) : '—'}
+                          </td>
+                          <td className={`py-2.5 px-4 font-mono font-semibold ${altProjProfit >= 0 ? 'text-green-custom' : 'text-red-t'}`}>
+                            {f.formatCurrency(altProjProfit)}
+                          </td>
+                          <td className="py-2.5 pl-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => removeAltRange(r.id)}
+                              className="text-red-t hover:underline font-semibold cursor-pointer"
+                            >
+                              Excluir
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* Diagnostic & Scenarios Side Column */}
+          <div className="space-y-6">
+            {/* Diagnostic relative to Benchmarking */}
+            {activeDiagnostic && (
+              <div className={`p-4 rounded-xl border ${activeDiagnostic.color} shadow-sm space-y-2`}>
+                <div className="flex justify-between items-center">
+                  <h5 className="text-[11px] font-bold uppercase">Diagnóstico vs. Mercado</h5>
+                  <span className="text-[10px] font-bold bg-surface/40 px-2 py-0.5 rounded uppercase">
+                    {activeDiagnostic.label}
+                  </span>
+                </div>
+                <p className="text-xs leading-relaxed">{activeDiagnostic.desc}</p>
+                <div className="border-t border-current/25 pt-2 flex justify-between text-[11px] font-medium">
+                  <span>Média do Concorrente:</span>
+                  <span>{f.formatCurrency(avgCompetitorPrice)}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Results card */}
+            <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+              <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
+                Resultado do Cenário Atual
+              </h4>
+
+              <div className="space-y-3 text-xs leading-normal">
+                <div className="flex justify-between border-b border-border-custom pb-2">
+                  <span className="text-text2">Receita Mensal Projetada</span>
+                  <span className="text-text-custom font-semibold">{f.formatCurrency(monthlyRevenue)}</span>
+                </div>
+                <div className="flex justify-between border-b border-border-custom pb-2">
+                  <span className="text-text2">Receita Anual Projetada</span>
+                  <span className="text-text-custom font-semibold">{f.formatCurrency(annualRevenue)}</span>
+                </div>
+                <div className="flex justify-between border-b border-border-custom pb-2">
+                  <span className="text-text2">Vendas Diárias (Média)</span>
+                  <span className="text-text-custom font-semibold">{(priceConfig.sales / 30).toFixed(1)} / dia</span>
+                </div>
+                <div className="flex justify-between border-b border-border-custom pb-2">
+                  <span className="text-text2">Margem de Contribuição unitária</span>
+                  <span className="text-text-custom font-mono font-semibold">{f.formatCurrency(contribMarginPerUnit)} ({contribMarginPct.toFixed(1)}%)</span>
+                </div>
+                <div className="flex justify-between border-b border-border-custom pb-2">
+                  <span className="text-text2">Lucro Mensal Projetado</span>
+                  <span className={`font-mono font-bold ${monthlyProfit >= 0 ? 'text-green-custom' : 'text-red-t'}`}>
+                    {f.formatCurrency(monthlyProfit)}
+                  </span>
+                </div>
+                <div className="flex justify-between border-b border-border-custom pb-2">
+                  <span className="text-text2">Margem de Lucro</span>
+                  <span className={`font-semibold ${monthlyProfit >= 0 ? 'text-green-custom' : 'text-red-t'}`}>
+                    {profitMarginPct.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="flex justify-between pb-1">
+                  <span className="text-text2">CPA Máximo Sustentável</span>
+                  <span className="text-amber-t font-mono font-semibold">{f.formatCurrency(cpaMax)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Saved scenarios comparison and load list */}
+            <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+              <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
+                Cenários Salvos
+              </h4>
+
+              <div className="space-y-3 max-h-60 overflow-y-auto pr-1 scrollbar-thin">
+                {scenarios.length === 0 ? (
+                  <p className="text-[11px] text-text3 text-center py-4">Nenhum cenário salvo ainda.</p>
+                ) : (
+                  scenarios.map((sc) => {
+                    const scGateway = sc.config.gatewayType === 'percent' ? sc.config.price * (sc.config.gatewayVal / 100) : sc.config.gatewayVal
+                    const scImposto = sc.config.impostoType === 'percent' ? sc.config.price * (sc.config.impostoVal / 100) : sc.config.impostoVal
+                    const scReembolso = sc.config.reembolsoType === 'percent' ? sc.config.price * (sc.config.reembolsoVal / 100) : sc.config.reembolsoVal
+                    const scOutros = sc.config.outrosType === 'percent' ? sc.config.price * (sc.config.outrosVal / 100) : sc.config.outrosVal
+                    const scVarCosts = scGateway + scImposto + scReembolso + scOutros
+                    const scCMUnit = sc.config.price - scVarCosts
+                    const scProfit = (scCMUnit * sc.config.sales) - sc.config.fixedCosts
+                    const scCPA = sc.config.sales > 0 ? scCMUnit - (sc.config.fixedCosts / sc.config.sales) : 0
+
+                    return (
+                      <div
+                        key={sc.id}
+                        className="p-3 bg-surface2 border border-border2 rounded-lg space-y-2 relative"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteScenario(sc.id)}
+                          className="absolute right-2 top-2 text-text3 hover:text-red-t text-xs font-bold cursor-pointer"
+                        >
+                          ×
+                        </button>
+                        <div>
+                          <span className="text-[11px] font-bold text-text-custom block pr-4 truncate">
+                            {sc.name}
+                          </span>
+                          <span className="text-[9px] text-text3 uppercase">
+                            Preço: {f.formatCurrency(sc.config.price)} | Vol: {sc.config.sales}/mês
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-[10px] border-t border-border-custom/50 pt-2 text-text2">
+                          <div>
+                            <span>Lucro: </span>
+                            <span className={`font-semibold ${scProfit >= 0 ? 'text-green-custom' : 'text-red-t'}`}>
+                              {f.formatCurrency(scProfit)}
+                            </span>
+                          </div>
+                          <div>
+                            <span>CPA Max: </span>
+                            <span className="font-semibold text-amber-t">{f.formatCurrency(scCPA)}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 justify-end pt-1">
+                          <button
+                            type="button"
+                            onClick={() => handleLoadScenario(sc)}
+                            className="px-2 py-1 bg-surface border border-border2 hover:bg-surface2 text-[10px] text-text-custom font-semibold rounded cursor-pointer transition-colors"
+                          >
+                            Carregar
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
             </div>
           </div>
         </div>

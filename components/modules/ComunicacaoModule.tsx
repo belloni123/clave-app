@@ -32,6 +32,7 @@ interface FAQ {
 interface PageStructure {
   n: string
   d: string
+  l?: string
 }
 
 export default function ComunicacaoModule() {
@@ -278,7 +279,7 @@ export default function ComunicacaoModule() {
   // ==========================================
   const pags = getArrayField<PageStructure>('pags', [])
   const addPag = () => {
-    const updated = [...pags, { n: `Página ${pags.length + 1}`, d: '' }]
+    const updated = [...pags, { n: `Página ${pags.length + 1}`, d: '', l: '' }]
     const updatedFields = { ...(localFields || fields || {}), pags: JSON.stringify(updated) }
     setLocalFields(updatedFields)
     saveFieldMutation.mutate({ key: 'pags', value: JSON.stringify(updated) })
@@ -778,15 +779,27 @@ export default function ComunicacaoModule() {
                   >
                     ×
                   </button>
-                  <div className="max-w-[220px]">
-                    <label className="text-[10px] font-bold text-text2 mb-1 block">Nome da Página</label>
-                    <input
-                      className="w-full px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none focus:border-text-custom font-semibold"
-                      value={p.n}
-                      onChange={(e) => updateLocalPag(idx, 'n', e.target.value)}
-                      onBlur={handlePagBlur}
-                      placeholder="Ex: Landing Page de Validação"
-                    />
+                  <div className="flex gap-4 flex-wrap md:flex-nowrap">
+                    <div className="w-full md:w-[220px]">
+                      <label className="text-[10px] font-bold text-text2 mb-1 block">Nome da Página</label>
+                      <input
+                        className="w-full px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none focus:border-text-custom font-semibold"
+                        value={p.n}
+                        onChange={(e) => updateLocalPag(idx, 'n', e.target.value)}
+                        onBlur={handlePagBlur}
+                        placeholder="Ex: Landing Page de Validação"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-[10px] font-bold text-text2 mb-1 block">Link da Página</label>
+                      <input
+                        className="w-full px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none focus:border-text-custom font-mono"
+                        value={p.l || ''}
+                        onChange={(e) => updateLocalPag(idx, 'l', e.target.value)}
+                        onBlur={handlePagBlur}
+                        placeholder="Ex: https://suapagina.com"
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="text-[10px] font-bold text-text2 mb-1 block">Estrutura e Copy das Sessões</label>

@@ -28,12 +28,12 @@ interface LevelConfig {
 
 const LEVEL_CONFIGS: Record<MaturityLevel, LevelConfig> = {
   newbie: {
-    name: 'Newbie',
+    name: 'Fundação',
     color: '#888780',
     bg: 'bg-gray-bg/40',
     border: 'border-border-custom',
     text: 'text-gray-t',
-    msg: 'Não comece pela comunicação nem pelos anúncios. Valide a ideia primeiro, rode a Matriz do Perpétuo.',
+    msg: 'Foco do nível: vender, não criar. Oferta definida, processo simples de atendimento e pelo menos 1 canal ativo.',
     prios: [
       { module: 'concepcao', label: 'Prioridade 1' },
       { module: 'comunicacao', label: 'Prioridade 2' },
@@ -42,12 +42,12 @@ const LEVEL_CONFIGS: Record<MaturityLevel, LevelConfig> = {
     ],
   },
   soft: {
-    name: 'Soft',
+    name: 'Estruturação',
     color: '#1D9E75',
     bg: 'bg-green-bg/30',
     border: 'border-green-custom/20',
     text: 'text-green-t',
-    msg: 'Produto validado. Construa a comunicação completa e teste seus primeiros criativos.',
+    msg: 'Foco do nível: consistência. Cadência de conteúdo, leads organizados e funil básico documentado.',
     prios: [
       { module: 'comunicacao', label: 'Prioridade 1' },
       { module: 'validacao', label: 'Prioridade 2' },
@@ -56,12 +56,12 @@ const LEVEL_CONFIGS: Record<MaturityLevel, LevelConfig> = {
     ],
   },
   hard: {
-    name: 'Hard',
+    name: 'Tração',
     color: '#185FA5',
     bg: 'bg-blue-bg/30',
     border: 'border-blue-custom/20',
     text: 'text-blue-t',
-    msg: 'Com volume em mão, o jogo é escalar com planejamento. Lançamentos estruturados.',
+    msg: 'Foco do nível: escalar aquisição pelo canal mais barato. Investimento estruturado em tráfego e funil conhecido.',
     prios: [
       { module: 'lancamentos', label: 'Prioridade 1' },
       { module: 'validacao', label: 'Prioridade 2' },
@@ -70,12 +70,12 @@ const LEVEL_CONFIGS: Record<MaturityLevel, LevelConfig> = {
     ],
   },
   pro: {
-    name: 'Pro',
+    name: 'Expansão',
     color: '#534AB7',
     bg: 'bg-purple-bg/35',
     border: 'border-purple-custom/20',
     text: 'text-purple-t',
-    msg: 'Em alto faturamento, o diferencial é a gestão. Networking, equipe e novos produtos.',
+    msg: 'Foco do nível: diversificar com segurança. Início de delegação, equipe e teste de novos canais.',
     prios: [
       { module: 'validacao', label: 'Prioridade 1' },
       { module: 'lancamentos', label: 'Prioridade 2' },
@@ -84,12 +84,12 @@ const LEVEL_CONFIGS: Record<MaturityLevel, LevelConfig> = {
     ],
   },
   master: {
-    name: 'Master',
+    name: 'Escala',
     color: '#D85A30',
     bg: 'bg-coral-bg/30',
     border: 'border-coral-custom/20',
     text: 'text-coral-t',
-    msg: 'Na fase Master você constrói além do produto. Comunidade, parceiros e novos mercados.',
+    msg: 'Foco do nível: previsibilidade e margem. Múltiplos canais ativos com dados confiáveis e equipe estruturada.',
     prios: [
       { module: 'validacao', label: 'Prioridade 1' },
       { module: 'lancamentos', label: 'Prioridade 2' },

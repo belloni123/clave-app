@@ -1,10 +1,10 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
-import { X, Check } from 'lucide-react'
+import { X, Check, Plus, Trash, Search, CheckSquare, Square } from 'lucide-react'
 
 interface SaveColabPayload {
   id?: string
@@ -51,7 +51,28 @@ interface Student {
   talent_pool: boolean
 }
 
-const ROLES = ['Designer', 'Copywriter', 'Gestor de Tráfego', 'Estrategista', 'Editor de Vídeo']
+interface NetworkContact {
+  nm: string
+  tp: 'Produtor' | 'Especialista' | 'Afiliado' | 'Parceiro'
+  ni: string
+  ig: string
+  ob: string
+}
+
+interface SubTask {
+  t: string
+  d: boolean
+}
+
+interface SubProject {
+  id: string
+  nm: string
+  st: 'planejado' | 'em andamento' | 'concluido'
+  prazo: string
+  tasks: SubTask[]
+}
+
+const ROLES = ['Equipe B16', 'Clientes B16', 'Alunos da mentoria/consultoria']
 
 const MODULE_PERMISSIONS = [
   { key: 'concepcao', name: 'Concepção' },
@@ -66,9 +87,9 @@ const MODULE_PERMISSIONS = [
 export default function AcessoModule() {
   const queryClient = useQueryClient()
   const supabase = createClient()
-  const { profile, showToast } = useAppStore()
+  const { profile, showToast, activeProjectId } = useAppStore()
 
-  const [activeSubTab, setActiveSubTab] = useState<'colabs' | 'clients' | 'students'>('colabs')
+  const [activeSubTab, setActiveSubTab] = useState<'colabs' | 'clients' | 'students' | 'net' | 'pjs'>('colabs')
 
   // Modals local states
   const [colabModalOpen, setColabModalOpen] = useState(false)
@@ -295,6 +316,239 @@ export default function AcessoModule() {
     },
   })
 
+  // ==========================================
+  // NETWORKING & PROJETOS STATE & LOGIC
+  // ==========================================
+  const [localContacts, setLocalContacts] = useState<NetworkContact[] | null>(null)
+  const [localSubProjects, setLocalSubProjects] = useState<SubProject[] | null>(null)
+  const [netSearch, setNetSearch] = useState('')
+  const [netFilter, setNetFilter] = useState('')
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLocalContacts(null)
+      setLocalSubProjects(null)
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [activeProjectId])
+
+  const { data: contactsData } = useQuery({
+    queryKey: ['networking_contacts', activeProjectId],
+    queryFn: async () => {
+      if (!activeProjectId) return []
+      const { data, error } = await supabase
+        .from('text_fields')
+        .select('*')
+        .eq('project_id', activeProjectId)
+        .eq('key', 'networking_contacts')
+        .maybeSingle()
+
+      if (error) {
+        showToast('Erro ao carregar contatos de networking', 'err')
+        return []
+      }
+      return data ? (JSON.parse(data.value) as NetworkContact[]) : []
+    },
+    enabled: !!activeProjectId,
+  })
+
+  const saveContactsMutation = useMutation({
+    mutationFn: async (list: NetworkContact[]) => {
+      if (!activeProjectId) return
+      const serialized = JSON.stringify(list)
+      const { data: existing } = await supabase
+        .from('text_fields')
+        .select('id')
+        .eq('project_id', activeProjectId)
+        .eq('key', 'networking_contacts')
+        .maybeSingle()
+
+      if (existing) {
+        const { error } = await supabase
+          .from('text_fields')
+          .update({ value: serialized })
+          .eq('id', existing.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('text_fields')
+          .insert({ project_id: activeProjectId, key: 'networking_contacts', value: serialized })
+        if (error) throw error
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['networking_contacts', activeProjectId] })
+    },
+  })
+
+  const addContact = () => {
+    const list = [...(localContacts || contactsData || []), { nm: '', tp: 'Produtor' as const, ni: '', ig: '', ob: '' }]
+    setLocalContacts(list)
+    saveContactsMutation.mutate(list)
+  }
+
+  const updateLocalContact = (idx: number, key: keyof NetworkContact, val: string) => {
+    const list = [...(localContacts || contactsData || [])]
+    list[idx] = { ...list[idx], [key]: val } as NetworkContact
+    setLocalContacts(list)
+  }
+
+  const handleContactBlur = () => {
+    if (!localContacts) return
+    saveContactsMutation.mutate(localContacts)
+  }
+
+  const deleteContact = (idx: number) => {
+    const list = (localContacts || contactsData || []).filter((_, i) => i !== idx)
+    setLocalContacts(list)
+    saveContactsMutation.mutate(list)
+    showToast('Contato removido')
+  }
+
+  const filteredContacts = (localContacts || contactsData || []).filter((c) => {
+    const query = netSearch.toLowerCase()
+    const matchesSearch =
+      !query || c.nm.toLowerCase().includes(query) || c.ni.toLowerCase().includes(query)
+    const matchesFilter = !netFilter || c.tp === netFilter
+    return matchesSearch && matchesFilter
+  })
+
+  const { data: subProjects } = useQuery({
+    queryKey: ['sub_projects', activeProjectId],
+    queryFn: async () => {
+      if (!activeProjectId) return []
+      const { data, error } = await supabase
+        .from('text_fields')
+        .select('*')
+        .eq('project_id', activeProjectId)
+        .eq('key', 'sub_projects')
+        .maybeSingle()
+
+      if (error) {
+        showToast('Erro ao carregar projetos', 'err')
+        return []
+      }
+      return data ? (JSON.parse(data.value) as SubProject[]) : []
+    },
+    enabled: !!activeProjectId,
+  })
+
+  useEffect(() => {
+    if (contactsData && localContacts === null) {
+      const timer = setTimeout(() => {
+        setLocalContacts(contactsData)
+      }, 0)
+      return () => clearTimeout(timer)
+    }
+  }, [contactsData, localContacts])
+
+  useEffect(() => {
+    if (subProjects && localSubProjects === null) {
+      const timer = setTimeout(() => {
+        setLocalSubProjects(subProjects)
+      }, 0)
+      return () => clearTimeout(timer)
+    }
+  }, [subProjects, localSubProjects])
+
+  const saveSubProjectsMutation = useMutation({
+    mutationFn: async (list: SubProject[]) => {
+      if (!activeProjectId) return
+      const serialized = JSON.stringify(list)
+      const { data: existing } = await supabase
+        .from('text_fields')
+        .select('id')
+        .eq('project_id', activeProjectId)
+        .eq('key', 'sub_projects')
+        .maybeSingle()
+
+      if (existing) {
+        const { error } = await supabase
+          .from('text_fields')
+          .update({ value: serialized })
+          .eq('id', existing.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('text_fields')
+          .insert({ project_id: activeProjectId, key: 'sub_projects', value: serialized })
+        if (error) throw error
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sub_projects', activeProjectId] })
+    },
+  })
+
+  const addSubProject = () => {
+    const list: SubProject[] = [
+      ...(localSubProjects || subProjects || []),
+      {
+        id: 'sp_' + Date.now(),
+        nm: '',
+        st: 'planejado',
+        prazo: '',
+        tasks: [],
+      },
+    ]
+    setLocalSubProjects(list)
+    saveSubProjectsMutation.mutate(list)
+  }
+
+  const updateLocalSubProject = (idx: number, key: keyof SubProject, val: SubProject[keyof SubProject]) => {
+    const list = [...(localSubProjects || subProjects || [])]
+    list[idx] = { ...list[idx], [key]: val } as SubProject
+    setLocalSubProjects(list)
+  }
+
+  const handleSubProjectBlur = () => {
+    if (!localSubProjects) return
+    saveSubProjectsMutation.mutate(localSubProjects)
+  }
+
+  const deleteSubProject = (idx: number) => {
+    const list = (localSubProjects || subProjects || []).filter((_, i) => i !== idx)
+    setLocalSubProjects(list)
+    saveSubProjectsMutation.mutate(list)
+    showToast('Sub-projeto removido')
+  }
+
+  const toggleSubTask = (pIdx: number, tIdx: number) => {
+    const base = localSubProjects || subProjects
+    if (!base) return
+    const list = [...base]
+    const proj = { ...list[pIdx] }
+    const tasks = [...proj.tasks]
+    tasks[tIdx] = { ...tasks[tIdx], d: !tasks[tIdx].d }
+    proj.tasks = tasks
+    list[pIdx] = proj
+    setLocalSubProjects(list)
+    saveSubProjectsMutation.mutate(list)
+  }
+
+  const addSubTask = (pIdx: number, text: string) => {
+    if (!text.trim()) return
+    const base = localSubProjects || subProjects
+    if (!base) return
+    const list = [...base]
+    const proj = { ...list[pIdx] }
+    proj.tasks = [...proj.tasks, { t: text.trim(), d: false }]
+    list[pIdx] = proj
+    setLocalSubProjects(list)
+    saveSubProjectsMutation.mutate(list)
+  }
+
+  const removeSubTask = (pIdx: number, tIdx: number) => {
+    const base = localSubProjects || subProjects
+    if (!base) return
+    const list = [...base]
+    const proj = { ...list[pIdx] }
+    proj.tasks = proj.tasks.filter((_, i) => i !== tIdx)
+    list[pIdx] = proj
+    setLocalSubProjects(list)
+    saveSubProjectsMutation.mutate(list)
+  }
+
   const isAdmin = profile?.role === 'admin'
 
   return (
@@ -330,6 +584,26 @@ export default function AcessoModule() {
           }`}
         >
           Alunos de Mentoria
+        </button>
+        <button
+          onClick={() => setActiveSubTab('net')}
+          className={`px-4 py-2 text-xs font-semibold cursor-pointer border-b-2 bg-transparent transition-colors duration-150 ${
+            activeSubTab === 'net'
+              ? 'border-text-custom text-text-custom'
+              : 'border-transparent text-text2 hover:text-text-custom'
+          }`}
+        >
+          Networking
+        </button>
+        <button
+          onClick={() => setActiveSubTab('pjs')}
+          className={`px-4 py-2 text-xs font-semibold cursor-pointer border-b-2 bg-transparent transition-colors duration-150 ${
+            activeSubTab === 'pjs'
+              ? 'border-text-custom text-text-custom'
+              : 'border-transparent text-text2 hover:text-text-custom'
+          }`}
+        >
+          Projetos
         </button>
       </div>
 
@@ -370,7 +644,13 @@ export default function AcessoModule() {
                         <span className="text-xs font-bold text-text-custom leading-tight">
                           {colab.name}
                         </span>
-                        <span className="text-[9px] px-2 py-0.5 rounded bg-blue-bg text-blue-t border border-blue-custom/25 font-semibold uppercase">
+                        <span className={`text-[9px] px-2 py-0.5 rounded border font-semibold uppercase ${
+                          colab.role === 'Equipe B16'
+                            ? 'bg-purple-bg text-purple-t border-purple-custom/25'
+                            : colab.role === 'Clientes B16'
+                            ? 'bg-green-bg text-green-t border-green-custom/25'
+                            : 'bg-amber-bg text-amber-t border-amber-custom/25'
+                        }`}>
                           {colab.role}
                         </span>
                       </div>
@@ -450,7 +730,7 @@ export default function AcessoModule() {
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-bold text-text2 mb-1 block">Função / Cargo</label>
+                    <label className="text-[10px] font-bold text-text2 mb-1 block">Tipo de Vínculo / Acesso</label>
                     <select
                       className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
                       value={colabRole}
@@ -742,6 +1022,246 @@ export default function AcessoModule() {
                   </div>
                 </div>
               ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          TAB: NETWORKING DIRECTORY
+          ========================================== */}
+      {activeSubTab === 'net' && (localContacts || contactsData) && (
+        <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4 animate-[fadeUp_0.15s_ease_both]">
+          {/* Header Search & Filter */}
+          <div className="flex justify-between items-center border-b border-border-custom pb-3 flex-wrap gap-3">
+            <div className="flex gap-2 flex-1 max-w-lg min-w-[200px]">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text3" />
+                <input
+                  className="w-full pl-9 pr-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none focus:border-text-custom"
+                  value={netSearch}
+                  onChange={(e) => setNetSearch(e.target.value)}
+                  placeholder="Pesquisar por nome ou nicho..."
+                />
+              </div>
+
+              <select
+                className="px-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
+                value={netFilter}
+                onChange={(e) => setNetFilter(e.target.value)}
+              >
+                <option value="">Todos Tipos</option>
+                <option value="Produtor">Produtor</option>
+                <option value="Especialista">Especialista</option>
+                <option value="Afiliado">Afiliado</option>
+                <option value="Parceiro">Parceiro</option>
+              </select>
+            </div>
+
+            <button
+              onClick={addContact}
+              className="px-3 py-1.5 bg-text-custom text-white hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
+            >
+              Adicionar Contato
+            </button>
+          </div>
+
+          {/* Contacts Directory */}
+          <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1 scrollbar-thin">
+            {filteredContacts.length === 0 ? (
+              <p className="text-xs text-text3 text-center py-6">Nenhum contato encontrado.</p>
+            ) : (
+              filteredContacts.map((c, idx) => (
+                <div
+                  key={idx}
+                  className="p-4 bg-surface2 rounded-lg border border-border2 flex flex-col md:flex-row gap-3 items-center justify-between"
+                >
+                  <div className="flex flex-col sm:flex-row gap-3 items-center flex-1 w-full">
+                    <input
+                      className="w-full sm:flex-1 px-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none font-semibold"
+                      value={c.nm}
+                      onChange={(e) => updateLocalContact(idx, 'nm', e.target.value)} onBlur={handleContactBlur}
+                      placeholder="Nome do Contato"
+                    />
+
+                    <select
+                      className="w-full sm:w-32 px-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
+                      value={c.tp}
+                      onChange={(e) => updateLocalContact(idx, 'tp', e.target.value)} onBlur={handleContactBlur}
+                    >
+                      <option value="Produtor">Produtor</option>
+                      <option value="Especialista">Especialista</option>
+                      <option value="Afiliado">Afiliado</option>
+                      <option value="Parceiro">Parceiro</option>
+                    </select>
+
+                    <input
+                      className="w-full sm:w-32 px-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
+                      value={c.ni}
+                      onChange={(e) => updateLocalContact(idx, 'ni', e.target.value)} onBlur={handleContactBlur}
+                      placeholder="Nicho de atuação"
+                    />
+
+                    <input
+                      className="w-full sm:w-36 px-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom font-mono outline-none"
+                      value={c.ig}
+                      onChange={(e) => updateLocalContact(idx, 'ig', e.target.value)} onBlur={handleContactBlur}
+                      placeholder="@instagram"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 items-center w-full md:w-auto mt-2 md:mt-0">
+                    <input
+                      className="flex-1 md:w-56 px-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
+                      value={c.ob}
+                      onChange={(e) => updateLocalContact(idx, 'ob', e.target.value)} onBlur={handleContactBlur}
+                      placeholder="Oportunidade / Notas"
+                    />
+
+                    <button
+                      onClick={() => deleteContact(idx)}
+                      className="p-1.5 border border-red-t/30 text-red-t hover:bg-red-bg rounded transition-colors shrink-0 cursor-pointer"
+                    >
+                      <Trash className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ==========================================
+          TAB: PROJETOS / TAREFAS INTERNAS
+          ========================================== */}
+      {activeSubTab === 'pjs' && (localSubProjects || subProjects) && (
+        <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4 animate-[fadeUp_0.15s_ease_both]">
+          <div className="flex justify-between items-center border-b border-border-custom pb-3">
+            <div>
+              <span className="text-xs font-bold text-text-custom block">Checklist de Projetos</span>
+              <span className="text-[10px] text-text3 mt-0.5">Organização de etapas e mini-projetos internos</span>
+            </div>
+            <button
+              onClick={addSubProject}
+              className="px-3 py-1.5 bg-text-custom text-white hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
+            >
+              Adicionar Projeto
+            </button>
+          </div>
+
+          <div className="space-y-6 max-h-[460px] overflow-y-auto pr-1 scrollbar-thin">
+            {(localSubProjects || subProjects || []).length === 0 ? (
+              <p className="text-xs text-text3 text-center py-6">Nenhum projeto cadastrado.</p>
+            ) : (
+              (localSubProjects || subProjects || []).map((p, pIdx) => {
+                const totalTasks = p.tasks.length
+                const completedTasks = p.tasks.filter((t) => t.d).length
+                const progressPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+
+                return (
+                  <div key={p.id} className="p-4 bg-surface2 rounded-lg border border-border2 space-y-3 relative">
+                    <button
+                      onClick={() => deleteSubProject(pIdx)}
+                      className="absolute right-3 top-3 text-text3 hover:text-red-t cursor-pointer"
+                    >
+                      ×
+                    </button>
+
+                    {/* Project Header Row */}
+                    <div className="flex flex-col sm:flex-row gap-3 items-center max-w-[580px]">
+                      <input
+                        className="w-full sm:flex-1 px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none font-bold"
+                        value={p.nm}
+                        onChange={(e) => updateLocalSubProject(pIdx, 'nm', e.target.value)} onBlur={handleSubProjectBlur}
+                        placeholder="Nome do Sub-projeto"
+                      />
+                      <select
+                        className="w-full sm:w-32 px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
+                        value={p.st}
+                        onChange={(e) => updateLocalSubProject(pIdx, 'st', e.target.value)} onBlur={handleSubProjectBlur}
+                      >
+                        <option value="planejado">Planejado</option>
+                        <option value="em andamento">Em Andamento</option>
+                        <option value="concluido">Concluído</option>
+                      </select>
+                      <input
+                        type="date"
+                        className="w-full sm:w-36 px-2.5 py-1 text-xs border border-border2 rounded bg-surface text-text-custom outline-none"
+                        value={p.prazo}
+                        onChange={(e) => updateLocalSubProject(pIdx, 'prazo', e.target.value)} onBlur={handleSubProjectBlur}
+                      />
+                    </div>
+
+                    {/* Progress details */}
+                    {totalTasks > 0 && (
+                      <div className="space-y-1 w-full max-w-[280px]">
+                        <div className="flex justify-between text-[9px] text-text2 font-semibold">
+                          <span>{progressPct}% das tarefas feitas</span>
+                          <span>{completedTasks}/{totalTasks}</span>
+                        </div>
+                        <div className="w-full h-1 bg-surface rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-green-custom rounded-full transition-all duration-300"
+                            style={{ width: `${progressPct}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Tasks checklist inside project */}
+                    <div className="pl-4 space-y-2 border-l border-border2 mt-3">
+                      {p.tasks.map((task, tIdx) => (
+                        <div key={tIdx} className="flex items-center justify-between gap-3 max-w-[480px]">
+                          <div
+                            onClick={() => toggleSubTask(pIdx, tIdx)}
+                            className="flex items-center gap-2 cursor-pointer flex-1 min-w-0"
+                          >
+                            {task.d ? (
+                              <CheckSquare className="w-4 h-4 text-green-custom shrink-0" />
+                            ) : (
+                              <Square className="w-4 h-4 text-text3 shrink-0" />
+                            )}
+                            <span className={`text-xs text-text-custom truncate ${task.d ? 'line-through text-text3' : ''}`}>
+                              {task.t}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => removeSubTask(pIdx, tIdx)}
+                            className="text-text3 hover:text-red-t text-[10px] font-semibold hover:underline cursor-pointer shrink-0"
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      ))}
+
+                      {/* Add new subtask inline */}
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault()
+                          const form = e.currentTarget
+                          const input = form.elements.namedItem('taskText') as HTMLInputElement
+                          addSubTask(pIdx, input.value)
+                          form.reset()
+                        }}
+                        className="flex gap-2 max-w-[360px] mt-2"
+                      >
+                        <input
+                          name="taskText"
+                          className="flex-1 px-2.5 py-1 text-[11px] border border-border2 rounded bg-surface text-text-custom outline-none"
+                          placeholder="Nova tarefa..."
+                        />
+                        <button
+                          type="submit"
+                          className="px-3 py-1 bg-text-custom text-white hover:opacity-90 rounded text-[10px] font-semibold cursor-pointer"
+                        >
+                          + Add
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                )
+              })
             )}
           </div>
         </div>

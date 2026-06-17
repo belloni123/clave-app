@@ -43,6 +43,17 @@ export default function LoginPage() {
     checkUser()
   }, [supabase, router])
 
+  // Checa parâmetros na URL para alternar a tela inicial de login
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const stateParam = params.get('state')
+      if (stateParam === 'ativar' || stateParam === 'login' || stateParam === 'esqueci' || stateParam === 'clave') {
+        setState(stateParam as LoginState)
+      }
+    }
+  }, [])
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
@@ -227,6 +238,18 @@ export default function LoginPage() {
                 >
                   {loading ? 'Entrando...' : 'Entrar'}
                 </button>
+
+                {/* Diagnostic Funnel Link */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => router.push('/diagnostico')}
+                    className="w-full py-2 bg-purple-bg text-purple-custom border border-purple-custom/20 rounded-md text-xs font-bold hover:bg-purple-bg/85 transition-colors text-center cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Star className="w-3.5 h-3.5" />
+                    <span>Faça seu Diagnóstico de Lançamento</span>
+                  </button>
+                </div>
               </div>
 
               {/* Login Footer links */}
