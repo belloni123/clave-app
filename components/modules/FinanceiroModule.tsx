@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
@@ -248,6 +248,43 @@ export default function FinanceiroModule() {
   const avgCompetitorPrice = competitorPrices.length > 0
     ? competitorPrices.reduce((sum, p) => sum + p, 0) / competitorPrices.length
     : 0
+
+  const gateway = priceConfig.gatewayType === 'percent' ? priceConfig.price * (priceConfig.gatewayVal / 100) : priceConfig.gatewayVal
+  const imposto = priceConfig.impostoType === 'percent' ? priceConfig.price * (priceConfig.impostoVal / 100) : priceConfig.impostoVal
+  const reembolso = priceConfig.reembolsoType === 'percent' ? priceConfig.price * (priceConfig.reembolsoVal / 100) : priceConfig.reembolsoVal
+  const outros = priceConfig.outrosType === 'percent' ? priceConfig.price * (priceConfig.outrosVal / 100) : priceConfig.outrosVal
+  const varCosts = gateway + imposto + reembolso + outros
+  const contribMarginPerUnit = priceConfig.price - varCosts
+  const monthlyRevenue = priceConfig.price * priceConfig.sales
+  const annualRevenue = monthlyRevenue * 12
+  const contribMarginPct = priceConfig.price > 0 ? (contribMarginPerUnit / priceConfig.price) * 100 : 0
+  const monthlyProfit = (contribMarginPerUnit * priceConfig.sales) - priceConfig.fixedCosts
+  const profitMarginPct = monthlyRevenue > 0 ? (monthlyProfit / monthlyRevenue) * 100 : 0
+  const cpaMax = priceConfig.sales > 0 ? contribMarginPerUnit - (priceConfig.fixedCosts / priceConfig.sales) : 0
+
+  const activeDiagnostic = useMemo(() => {
+    if (avgCompetitorPrice <= 0 || priceConfig.price <= 0) return null
+    const ratio = priceConfig.price / avgCompetitorPrice
+    if (ratio < 0.85) {
+      return {
+        label: 'Abaixo do mercado',
+        color: 'bg-red-bg text-red-t border border-red-t/25',
+        desc: 'Seu preço está abaixo da média dos concorrentes. Excelente para atração inicial (preço de penetração), mas atente-se à sustentabilidade da margem.'
+      }
+    } else if (ratio <= 1.15) {
+      return {
+        label: 'Preço ideal',
+        color: 'bg-green-bg text-green-t border border-green-custom/25',
+        desc: 'Seu preço está alinhado com a média dos concorrentes. O foco deve ser nos diferenciais de produto e atendimento para vencer a concorrência.'
+      }
+    } else {
+      return {
+        label: 'Acima do mercado',
+        color: 'bg-amber-bg text-amber-t border border-amber-t/25',
+        desc: 'Seu preço está acima da média de mercado. Garanta que a sua comunicação de valor e branding sustentem esse posicionamento premium.'
+      }
+    }
+  }, [priceConfig.price, avgCompetitorPrice])
 
   const handleToggle = (field: 'gatewayType' | 'impostoType' | 'reembolsoType' | 'outrosType') => {
     const updated = {
