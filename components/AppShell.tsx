@@ -330,6 +330,16 @@ export default function AppShell({ children }: AppShellProps) {
               <span>{lvlDetail.name}</span>
             </div>
 
+            <a
+              href="https://crm.agenciab16.com.br"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1.5 text-xs bg-green-custom text-white font-semibold rounded-md hover:opacity-90 cursor-pointer transition-all flex items-center gap-1.5 shadow-sm shadow-green-custom/20 border border-green-custom/10"
+            >
+              <DollarSign className="w-3.5 h-3.5 shrink-0 text-white" />
+              <span>Meu Comercial</span>
+            </a>
+
             <button
               onClick={() => setActiveModule('planejador')}
               className="px-2.5 py-1.5 text-xs border border-border2 bg-surface text-text-custom font-medium rounded-md hover:bg-surface2 cursor-pointer transition-colors sm:block hidden"
