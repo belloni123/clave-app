@@ -548,5 +548,4 @@ export default function ConcepcaoModule() {
       )}
     </div>
   )
-  )
 }

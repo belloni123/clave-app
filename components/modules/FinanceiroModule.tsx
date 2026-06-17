@@ -741,8 +741,6 @@ export default function FinanceiroModule() {
         </div>
       )}
 
-      )}
-
       {/* ==========================================
           TAB: PRECIFICAÇÃO (SIMULATOR)
           ========================================== */}
