@@ -113,7 +113,7 @@ export default function ProjectSwitcher() {
         if (error) throw error
       } else {
         // Create
-        const maxLimit = profile?.role === 'admin' ? Infinity : 3
+        const maxLimit = Infinity
         if (projects.length >= maxLimit) {
           throw new Error(`Limite de ${maxLimit} projetos atingido.`)
         }
@@ -211,7 +211,7 @@ export default function ProjectSwitcher() {
     }
   }
 
-  const maxLimit = profile?.role === 'admin' ? Infinity : 3
+  const maxLimit = Infinity
   const maxReached = projects.length >= maxLimit
 
   return (
@@ -253,7 +253,6 @@ export default function ProjectSwitcher() {
             <span>PROJETOS</span>
             <span>
               {projects.length}
-              {profile?.max_projects ? `/${profile.max_projects}` : ''}
             </span>
           </div>
 
