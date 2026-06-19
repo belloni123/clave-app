@@ -18,6 +18,9 @@ const dmMono = DM_Mono({
 export const metadata: Metadata = {
   title: "Clave — Plataforma de Gestão de Marketing Digital",
   description: "Centralize em um único lugar todos os processos de um negócio digital: da concepção do produto até a análise financeira de lançamentos.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

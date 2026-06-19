@@ -50,6 +50,11 @@ interface AppState {
   sidebarCollapsed: boolean
   toggleSidebar: () => void
 
+  // Theme settings
+  theme: 'light' | 'dark'
+  setTheme: (theme: 'light' | 'dark') => void
+  toggleTheme: () => void
+
   // Toast notifications
   toast: ToastState
   showToast: (message: string, type?: 'info' | 'err') => void
@@ -79,6 +84,21 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   sidebarCollapsed: false,
   toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+
+  theme: 'dark',
+  setTheme: (theme) => set({ theme }),
+  toggleTheme: () => set((state) => {
+    const nextTheme = state.theme === 'light' ? 'dark' : 'light'
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('clave_theme', nextTheme)
+      if (nextTheme === 'dark') {
+        document.documentElement.classList.add('dark')
+      } else {
+        document.documentElement.classList.remove('dark')
+      }
+    }
+    return { theme: nextTheme }
+  }),
 
   toast: { message: null, type: null },
   showToast: (message, type = 'info') => {

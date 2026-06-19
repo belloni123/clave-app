@@ -21,6 +21,8 @@ import {
   LogOut,
   Menu,
   X,
+  Sun,
+  Moon,
 } from 'lucide-react'
 
 interface AppShellProps {
@@ -79,11 +81,28 @@ export default function AppShell({ children }: AppShellProps) {
     currentLevel,
     setProfile,
     showToast,
+    theme,
+    setTheme,
+    toggleTheme,
   } = useAppStore()
 
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  // 1. VERIFICAR AUTENTICAÇÃO E CARREGAR PERFIL
+  // 1. INICIALIZAR TEMA
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('clave_theme') as 'light' | 'dark' | null
+      const finalTheme = savedTheme || 'dark'
+      setTheme(finalTheme)
+      if (finalTheme === 'dark') {
+        document.documentElement.classList.add('dark')
+      } else {
+        document.documentElement.classList.remove('dark')
+      }
+    }
+  }, [setTheme])
+
+  // 2. VERIFICAR AUTENTICAÇÃO E CARREGAR PERFIL
   useEffect(() => {
     async function getSession() {
       const {
@@ -212,13 +231,18 @@ export default function AppShell({ children }: AppShellProps) {
       >
         {/* Top Header */}
         <div className="flex items-center gap-2.5 px-3 py-3.5 border-b border-border-custom h-14 shrink-0 min-w-0">
-          <div className="w-7 h-7 rounded-lg bg-text-custom flex items-center justify-center shrink-0">
-            <span className="text-white text-sm font-semibold select-none">C</span>
-          </div>
-          {(!sidebarCollapsed || mobileOpen) && (
-            <span className="text-sm font-semibold tracking-tight text-text-custom truncate flex-1">
-              Clave
-            </span>
+          {sidebarCollapsed && !mobileOpen ? (
+            <img
+              src="/favicon.svg"
+              alt="Clave"
+              className="w-7 h-7 object-contain shrink-0"
+            />
+          ) : (
+            <img
+              src={theme === 'dark' ? '/logo_white.svg' : '/logo_black.svg'}
+              alt="B16 Clave"
+              className="h-7 object-contain max-w-[120px] shrink-0"
+            />
           )}
           <button
             onClick={toggleSidebar}
@@ -351,6 +375,13 @@ export default function AppShell({ children }: AppShellProps) {
               className="px-2.5 py-1.5 text-xs border border-border2 bg-surface text-text-custom font-medium rounded-md hover:bg-surface2 cursor-pointer transition-colors sm:block hidden"
             >
               Links & QR
+            </button>
+            <button
+              onClick={toggleTheme}
+              className="p-1.5 border border-border2 bg-surface text-text-custom rounded-md hover:bg-surface2 cursor-pointer transition-colors flex items-center justify-center shrink-0"
+              title={theme === 'dark' ? 'Modo Claro' : 'Modo Escuro'}
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
             <button
               onClick={handleLogout}

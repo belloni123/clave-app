@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Check, Star, Award, Zap, BookOpen, Compass, ChevronRight, User, ShieldAlert, Sparkles, Send } from 'lucide-react'
 
@@ -8,6 +8,21 @@ type QuizType = 'expert' | 'bastidores'
 
 export default function DiagnosticoPage() {
   const router = useRouter()
+
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('clave_theme') as 'light' | 'dark' | null
+      const finalTheme = savedTheme || 'dark'
+      setTheme(finalTheme)
+      if (finalTheme === 'dark') {
+        document.documentElement.classList.add('dark')
+      } else {
+        document.documentElement.classList.remove('dark')
+      }
+    }
+  }, [])
 
   // General Quiz State
   const [selectedQuiz, setSelectedQuiz] = useState<QuizType | null>(null)
@@ -279,10 +294,11 @@ export default function DiagnosticoPage() {
       <div className="w-full max-w-xl z-10 space-y-6">
         {/* Header Branding */}
         <div className="flex flex-col items-center">
-          <div className="w-10 h-10 rounded-xl bg-text-custom flex items-center justify-center mb-2 shadow border border-white/10">
-            <span className="text-white text-base font-bold select-none">C</span>
-          </div>
-          <span className="text-sm font-bold tracking-tight text-text-custom">Clave</span>
+          <img
+            src={theme === 'dark' ? '/logo_white.svg' : '/logo_black.svg'}
+            alt="B16 Clave"
+            className="h-10 object-contain mb-2 transition-transform duration-300 hover:scale-105"
+          />
         </div>
 
         {/* ==========================================

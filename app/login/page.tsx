@@ -28,6 +28,21 @@ export default function LoginPage() {
   const [actCode, setActCode] = useState('')
   const [actPass1, setActPass1] = useState('')
   const [actPass2, setActPass2] = useState('')
+
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('clave_theme') as 'light' | 'dark' | null
+      const finalTheme = savedTheme || 'dark'
+      setTheme(finalTheme)
+      if (finalTheme === 'dark') {
+        document.documentElement.classList.add('dark')
+      } else {
+        document.documentElement.classList.remove('dark')
+      }
+    }
+  }, [])
   const [actSuccess, setActSuccess] = useState(false)
 
   // Redireciona se o usuário já estiver logado
@@ -166,10 +181,11 @@ export default function LoginPage() {
       <div className="w-full max-w-[400px] z-10 animate-[fadeUp_0.4s_ease_both]">
         {/* Logo Section */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-12 h-12 rounded-2xl bg-text-custom flex items-center justify-center mb-3 shadow-lg shadow-text-custom/10 border border-white/10 transition-transform duration-300 hover:scale-105">
-            <span className="text-white text-xl font-bold select-none">C</span>
-          </div>
-          <h1 className="text-xl font-bold tracking-tight text-text-custom">Clave</h1>
+          <img
+            src={theme === 'dark' ? '/logo_white.svg' : '/logo_black.svg'}
+            alt="B16 Clave"
+            className="h-10 object-contain mb-3 transition-transform duration-300 hover:scale-105"
+          />
           <p className="text-xs text-text2 mt-1 font-medium">Plataforma de gestão de marketing</p>
         </div>
 
