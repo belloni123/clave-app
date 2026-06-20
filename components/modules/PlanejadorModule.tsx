@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
@@ -14,6 +14,8 @@ interface CalendarEvent {
   title: string
   date: string
   type: EventType
+  gcal_event_id?: string | null
+  attendees?: string[]
 }
 
 interface SaveEventPayload {
@@ -21,6 +23,7 @@ interface SaveEventPayload {
   title: string
   type: EventType
   date: string
+  attendees?: string[]
 }
 
 const EVENT_COLORS: Record<EventType, { text: string; bg: string; dot: string }> = {
@@ -41,38 +44,77 @@ export default function PlanejadorModule() {
   const supabase = createClient()
   const { activeProjectId, showToast } = useAppStore()
 
-  // Google Calendar Simulation State
-  const [isSynced, setIsSynced] = useState<boolean>(() => {
-    if (typeof window !== 'undefined' && activeProjectId) {
-      return localStorage.getItem(`clave_gcal_synced_${activeProjectId}`) === 'true'
+  // Google Calendar Sync State & Query
+  const { data: syncData, refetch: refetchSyncStatus } = useQuery({
+    queryKey: ['gcal_sync_status'],
+    queryFn: async () => {
+      const res = await fetch('/api/calendar/sync-status')
+      if (!res.ok) {
+        return { isSynced: false }
+      }
+      return res.json() as Promise<{ isSynced: boolean }>
     }
-    return false
   })
+
+  const isSynced = !!syncData?.isSynced
   const [syncing, setSyncing] = useState(false)
 
-  React.useEffect(() => {
-    if (activeProjectId) {
-      setIsSynced(localStorage.getItem(`clave_gcal_synced_${activeProjectId}`) === 'true')
-    }
-  }, [activeProjectId])
-
-  const handleToggleSync = () => {
-    if (isSynced) {
-      setIsSynced(false)
-      if (activeProjectId) {
-        localStorage.removeItem(`clave_gcal_synced_${activeProjectId}`)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      const syncStatus = params.get('gcal_sync')
+      const errorMsg = params.get('error_msg')
+      if (syncStatus === 'success') {
+        showToast('Agenda sincronizada com sucesso!')
+        refetchSyncStatus()
+        const newUrl = window.location.pathname
+        window.history.replaceState({}, '', newUrl)
+      } else if (syncStatus === 'error') {
+        showToast(errorMsg ? decodeURIComponent(errorMsg) : 'Falha ao conectar com Google Agenda', 'err')
+        const newUrl = window.location.pathname
+        window.history.replaceState({}, '', newUrl)
       }
-      showToast('Desconectado do Google Agenda')
+    }
+  }, [showToast, refetchSyncStatus])
+
+  const handleToggleSync = async () => {
+    if (isSynced) {
+      setSyncing(true)
+      try {
+        const res = await fetch('/api/calendar/sync-status', {
+          method: 'DELETE'
+        })
+        if (res.ok) {
+          refetchSyncStatus()
+          showToast('Desconectado do Google Agenda')
+        } else {
+          showToast('Erro ao desconectar do Google Agenda', 'err')
+        }
+      } catch (err) {
+        showToast('Erro ao desconectar do Google Agenda', 'err')
+      } finally {
+        setSyncing(false)
+      }
     } else {
       setSyncing(true)
-      setTimeout(() => {
-        setSyncing(false)
-        setIsSynced(true)
-        if (activeProjectId) {
-          localStorage.setItem(`clave_gcal_synced_${activeProjectId}`, 'true')
+      try {
+        const res = await fetch('/api/auth/google/url')
+        if (res.ok) {
+          const { url } = await res.json()
+          if (url) {
+            window.location.href = url
+          } else {
+            showToast('Erro ao obter link de autorização', 'err')
+            setSyncing(false)
+          }
+        } else {
+          showToast('Erro ao obter link de autorização', 'err')
+          setSyncing(false)
         }
-        showToast('Sincronizado com Google Agenda! Eventos importados.')
-      }, 1500)
+      } catch (err) {
+        showToast('Erro ao iniciar integração', 'err')
+        setSyncing(false)
+      }
     }
   }
 
@@ -87,14 +129,16 @@ export default function PlanejadorModule() {
   const [eventTitle, setEventTitle] = useState('')
   const [eventType, setEventType] = useState<EventType>('Lançamento')
   const [eventDateStr, setEventDateStr] = useState('')
+  
+  // Attendees state
+  const [attendees, setAttendees] = useState<string[]>([])
+  const [emailInput, setEmailInput] = useState('')
 
   // 1. QUERY CALENDAR EVENTS
   const { data: dbEvents } = useQuery({
     queryKey: ['calendar_events', activeProjectId, currentMonth, currentYear],
     queryFn: async () => {
       if (!activeProjectId) return []
-      // Carregar os eventos do mês ativo (filtros por data no DB ou client side)
-      // Para o MVP, carregaremos todos os eventos ativos do projeto e filtramos
       const { data, error } = await supabase
         .from('calendar_events')
         .select('*')
@@ -110,53 +154,72 @@ export default function PlanejadorModule() {
     enabled: !!activeProjectId,
   })
 
+  const editingEvent = dbEvents?.find((e) => e.id === editEventId)
+
   // 2. MUTATIONS
   const saveEventMutation = useMutation({
     mutationFn: async (payload: SaveEventPayload) => {
       if (!activeProjectId) return
-      if (payload.id) {
-        const { error } = await supabase
-          .from('calendar_events')
-          .update({ title: payload.title, type: payload.type, date: payload.date })
-          .eq('id', payload.id)
-        if (error) throw error
-      } else {
-        const { error } = await supabase
-          .from('calendar_events')
-          .insert({
-            project_id: activeProjectId,
-            title: payload.title,
-            type: payload.type,
-            date: payload.date
-          })
-        if (error) throw error
+
+      const isEdit = !!payload.id
+      const method = isEdit ? 'PUT' : 'POST'
+
+      const response = await fetch('/api/calendar/events', {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: payload.id,
+          project_id: activeProjectId,
+          title: payload.title,
+          type: payload.type,
+          date: payload.date,
+          attendees: payload.attendees || []
+        })
+      })
+
+      if (!response.ok) {
+        const errData = await response.json()
+        throw new Error(errData.error || 'Erro ao salvar evento')
       }
+
+      return response.json()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar_events', activeProjectId] })
       showToast(editEventId ? 'Evento atualizado' : 'Evento criado')
       closeModal()
     },
-    onError: () => {
-      showToast('Erro ao salvar evento', 'err')
+    onError: (err: any) => {
+      showToast(err.message || 'Erro ao salvar evento', 'err')
     },
   })
 
   const deleteEventMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('calendar_events')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', id)
-      if (error) throw error
+      const response = await fetch('/api/calendar/events', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id })
+      })
+
+      if (!response.ok) {
+        const errData = await response.json()
+        throw new Error(errData.error || 'Erro ao excluir evento')
+      }
+
+      return response.json()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar_events', activeProjectId] })
       showToast('Evento excluído')
       closeModal()
     },
-    onError: () => {
-      showToast('Erro ao excluir evento', 'err')
+    onError: (err: any) => {
+      showToast(err.message || 'Erro ao excluir evento', 'err')
     },
   })
 
@@ -174,6 +237,8 @@ export default function PlanejadorModule() {
     setEventTitle('')
     setEventType('Lançamento')
     setEventDateStr(dateStr)
+    setAttendees([])
+    setEmailInput('')
     setModalOpen(true)
   }
 
@@ -183,6 +248,8 @@ export default function PlanejadorModule() {
     setEventTitle(ev.title)
     setEventType(ev.type)
     setEventDateStr(ev.date)
+    setAttendees(ev.attendees || [])
+    setEmailInput('')
     setModalOpen(true)
   }
 
@@ -190,6 +257,8 @@ export default function PlanejadorModule() {
     setModalOpen(false)
     setEditEventId(null)
     setEventTitle('')
+    setAttendees([])
+    setEmailInput('')
   }
 
   const handleSave = () => {
@@ -198,7 +267,8 @@ export default function PlanejadorModule() {
       id: editEventId || undefined,
       title: eventTitle.trim(),
       type: eventType,
-      date: eventDateStr
+      date: eventDateStr,
+      attendees
     })
   }
 
@@ -262,44 +332,7 @@ export default function PlanejadorModule() {
 
   // Mapear eventos por data local
   const getEventsForDay = (dateStr: string) => {
-    const events = [...(dbEvents || []).filter((e) => e.date === dateStr)]
-
-    if (isSynced) {
-      const pad = (num: number) => String(num).padStart(2, '0')
-      const gCalDate1 = `${currentYear}-${pad(currentMonth + 1)}-10`
-      const gCalDate2 = `${currentYear}-${pad(currentMonth + 1)}-18`
-      const gCalDate3 = `${currentYear}-${pad(currentMonth + 1)}-25`
-
-      if (dateStr === gCalDate1) {
-        events.push({
-          id: 'gcal-1',
-          project_id: activeProjectId || '',
-          title: 'Reunião de Alinhamento (Google Agenda)',
-          date: gCalDate1,
-          type: 'Reunião'
-        })
-      }
-      if (dateStr === gCalDate2) {
-        events.push({
-          id: 'gcal-2',
-          project_id: activeProjectId || '',
-          title: 'Anúncios de Tração (Google Agenda)',
-          date: gCalDate2,
-          type: 'Anúncio'
-        })
-      }
-      if (dateStr === gCalDate3) {
-        events.push({
-          id: 'gcal-3',
-          project_id: activeProjectId || '',
-          title: 'Post de Conteúdo (Google Agenda)',
-          date: gCalDate3,
-          type: 'Conteúdo'
-        })
-      }
-    }
-
-    return events
+    return [...(dbEvents || []).filter((e) => e.date === dateStr)]
   }
 
   const isToday = (d: Date) => {
@@ -418,8 +451,11 @@ export default function PlanejadorModule() {
                       className={`text-[8px] px-1.5 py-0.5 rounded font-semibold truncate leading-tight flex items-center gap-1 ${colors.bg} ${colors.text} hover:opacity-85 border border-transparent hover:border-text-custom/10`}
                       title={ev.title}
                     >
-                      <div className={`w-1 h-1 rounded-full ${colors.dot}`} />
-                      <span>{ev.title}</span>
+                      <div className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
+                      <span className="truncate flex-1">{ev.title}</span>
+                      {ev.gcal_event_id && (
+                        <Calendar className="w-2.5 h-2.5 text-current opacity-70 shrink-0 ml-auto" />
+                      )}
                     </div>
                   )
                 })}
@@ -434,9 +470,16 @@ export default function PlanejadorModule() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100] animate-[fadeUp_0.15s_ease_both]">
           <div className="bg-surface rounded-xl p-5 w-full max-w-[340px] shadow-2xl border border-border2">
             <div className="flex justify-between items-center mb-4 border-b border-border-custom pb-2">
-              <p className="text-sm font-semibold text-text-custom">
-                {editEventId ? 'Editar Evento' : 'Novo Evento'}
-              </p>
+              <div className="flex flex-col gap-0.5">
+                <p className="text-sm font-semibold text-text-custom">
+                  {editEventId ? 'Editar Evento' : 'Novo Evento'}
+                </p>
+                {editingEvent?.gcal_event_id && (
+                  <span className="text-[9px] text-green-t font-semibold flex items-center gap-0.5 animate-pulse">
+                    ● Sincronizado com Google Agenda
+                  </span>
+                )}
+              </div>
               <button
                 onClick={closeModal}
                 className="text-text3 hover:text-text-custom cursor-pointer"
@@ -483,9 +526,80 @@ export default function PlanejadorModule() {
                   />
                 </div>
               </div>
+
+              {/* Convidados (Google Calendar) */}
+              <div>
+                <label className="text-[10px] font-bold text-text2 mb-1 block">Convidados (E-mail)</label>
+                <div className="flex gap-1.5 mb-2">
+                  <input
+                    type="email"
+                    className="flex-1 px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none focus:border-text-custom text-[11px]"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        const email = emailInput.trim()
+                        if (!email) return
+                        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                          showToast('E-mail inválido', 'err')
+                          return
+                        }
+                        if (attendees.includes(email)) {
+                          showToast('E-mail já adicionado')
+                          return
+                        }
+                        setAttendees([...attendees, email])
+                        setEmailInput('')
+                      }
+                    }}
+                    placeholder="Adicionar e-mail do convidado"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const email = emailInput.trim()
+                      if (!email) return
+                      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                        showToast('E-mail inválido', 'err')
+                        return
+                      }
+                      if (attendees.includes(email)) {
+                        showToast('E-mail já adicionado')
+                        return
+                      }
+                      setAttendees([...attendees, email])
+                      setEmailInput('')
+                    }}
+                    className="px-2.5 py-1.5 bg-surface2 border border-border2 hover:border-text-custom hover:bg-surface text-text-custom rounded font-semibold cursor-pointer transition-colors"
+                  >
+                    +
+                  </button>
+                </div>
+
+                {attendees.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-2 bg-surface2 rounded border border-border-custom scrollbar-thin">
+                    {attendees.map((email) => (
+                      <div
+                        key={email}
+                        className="flex items-center gap-1 bg-surface border border-border-custom px-2 py-0.5 rounded text-[10px] text-text-custom"
+                      >
+                        <span className="truncate max-w-[150px]">{email}</span>
+                        <button
+                          type="button"
+                          onClick={() => setAttendees(attendees.filter((a) => a !== email))}
+                          className="text-text3 hover:text-red-t cursor-pointer transition-colors ml-0.5"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="flex justify-between items-center gap-2 mt-6 pt-3 border-t border-border-custom">
+            <div className="flex justify-between items-center gap-2 mt-6 pt-3 border-t border-t-border-custom">
               {editEventId && (
                 <button
                   onClick={handleDelete}
