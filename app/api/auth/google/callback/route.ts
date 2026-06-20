@@ -3,7 +3,13 @@ import { createClient } from '@/utils/supabase/server'
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get('code')
-  const origin = request.nextUrl.origin
+  
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host')
+  let protocol = request.headers.get('x-forwarded-proto') || 'http'
+  if (host && !host.includes('localhost') && !host.includes('127.0.0.1') && !host.includes('0.0.0.0')) {
+    protocol = 'https'
+  }
+  const origin = host ? `${protocol}://${host}` : request.nextUrl.origin
 
   if (!code) {
     return NextResponse.redirect(
