@@ -461,7 +461,7 @@ export default function ConcepcaoModule() {
               )}
               <button
                 onClick={addCompetitor}
-                className="px-2.5 py-1.5 bg-text-custom text-white hover:opacity-90 rounded text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                className="px-2.5 py-1.5 bg-text-custom text-surface hover:opacity-90 rounded text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Adicionar concorrente</span>

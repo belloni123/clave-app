@@ -620,7 +620,7 @@ export default function AcessoModule() {
             {isAdmin && (
               <button
                 onClick={() => openColabModal()}
-                className="px-3 py-1.5 bg-text-custom text-white hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
+                className="px-3 py-1.5 bg-text-custom text-surface hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
               >
                 + Colaborador
               </button>
@@ -799,7 +799,7 @@ export default function AcessoModule() {
                     </button>
                     <button
                       onClick={handleSaveColab}
-                      className="px-4 py-2 bg-text-custom text-white rounded text-xs font-semibold hover:opacity-90 transition-colors cursor-pointer"
+                      className="px-4 py-2 bg-text-custom text-surface rounded text-xs font-semibold hover:opacity-90 transition-colors cursor-pointer"
                     >
                       Salvar
                     </button>
@@ -824,7 +824,7 @@ export default function AcessoModule() {
             {isAdmin && (
               <button
                 onClick={() => openClientModal()}
-                className="px-3 py-1.5 bg-text-custom text-white hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
+                className="px-3 py-1.5 bg-text-custom text-surface hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
               >
                 + Cliente
               </button>
@@ -957,7 +957,7 @@ export default function AcessoModule() {
                     </button>
                     <button
                       onClick={handleSaveClient}
-                      className="px-4 py-2 bg-text-custom text-white rounded text-xs font-semibold hover:opacity-90 transition-colors cursor-pointer"
+                      className="px-4 py-2 bg-text-custom text-surface rounded text-xs font-semibold hover:opacity-90 transition-colors cursor-pointer"
                     >
                       Salvar
                     </button>
@@ -1060,7 +1060,7 @@ export default function AcessoModule() {
 
             <button
               onClick={addContact}
-              className="px-3 py-1.5 bg-text-custom text-white hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
+              className="px-3 py-1.5 bg-text-custom text-surface hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
             >
               Adicionar Contato
             </button>
@@ -1144,7 +1144,7 @@ export default function AcessoModule() {
             </div>
             <button
               onClick={addSubProject}
-              className="px-3 py-1.5 bg-text-custom text-white hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
+              className="px-3 py-1.5 bg-text-custom text-surface hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
             >
               Adicionar Projeto
             </button>
@@ -1253,7 +1253,7 @@ export default function AcessoModule() {
                         />
                         <button
                           type="submit"
-                          className="px-3 py-1 bg-text-custom text-white hover:opacity-90 rounded text-[10px] font-semibold cursor-pointer"
+                          className="px-3 py-1 bg-text-custom text-surface hover:opacity-90 rounded text-[10px] font-semibold cursor-pointer"
                         >
                           + Add
                         </button>

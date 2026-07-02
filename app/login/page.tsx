@@ -35,7 +35,7 @@ export default function LoginPage() {
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('clave_theme') as 'light' | 'dark' | null
       const finalTheme = savedTheme || 'dark'
-      setTheme(finalTheme)
+      setTimeout(() => setTheme(finalTheme), 0)
       if (finalTheme === 'dark') {
         document.documentElement.classList.add('dark')
       } else {
@@ -64,7 +64,7 @@ export default function LoginPage() {
       const params = new URLSearchParams(window.location.search)
       const stateParam = params.get('state')
       if (stateParam === 'ativar' || stateParam === 'login' || stateParam === 'esqueci' || stateParam === 'clave') {
-        setState(stateParam as LoginState)
+        setTimeout(() => setState(stateParam as LoginState), 0)
       }
     }
   }, [])

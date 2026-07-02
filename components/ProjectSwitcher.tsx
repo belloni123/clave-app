@@ -372,7 +372,7 @@ export default function ProjectSwitcher() {
                 <button
                   onClick={handleSave}
                   disabled={!projName.trim() || saveProjectMutation.isPending}
-                  className="px-4 py-2 bg-text-custom text-white rounded-md text-xs font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
+                  className="px-4 py-2 bg-text-custom text-surface rounded-md text-xs font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
                 >
                   {saveProjectMutation.isPending ? 'Salvando...' : 'Salvar'}
                 </button>

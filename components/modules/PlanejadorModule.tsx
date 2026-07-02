@@ -191,7 +191,7 @@ export default function PlanejadorModule() {
       showToast(editEventId ? 'Evento atualizado' : 'Evento criado')
       closeModal()
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       showToast(err.message || 'Erro ao salvar evento', 'err')
     },
   })
@@ -218,7 +218,7 @@ export default function PlanejadorModule() {
       showToast('Evento excluído')
       closeModal()
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       showToast(err.message || 'Erro ao excluir evento', 'err')
     },
   })
@@ -619,7 +619,7 @@ export default function PlanejadorModule() {
                 <button
                   onClick={handleSave}
                   disabled={!eventTitle.trim() || !eventDateStr}
-                  className="px-4 py-2 bg-text-custom text-white rounded text-xs font-semibold hover:opacity-90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  className="px-4 py-2 bg-text-custom text-surface rounded text-xs font-semibold hover:opacity-90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   Salvar
                 </button>

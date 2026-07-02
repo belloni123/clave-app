@@ -216,7 +216,7 @@ export default function ValidacaoModule() {
                   onClick={() => setAdFilter(status)}
                   className={`px-3 py-1.5 rounded-full border cursor-pointer capitalize transition-all ${
                     adFilter === status
-                      ? 'bg-text-custom text-white border-text-custom'
+                      ? 'bg-text-custom text-surface border-text-custom'
                       : 'border-border2 text-text2 hover:text-text-custom hover:bg-surface2'
                   }`}
                 >
@@ -227,7 +227,7 @@ export default function ValidacaoModule() {
 
             <button
               onClick={() => openAdModal()}
-              className="px-3.5 py-2 bg-text-custom text-white hover:opacity-90 rounded text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+              className="px-3.5 py-2 bg-text-custom text-surface hover:opacity-90 rounded text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
             >
               <Plus className="w-4 h-4 shrink-0" />
               <span>Novo Anúncio</span>
@@ -438,7 +438,7 @@ export default function ValidacaoModule() {
                     </button>
                     <button
                       onClick={handleSaveAd}
-                      className="px-4 py-2 bg-text-custom text-white rounded text-xs font-semibold hover:opacity-90 transition-colors cursor-pointer"
+                      className="px-4 py-2 bg-text-custom text-surface rounded text-xs font-semibold hover:opacity-90 transition-colors cursor-pointer"
                     >
                       Salvar
                     </button>

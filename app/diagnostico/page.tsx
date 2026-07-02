@@ -15,7 +15,7 @@ export default function DiagnosticoPage() {
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('clave_theme') as 'light' | 'dark' | null
       const finalTheme = savedTheme || 'dark'
-      setTheme(finalTheme)
+      setTimeout(() => setTheme(finalTheme), 0)
       if (finalTheme === 'dark') {
         document.documentElement.classList.add('dark')
       } else {

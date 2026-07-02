@@ -31,42 +31,37 @@ interface AppShellProps {
 
 const LEVEL_DETAILS: Record<
   MaturityLevel,
-  { name: string; color: string; bg: string; text: string; border: string }
+  { name: string; color: string; badgeClass: string; dotClass: string }
 > = {
   newbie: {
-    name: 'Newbie',
+    name: 'Fundação',
     color: '#888780',
-    bg: 'var(--gray-bg)',
-    text: 'var(--gray-t)',
-    border: '#B4B2A9',
+    badgeClass: 'bg-gray-bg border-border2 text-gray-t',
+    dotClass: 'bg-[#888780]',
   },
   soft: {
-    name: 'Soft',
+    name: 'Estruturação',
     color: '#1D9E75',
-    bg: 'var(--green-bg)',
-    text: 'var(--green-t)',
-    border: '#9FE1CB',
+    badgeClass: 'bg-green-bg border-green-custom/30 text-green-t',
+    dotClass: 'bg-[#1D9E75]',
   },
   hard: {
-    name: 'Hard',
+    name: 'Tração',
     color: '#185FA5',
-    bg: 'var(--blue-bg)',
-    text: 'var(--blue-t)',
-    border: '#85B7EB',
+    badgeClass: 'bg-blue-bg border-blue-custom/30 text-blue-t',
+    dotClass: 'bg-[#185FA5]',
   },
   pro: {
-    name: 'Pro',
+    name: 'Expansão',
     color: '#534AB7',
-    bg: 'var(--purple-bg)',
-    text: 'var(--purple-t)',
-    border: '#AFA9EC',
+    badgeClass: 'bg-purple-bg border-purple-custom/30 text-purple-t',
+    dotClass: 'bg-[#534AB7]',
   },
   master: {
-    name: 'Master',
+    name: 'Escala',
     color: '#D85A30',
-    bg: 'var(--coral-bg)',
-    text: 'var(--coral-t)',
-    border: '#F0997B',
+    badgeClass: 'bg-coral-bg border-coral-custom/30 text-coral-t',
+    dotClass: 'bg-[#D85A30]',
   },
 }
 
@@ -340,16 +335,10 @@ export default function AppShell({ children }: AppShellProps) {
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {/* Maturity Badge */}
             <div
-              className="flex items-center gap-1.5 px-3 py-1 border rounded-full text-xs font-medium cursor-default transition-all duration-150 sm:flex hidden"
-              style={{
-                background: lvlDetail.bg,
-                borderColor: lvlDetail.border,
-                color: lvlDetail.text,
-              }}
+              className={`flex items-center gap-1.5 px-3 py-1 border rounded-full text-xs font-medium cursor-default transition-all duration-150 sm:flex hidden ${lvlDetail.badgeClass}`}
             >
               <div
-                className="w-2 h-2 rounded-full shrink-0"
-                style={{ background: lvlDetail.color }}
+                className={`w-2 h-2 rounded-full shrink-0 ${lvlDetail.dotClass}`}
               />
               <span>{lvlDetail.name}</span>
             </div>

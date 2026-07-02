@@ -156,52 +156,56 @@ export default function FinanceiroModule() {
   useEffect(() => {
     if (!activeProjectId) return
     const storedConfig = localStorage.getItem(`clave_price_config_${activeProjectId}`)
+    const storedAlt = localStorage.getItem(`clave_price_alt_${activeProjectId}`)
+    const storedScenarios = localStorage.getItem(`clave_price_scenarios_${activeProjectId}`)
+
+    let configVal: PricingConfig = {
+      price: 997,
+      sales: 50,
+      gatewayVal: 4.5,
+      gatewayType: 'percent',
+      impostoVal: 6,
+      impostoType: 'percent',
+      reembolsoVal: 2,
+      reembolsoType: 'percent',
+      outrosVal: 10,
+      outrosType: 'fixed',
+      fixedCosts: 5000,
+    }
     if (storedConfig) {
       try {
-        setPriceConfig(JSON.parse(storedConfig))
+        configVal = JSON.parse(storedConfig)
       } catch (e) {
         console.error(e)
       }
-    } else {
-      setPriceConfig({
-        price: 997,
-        sales: 50,
-        gatewayVal: 4.5,
-        gatewayType: 'percent',
-        impostoVal: 6,
-        impostoType: 'percent',
-        reembolsoVal: 2,
-        reembolsoType: 'percent',
-        outrosVal: 10,
-        outrosType: 'fixed',
-        fixedCosts: 5000,
-      })
     }
 
-    const storedAlt = localStorage.getItem(`clave_price_alt_${activeProjectId}`)
+    let altVal: AlternativeRange[] = [
+      { id: '1', price: 497 },
+      { id: '2', price: 1997 },
+    ]
     if (storedAlt) {
       try {
-        setAltRanges(JSON.parse(storedAlt))
+        altVal = JSON.parse(storedAlt)
       } catch (e) {
         console.error(e)
       }
-    } else {
-      setAltRanges([
-        { id: '1', price: 497 },
-        { id: '2', price: 1997 },
-      ])
     }
 
-    const storedScenarios = localStorage.getItem(`clave_price_scenarios_${activeProjectId}`)
+    let scenariosVal: PricingScenario[] = []
     if (storedScenarios) {
       try {
-        setScenarios(JSON.parse(storedScenarios))
+        scenariosVal = JSON.parse(storedScenarios)
       } catch (e) {
         console.error(e)
       }
-    } else {
-      setScenarios([])
     }
+
+    setTimeout(() => {
+      setPriceConfig(configVal)
+      setAltRanges(altVal)
+      setScenarios(scenariosVal)
+    }, 0)
   }, [activeProjectId])
 
   const savePriceConfig = (newConfig: PricingConfig) => {
@@ -794,7 +798,7 @@ export default function FinanceiroModule() {
                 <button
                   type="button"
                   onClick={handleSaveScenario}
-                  className="px-2.5 py-1.5 bg-text-custom text-white hover:opacity-90 rounded text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                  className="px-2.5 py-1.5 bg-text-custom text-surface hover:opacity-90 rounded text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Salvar como Cenário</span>
@@ -845,7 +849,7 @@ export default function FinanceiroModule() {
                           type="button"
                           onClick={() => handleToggle('gatewayType')}
                           className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-bold transition-colors ${
-                            priceConfig.gatewayType === 'percent' ? 'bg-text-custom text-white' : 'bg-transparent text-text3'
+                            priceConfig.gatewayType === 'percent' ? 'bg-text-custom text-surface' : 'bg-transparent text-text3'
                           }`}
                         >
                           %
@@ -854,7 +858,7 @@ export default function FinanceiroModule() {
                           type="button"
                           onClick={() => handleToggle('gatewayType')}
                           className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-bold transition-colors ${
-                            priceConfig.gatewayType === 'fixed' ? 'bg-text-custom text-white' : 'bg-transparent text-text3'
+                            priceConfig.gatewayType === 'fixed' ? 'bg-text-custom text-surface' : 'bg-transparent text-text3'
                           }`}
                         >
                           R$
@@ -879,7 +883,7 @@ export default function FinanceiroModule() {
                           type="button"
                           onClick={() => handleToggle('impostoType')}
                           className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-bold transition-colors ${
-                            priceConfig.impostoType === 'percent' ? 'bg-text-custom text-white' : 'bg-transparent text-text3'
+                            priceConfig.impostoType === 'percent' ? 'bg-text-custom text-surface' : 'bg-transparent text-text3'
                           }`}
                         >
                           %
@@ -888,7 +892,7 @@ export default function FinanceiroModule() {
                           type="button"
                           onClick={() => handleToggle('impostoType')}
                           className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-bold transition-colors ${
-                            priceConfig.impostoType === 'fixed' ? 'bg-text-custom text-white' : 'bg-transparent text-text3'
+                            priceConfig.impostoType === 'fixed' ? 'bg-text-custom text-surface' : 'bg-transparent text-text3'
                           }`}
                         >
                           R$
@@ -913,7 +917,7 @@ export default function FinanceiroModule() {
                           type="button"
                           onClick={() => handleToggle('reembolsoType')}
                           className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-bold transition-colors ${
-                            priceConfig.reembolsoType === 'percent' ? 'bg-text-custom text-white' : 'bg-transparent text-text3'
+                            priceConfig.reembolsoType === 'percent' ? 'bg-text-custom text-surface' : 'bg-transparent text-text3'
                           }`}
                         >
                           %
@@ -922,7 +926,7 @@ export default function FinanceiroModule() {
                           type="button"
                           onClick={() => handleToggle('reembolsoType')}
                           className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-bold transition-colors ${
-                            priceConfig.reembolsoType === 'fixed' ? 'bg-text-custom text-white' : 'bg-transparent text-text3'
+                            priceConfig.reembolsoType === 'fixed' ? 'bg-text-custom text-surface' : 'bg-transparent text-text3'
                           }`}
                         >
                           R$
@@ -947,7 +951,7 @@ export default function FinanceiroModule() {
                           type="button"
                           onClick={() => handleToggle('outrosType')}
                           className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-bold transition-colors ${
-                            priceConfig.outrosType === 'percent' ? 'bg-text-custom text-white' : 'bg-transparent text-text3'
+                            priceConfig.outrosType === 'percent' ? 'bg-text-custom text-surface' : 'bg-transparent text-text3'
                           }`}
                         >
                           %
@@ -956,7 +960,7 @@ export default function FinanceiroModule() {
                           type="button"
                           onClick={() => handleToggle('outrosType')}
                           className={`px-1.5 py-0.5 rounded-[3px] text-[9px] font-bold transition-colors ${
-                            priceConfig.outrosType === 'fixed' ? 'bg-text-custom text-white' : 'bg-transparent text-text3'
+                            priceConfig.outrosType === 'fixed' ? 'bg-text-custom text-surface' : 'bg-transparent text-text3'
                           }`}
                         >
                           R$
@@ -1254,7 +1258,7 @@ export default function FinanceiroModule() {
             </div>
             <button
               onClick={addOffer}
-              className="px-3 py-1.5 bg-text-custom text-white hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
+              className="px-3 py-1.5 bg-text-custom text-surface hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
             >
               Nova Oferta
             </button>
@@ -1339,7 +1343,7 @@ export default function FinanceiroModule() {
             </div>
             <button
               onClick={addInvestment}
-              className="px-3 py-1.5 bg-text-custom text-white hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
+              className="px-3 py-1.5 bg-text-custom text-surface hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
             >
               Nova Despesa
             </button>

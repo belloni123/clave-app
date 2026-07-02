@@ -479,7 +479,7 @@ export default function ComunicacaoModule() {
             </div>
             <button
               onClick={addUrg}
-              className="px-3 py-1.5 bg-text-custom text-white hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
+              className="px-3 py-1.5 bg-text-custom text-surface hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
             >
               Adicionar item
             </button>
@@ -758,7 +758,7 @@ export default function ComunicacaoModule() {
             </div>
             <button
               onClick={addPag}
-              className="px-3 py-1.5 bg-text-custom text-white hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
+              className="px-3 py-1.5 bg-text-custom text-surface hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
             >
               Nova página
             </button>

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
@@ -9,6 +9,7 @@ import { Copy, Check, History, Link, QrCode, MessageSquare, ExternalLink, Downlo
 interface HistoryUrl {
   url: string
   date: string
+  name?: string
 }
 
 export default function UrlBuilderModule() {
@@ -36,6 +37,20 @@ export default function UrlBuilderModule() {
 
   // 3. Generic QR Code states
   const [qrLink, setQrLink] = useState('')
+
+  // 4. Link Naming & Search states
+  const [linkName, setLinkName] = useState('')
+  const [historySearch, setHistorySearch] = useState('')
+  const [localHistory, setLocalHistory] = useState<HistoryUrl[] | null>(null)
+
+  // Clear local states on project switch
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLocalHistory(null)
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [activeProjectId])
+
 
   // ───────────────────────────────────────────
   // QUERY & MUTATION FOR HISTORY
@@ -90,6 +105,16 @@ export default function UrlBuilderModule() {
     },
   })
 
+  // Sync query data into local state
+  useEffect(() => {
+    if (urlHistory && localHistory === null) {
+      const timer = setTimeout(() => {
+        setLocalHistory(urlHistory)
+      }, 0)
+      return () => clearTimeout(timer)
+    }
+  }, [urlHistory, localHistory])
+
   // ───────────────────────────────────────────
   // FORMULAS / LINK GENERATION
   // ───────────────────────────────────────────
@@ -139,16 +164,63 @@ export default function UrlBuilderModule() {
     showToast('Link copiado com sucesso!')
 
     // Salvar no histórico de links gerados do projeto
-    if (urlHistory) {
-      if (urlHistory[0]?.url === urlToCopy) return
+    const baseHistory = localHistory || urlHistory
+    if (baseHistory) {
+      if (baseHistory[0]?.url === urlToCopy) {
+        if (linkName.trim() && !baseHistory[0].name) {
+          const updated = [...baseHistory]
+          updated[0] = { ...updated[0], name: linkName.trim() }
+          setLocalHistory(updated)
+          saveHistoryMutation.mutate(updated)
+          setLinkName('')
+        }
+        setTimeout(() => setCopied(false), 2000)
+        return
+      }
 
-      const newEntry = { url: urlToCopy, date: new Date().toLocaleDateString('pt-BR') }
-      const updated = [newEntry, ...urlHistory.filter((x) => x.url !== urlToCopy)].slice(0, 8)
+      const newEntry: HistoryUrl = {
+        url: urlToCopy,
+        date: new Date().toLocaleDateString('pt-BR'),
+        name: linkName.trim() || undefined,
+      }
+      const updated = [newEntry, ...baseHistory.filter((x) => x.url !== urlToCopy)].slice(0, 50)
+      setLocalHistory(updated)
       saveHistoryMutation.mutate(updated)
+      setLinkName('')
     }
 
     setTimeout(() => setCopied(false), 2000)
   }
+
+  const updateHistoryName = (idx: number, newName: string) => {
+    const baseHistory = localHistory || urlHistory || []
+    const updated = [...baseHistory]
+    updated[idx] = { ...updated[idx], name: newName }
+    setLocalHistory(updated)
+  }
+
+  const handleHistoryBlur = () => {
+    if (localHistory) {
+      saveHistoryMutation.mutate(localHistory)
+    }
+  }
+
+  const deleteHistoryItem = (idx: number) => {
+    const baseHistory = localHistory || urlHistory || []
+    const updated = baseHistory.filter((_, i) => i !== idx)
+    setLocalHistory(updated)
+    saveHistoryMutation.mutate(updated)
+    showToast('Link removido do histórico')
+  }
+
+  const filteredHistory = (localHistory || urlHistory || []).filter((item) => {
+    const query = historySearch.toLowerCase()
+    return (
+      !query ||
+      (item.name || '').toLowerCase().includes(query) ||
+      item.url.toLowerCase().includes(query)
+    )
+  })
 
   const downloadQrCode = async (urlToEncode: string, filename = 'qrcode-clave.png') => {
     try {
@@ -270,6 +342,15 @@ export default function UrlBuilderModule() {
                     />
                   </div>
                 </div>
+                <div>
+                  <label className="text-[10px] font-bold text-text2 mb-1.5 block">Nome / Identificador do Link (Opcional)</label>
+                  <input
+                    className="w-full px-3 py-2 text-xs border border-border2 rounded bg-surface text-text-custom outline-none focus:border-text-custom"
+                    value={linkName}
+                    onChange={(e) => setLinkName(e.target.value)}
+                    placeholder="Ex: Abandono de Carrinho - Tráfego Pago"
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -302,6 +383,15 @@ export default function UrlBuilderModule() {
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
                     placeholder="Ex: Olá! Gostaria de saber mais sobre a mentoria Clave."
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-text2 mb-1.5 block">Nome / Identificador do Link (Opcional)</label>
+                  <input
+                    className="w-full px-3 py-2 text-xs border border-border2 rounded bg-surface text-text-custom outline-none focus:border-text-custom"
+                    value={linkName}
+                    onChange={(e) => setLinkName(e.target.value)}
+                    placeholder="Ex: Link do Suporte no Site"
                   />
                 </div>
               </div>
@@ -338,7 +428,7 @@ export default function UrlBuilderModule() {
                     </div>
                     <button
                       onClick={() => downloadQrCode(qrLink.trim(), 'qrcode-generic-clave.png')}
-                      className="px-4 py-2 bg-text-custom text-white hover:opacity-90 rounded text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors"
+                      className="px-4 py-2 bg-text-custom text-surface hover:opacity-90 rounded text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors"
                     >
                       <Download className="w-4 h-4" />
                       <span>Baixar QR Code PNG</span>
@@ -364,7 +454,7 @@ export default function UrlBuilderModule() {
               <div className="flex gap-2 flex-wrap">
                 <button
                   onClick={() => handleCopy(generatedUrl)}
-                  className="px-4 py-2 bg-text-custom text-white hover:opacity-90 rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                  className="px-4 py-2 bg-text-custom text-surface hover:opacity-90 rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
                 >
                   {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   <span>{copied ? 'Copiado!' : 'Copiar Link'}</span>
@@ -409,7 +499,7 @@ export default function UrlBuilderModule() {
                     </p>
                     <button
                       onClick={() => downloadQrCode(generatedUrl, `qrcode-${activeTab}-clave.png`)}
-                      className="px-3.5 py-1.5 bg-text-custom text-white hover:opacity-90 rounded text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer transition-colors mx-auto sm:mx-0"
+                      className="px-3.5 py-1.5 bg-text-custom text-surface hover:opacity-90 rounded text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer transition-colors mx-auto sm:mx-0"
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>Baixar Imagem</span>
@@ -428,15 +518,34 @@ export default function UrlBuilderModule() {
             <span>Últimos Links Gerados</span>
           </h4>
 
+          {/* Search Box */}
+          <div className="relative">
+            <input
+              className="w-full px-3 py-1.5 text-xs border border-border2 rounded bg-surface text-text-custom outline-none focus:border-text-custom"
+              value={historySearch}
+              onChange={(e) => setHistorySearch(e.target.value)}
+              placeholder="Buscar no histórico..."
+            />
+          </div>
+
           <div className="space-y-3.5 max-h-[500px] overflow-y-auto pr-1 scrollbar-thin">
-            {!urlHistory || urlHistory.length === 0 ? (
-              <p className="text-xs text-text3 text-center py-6">Nenhum link gerado anteriormente.</p>
+            {filteredHistory.length === 0 ? (
+              <p className="text-xs text-text3 text-center py-6">Nenhum link encontrado.</p>
             ) : (
-              urlHistory.map((item, idx) => (
+              filteredHistory.map((item, idx) => (
                 <div
                   key={idx}
                   className="p-3 bg-surface2 rounded-xl border border-border-custom text-xs relative space-y-1.5 group hover:border-border2 transition-colors"
                 >
+                  {/* Delete button top right */}
+                  <button
+                    onClick={() => deleteHistoryItem(idx)}
+                    className="absolute right-2 top-2 text-text3 hover:text-red-t cursor-pointer font-bold text-sm hidden group-hover:block transition-all animate-[fadeIn_0.1s_ease_both]"
+                    title="Excluir link do histórico"
+                  >
+                    ×
+                  </button>
+
                   <div className="flex justify-between items-center text-[9px] text-text3">
                     <span>{item.date}</span>
                     <div className="flex gap-2">
@@ -459,7 +568,20 @@ export default function UrlBuilderModule() {
                       </a>
                     </div>
                   </div>
-                  <div className="font-mono text-text-custom break-all leading-normal select-all">
+
+                  {/* Name field as inline editable text input */}
+                  <div className="pt-0.5">
+                    <input
+                      type="text"
+                      className="w-full bg-transparent text-[11px] font-bold text-text-custom outline-none border-b border-transparent hover:border-border2 focus:border-text-custom pb-0.5"
+                      value={item.name || ''}
+                      onChange={(e) => updateHistoryName(idx, e.target.value)}
+                      onBlur={handleHistoryBlur}
+                      placeholder="Sem nome (clique para nomear...)"
+                    />
+                  </div>
+
+                  <div className="font-mono text-text3 break-all leading-normal text-[10px] select-all">
                     {item.url}
                   </div>
                 </div>

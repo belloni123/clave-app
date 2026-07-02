@@ -501,7 +501,7 @@ export default function HistoriasModule() {
             <button
               type="submit"
               disabled={createStoryMutation.isPending}
-              className="px-5 py-2 bg-text-custom text-white hover:opacity-90 rounded font-semibold cursor-pointer disabled:opacity-50 transition-opacity"
+              className="px-5 py-2 bg-text-custom text-surface hover:opacity-90 rounded font-semibold cursor-pointer disabled:opacity-50 transition-opacity"
             >
               Salvar História
             </button>
@@ -551,7 +551,7 @@ export default function HistoriasModule() {
               <button
                 onClick={handleAIGlobalConsult}
                 disabled={iaGlobalLoading}
-                className="w-full py-2 bg-text-custom text-white hover:opacity-90 rounded font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-opacity disabled:opacity-50"
+                className="w-full py-2 bg-text-custom text-surface hover:opacity-90 rounded font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-opacity disabled:opacity-50"
               >
                 {iaGlobalLoading ? (
                   <span className="animate-spin inline-block w-3.5 h-3.5 border border-current border-t-transparent rounded-full" />
