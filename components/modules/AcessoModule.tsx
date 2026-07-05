@@ -89,7 +89,127 @@ export default function AcessoModule() {
   const supabase = createClient()
   const { profile, showToast, activeProjectId } = useAppStore()
 
-  const [activeSubTab, setActiveSubTab] = useState<'colabs' | 'clients' | 'students' | 'net' | 'pjs'>('colabs')
+  const [activeSubTab, setActiveSubTab] = useState<'colabs' | 'project_users' | 'clients' | 'students' | 'net' | 'pjs'>('colabs')
+
+  // ==========================================
+  // PROJECT MEMBERS & AUDIT STATES & QUERIES
+  // ==========================================
+  const [selectedMemberUserId, setSelectedMemberUserId] = useState('')
+  const [selectedMemberLevel, setSelectedMemberLevel] = useState<'viewer' | 'editor' | 'admin'>('viewer')
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false)
+
+  // Load members of the active project
+  const { data: projectMembers = [] } = useQuery({
+    queryKey: ['project_members', activeProjectId],
+    queryFn: async () => {
+      if (!activeProjectId) return []
+      const { data, error } = await supabase
+        .from('project_users')
+        .select(`
+          id,
+          permission_level,
+          ativo,
+          criado_em,
+          user_id,
+          profiles (
+            nome,
+            email,
+            agency_role
+          )
+        `)
+        .eq('project_id', activeProjectId)
+      if (error) {
+        showToast('Erro ao carregar colaboradores do projeto', 'err')
+        return []
+      }
+      return data as any[]
+    },
+    enabled: !!activeProjectId,
+  })
+
+  // Load profiles in the agency (excluding those already in the project)
+  const { data: agencyProfiles = [] } = useQuery({
+    queryKey: ['agency_profiles', profile?.agency_id],
+    queryFn: async () => {
+      if (!profile?.agency_id) return []
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, nome, email, agency_role')
+        .eq('agency_id', profile.agency_id)
+        .eq('ativo', true)
+      if (error) return []
+      return data as any[]
+    },
+    enabled: !!profile?.agency_id,
+  })
+
+  // Load project access audit logs
+  const { data: auditLogs = [] } = useQuery({
+    queryKey: ['project_access_audit', activeProjectId],
+    queryFn: async () => {
+      if (!activeProjectId) return []
+      const { data, error } = await supabase
+        .from('project_access_audit')
+        .select('*')
+        .eq('project_id', activeProjectId)
+        .order('criado_em', { ascending: false })
+      if (error) return []
+      return data as any[]
+    },
+    enabled: !!activeProjectId,
+  })
+
+  const addProjectMemberMutation = useMutation({
+    mutationFn: async (vars: { userId: string; level: 'viewer' | 'editor' | 'admin' }) => {
+      if (!activeProjectId) return
+      const { error } = await supabase
+        .from('project_users')
+        .insert({
+          project_id: activeProjectId,
+          user_id: vars.userId,
+          permission_level: vars.level,
+          concedido_por: profile?.id
+        })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project_members', activeProjectId] })
+      queryClient.invalidateQueries({ queryKey: ['project_access_audit', activeProjectId] })
+      setSelectedMemberUserId('')
+      showToast('Acesso concedido com sucesso!')
+    },
+    onError: (err) => {
+      showToast('Erro ao conceder acesso: ' + err.message, 'err')
+    }
+  })
+
+  const updateProjectMemberMutation = useMutation({
+    mutationFn: async (vars: { id: string; level?: 'viewer' | 'editor' | 'admin'; ativo?: boolean }) => {
+      const updateData: any = {}
+      if (vars.level !== undefined) updateData.permission_level = vars.level
+      if (vars.ativo !== undefined) {
+        updateData.ativo = vars.ativo
+        if (!vars.ativo) {
+          updateData.revogado_em = new Date().toISOString()
+        } else {
+          updateData.revogado_em = null
+        }
+      }
+      const { error } = await supabase
+        .from('project_users')
+        .update(updateData)
+        .eq('id', vars.id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project_members', activeProjectId] })
+      queryClient.invalidateQueries({ queryKey: ['project_access_audit', activeProjectId] })
+      showToast('Acesso atualizado!')
+    },
+    onError: (err) => {
+      showToast('Erro ao atualizar: ' + err.message, 'err')
+    }
+  })
 
   // Modals local states
   const [colabModalOpen, setColabModalOpen] = useState(false)
@@ -566,6 +686,16 @@ export default function AcessoModule() {
           Equipe / Colaboradores
         </button>
         <button
+          onClick={() => setActiveSubTab('project_users')}
+          className={`px-4 py-2 text-xs font-semibold cursor-pointer border-b-2 bg-transparent transition-colors duration-150 ${
+            activeSubTab === 'project_users'
+              ? 'border-text-custom text-text-custom'
+              : 'border-transparent text-text2 hover:text-text-custom'
+          }`}
+        >
+          Acessos do Projeto
+        </button>
+        <button
           onClick={() => setActiveSubTab('clients')}
           className={`px-4 py-2 text-xs font-semibold cursor-pointer border-b-2 bg-transparent transition-colors duration-150 ${
             activeSubTab === 'clients'
@@ -804,6 +934,202 @@ export default function AcessoModule() {
                       Salvar
                     </button>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ==========================================
+          TAB: ACESSOS DO PROJETO
+          ========================================== */}
+      {activeSubTab === 'project_users' && (
+        <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-5 animate-[fadeUp_0.15s_ease_both]">
+          <div className="flex justify-between items-start border-b border-border-custom pb-3 flex-wrap gap-4">
+            <div>
+              <span className="text-xs font-bold text-text-custom block">Acessos do Projeto</span>
+              <span className="text-[10px] text-text3 mt-1 max-w-xl block">
+                Este acesso libera automaticamente todos os lançamentos e briefings deste projeto — não é possível liberar um lançamento ou briefing individualmente.
+              </span>
+            </div>
+            
+            <button
+              onClick={() => setIsAuditModalOpen(true)}
+              className="text-[11px] text-purple-custom hover:underline font-semibold cursor-pointer"
+            >
+              Ver histórico de acessos (Auditoria)
+            </button>
+          </div>
+
+          {/* Add member form */}
+          <div className="p-4 bg-surface2/45 border border-border-custom rounded-xl space-y-3">
+            <span className="text-[10px] font-bold text-text-custom uppercase tracking-wider block">Conceder acesso a novo colaborador</span>
+            <div className="flex flex-col sm:flex-row gap-3 items-end text-xs">
+              <div className="flex-1 w-full flex flex-col gap-1">
+                <span className="text-[9px] text-text2 uppercase font-bold">Colaborador</span>
+                <select
+                  className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none cursor-pointer"
+                  value={selectedMemberUserId}
+                  onChange={(e) => setSelectedMemberUserId(e.target.value)}
+                >
+                  <option value="">Selecione um colaborador da agência...</option>
+                  {agencyProfiles
+                    .filter(ap => !projectMembers.some(pm => pm.user_id === ap.id))
+                    .map(ap => (
+                      <option key={ap.id} value={ap.id}>
+                        {ap.nome} ({ap.email})
+                      </option>
+                    ))
+                  }
+                </select>
+              </div>
+
+              <div className="w-full sm:w-36 flex flex-col gap-1">
+                <span className="text-[9px] text-text2 uppercase font-bold">Permissão</span>
+                <select
+                  className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none cursor-pointer"
+                  value={selectedMemberLevel}
+                  onChange={(e) => setSelectedMemberLevel(e.target.value as any)}
+                >
+                  <option value="viewer">Viewer (Leitura)</option>
+                  <option value="editor">Editor (Edição)</option>
+                  <option value="admin">Admin (Acesso total)</option>
+                </select>
+              </div>
+
+              <button
+                onClick={() => {
+                  if (!selectedMemberUserId) {
+                    showToast('Selecione um colaborador', 'err')
+                    return
+                  }
+                  addProjectMemberMutation.mutate({
+                    userId: selectedMemberUserId,
+                    level: selectedMemberLevel
+                  })
+                }}
+                className="px-4 py-1.5 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer w-full sm:w-auto shrink-0"
+              >
+                Conceder Acesso
+              </button>
+            </div>
+          </div>
+
+          {/* Members Table */}
+          <div className="overflow-x-auto border border-border-custom rounded-lg bg-surface2/30">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-border-custom bg-surface2/60">
+                  <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Nome</th>
+                  <th className="p-3 text-text3 font-semibold text-[10px] uppercase">E-mail</th>
+                  <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Papel na Agência</th>
+                  <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Nível no Projeto</th>
+                  <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Data Concessão</th>
+                  <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Status</th>
+                  <th className="p-3 text-text3 font-semibold text-[10px] uppercase text-right">Revogar</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-custom">
+                {projectMembers.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-6 text-center text-text3">
+                      Nenhum colaborador vinculado a este projeto.
+                    </td>
+                  </tr>
+                ) : (
+                  projectMembers.map((pm) => (
+                    <tr key={pm.id} className={`hover:bg-surface2/20 transition-colors ${!pm.ativo ? 'opacity-40' : ''}`}>
+                      <td className="p-3 font-bold text-text-custom">{pm.profiles?.nome || 'Convidado'}</td>
+                      <td className="p-3 text-text2">{pm.profiles?.email || '-'}</td>
+                      <td className="p-3 text-text3 capitalize">{pm.profiles?.agency_role || '-'}</td>
+                      <td className="p-3">
+                        <select
+                          className="px-2.5 py-1 border border-border2 rounded bg-surface text-text-custom text-xs outline-none cursor-pointer"
+                          value={pm.permission_level}
+                          onChange={(e) => {
+                            updateProjectMemberMutation.mutate({ id: pm.id, level: e.target.value as any })
+                          }}
+                          disabled={!pm.ativo}
+                        >
+                          <option value="viewer">Viewer</option>
+                          <option value="editor">Editor</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </td>
+                      <td className="p-3 text-text3">
+                        {pm.criado_em ? new Date(pm.criado_em).toLocaleDateString('pt-BR') : '-'}
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          pm.ativo 
+                            ? 'bg-emerald-500/10 text-emerald-400' 
+                            : 'bg-zinc-500/10 text-zinc-400'
+                        }`}>
+                          {pm.ativo ? 'Ativo' : 'Revogado'}
+                        </span>
+                      </td>
+                      <td className="p-3 text-right">
+                        <button
+                          onClick={() => {
+                            updateProjectMemberMutation.mutate({ id: pm.id, ativo: !pm.ativo })
+                          }}
+                          className={`px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                            pm.ativo
+                              ? 'border border-red-t/30 text-red-t hover:bg-red-bg'
+                              : 'border border-border2 text-text2 hover:bg-surface'
+                          }`}
+                        >
+                          {pm.ativo ? 'Revogar' : 'Reativar'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* AUDIT LOG MODAL */}
+          {isAuditModalOpen && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-[2px] animate-fadeIn">
+              <div className="bg-surface border border-border-custom rounded-xl p-6 shadow-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto space-y-4">
+                <div className="flex justify-between items-center border-b border-border-custom pb-3">
+                  <h3 className="text-sm font-bold text-text-custom">
+                    Histórico de Auditoria de Acessos
+                  </h3>
+                  <button onClick={() => setIsAuditModalOpen(false)} className="text-text3 hover:text-text-custom cursor-pointer p-1">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {auditLogs.length === 0 ? (
+                    <p className="text-xs text-text3 text-center py-6">Nenhum evento de auditoria registrado.</p>
+                  ) : (
+                    auditLogs.map((log) => {
+                      const targetName = agencyProfiles.find(u => u.id === log.target_user_id)?.nome || 'Usuário'
+                      const actorName = agencyProfiles.find(u => u.id === log.actor_id)?.nome || 'Sistema'
+                      
+                      let msg = ''
+                      if (log.acao === 'grant') msg = `Acesso concedido como ${log.nivel_novo}`
+                      if (log.acao === 'revoke') msg = `Acesso revogado`
+                      if (log.acao === 'update_level') msg = `Nível alterado de ${log.nivel_anterior} para ${log.nivel_novo}`
+
+                      return (
+                        <div key={log.id} className="p-3 bg-surface2/50 border border-border-custom rounded-lg text-xs space-y-1.5">
+                          <div className="flex justify-between items-center text-[10px] text-text3">
+                            <span className="font-bold text-text-custom capitalize">Ação: {log.acao}</span>
+                            <span>{new Date(log.criado_em).toLocaleString('pt-BR')}</span>
+                          </div>
+                          <p className="text-text2 leading-normal">
+                            Colaborador: <strong className="text-text-custom">{targetName}</strong> <br/>
+                            {msg} por <strong className="text-text-custom">{actorName}</strong>
+                          </p>
+                        </div>
+                      )
+                    })
+                  )}
                 </div>
               </div>
             </div>

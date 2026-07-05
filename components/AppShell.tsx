@@ -23,6 +23,7 @@ import {
   X,
   Sun,
   Moon,
+  Smartphone,
 } from 'lucide-react'
 
 interface AppShellProps {
@@ -192,6 +193,7 @@ export default function AppShell({ children }: AppShellProps) {
       items: [
         { id: 'planejador', name: 'Planejador', icon: Calendar },
         { id: 'urlbuilder', name: 'Links & QR Code', icon: Link2 },
+        { id: 'chips', name: 'Controle de Chips', icon: Smartphone },
         { id: 'acesso', name: 'Central de acesso', icon: Users },
       ],
     },
@@ -327,6 +329,7 @@ export default function AppShell({ children }: AppShellProps) {
                 {activeModule === 'financeiro' && 'Gestão de caixa e planejamento do DRE'}
                 {activeModule === 'planejador' && 'Calendário editorial e eventos anuais'}
                 {activeModule === 'urlbuilder' && 'Gere tags UTM, links de WhatsApp e QR Codes'}
+                {activeModule === 'chips' && 'Status, vínculos e alertas de recarga dos chips de WhatsApp'}
                 {activeModule === 'acesso' && 'Permissões e equipe'}
               </p>
             </div>

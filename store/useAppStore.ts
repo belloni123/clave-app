@@ -17,6 +17,7 @@ export interface UserProfile {
   role: UserRole
   plan: string
   max_projects: number
+  agency_id?: string | null
 }
 
 interface ToastState {

@@ -115,7 +115,124 @@ export default function FinanceiroModule() {
   const supabase = createClient()
   const { activeProjectId, showToast } = useAppStore()
 
-  const [activeSubTab, setActiveSubTab] = useState<'brief' | 'params' | 'price' | 'prov' | 'real' | 'inv' | 'dre' | 'comm'>('brief')
+  const [activeSubTab, setActiveSubTab] = useState<'brief' | 'params' | 'price' | 'serv' | 'prov' | 'real' | 'inv' | 'dre' | 'comm'>('brief')
+
+  // ==========================================
+  // SERVICES PRICING CALCULATOR LOGIC & STATE
+  // ==========================================
+  const [servMargemAlvo, setServMargemAlvo] = useState<number>(20)
+  const [servVariaveis, setServVariaveis] = useState<{ id: string; nome: string; pct: number }[]>([
+    { id: '1', nome: 'Impostos', pct: 6 },
+    { id: '2', nome: 'Gateway/Taxas', pct: 4 },
+    { id: '3', nome: 'Comissão de Vendas', pct: 10 },
+    { id: '4', nome: 'Inadimplência/Reembolso', pct: 5 }
+  ])
+  const [servCustosDiretos, setServCustosDiretos] = useState<{
+    id: string
+    categoria: 'mao_obra_propria' | 'mao_obra_terceirizada' | 'material' | 'ferramenta' | 'deslocamento' | 'fixo_rateado' | 'outro'
+    descricao: string
+    modo: 'valor' | 'horas'
+    horas?: number
+    valorHora?: number
+    valor: number
+  }[]>([
+    { id: '1', categoria: 'mao_obra_propria', descricao: 'Tempo de entrega do projeto', modo: 'horas', horas: 10, valorHora: 50, valor: 500 }
+  ])
+  const [servPrecoAlvo, setServPrecoAlvo] = useState<number>(1000)
+
+  // Load services pricing data from text_fields
+  const { data: servicesPricingData } = useQuery({
+    queryKey: ['services_pricing', activeProjectId],
+    queryFn: async () => {
+      if (!activeProjectId) return null
+      const { data, error } = await supabase
+        .from('text_fields')
+        .select('*')
+        .eq('project_id', activeProjectId)
+        .eq('key', 'services-pricing')
+        .maybeSingle()
+      if (error || !data) return null
+      try {
+        return JSON.parse(data.value)
+      } catch (e) {
+        return null
+      }
+    },
+    enabled: !!activeProjectId,
+  })
+
+  // Sync loaded data to states
+  useEffect(() => {
+    if (servicesPricingData) {
+      if (servicesPricingData.margemAlvo !== undefined) setServMargemAlvo(servicesPricingData.margemAlvo)
+      if (servicesPricingData.variaveis !== undefined) setServVariaveis(servicesPricingData.variaveis)
+      if (servicesPricingData.custosDiretos !== undefined) setServCustosDiretos(servicesPricingData.custosDiretos)
+      if (servicesPricingData.precoAlvo !== undefined) setServPrecoAlvo(servicesPricingData.precoAlvo)
+    } else {
+      setServMargemAlvo(20)
+      setServVariaveis([
+        { id: '1', nome: 'Impostos', pct: 6 },
+        { id: '2', nome: 'Gateway/Taxas', pct: 4 },
+        { id: '3', nome: 'Comissão de Vendas', pct: 10 },
+        { id: '4', nome: 'Inadimplência/Reembolso', pct: 5 }
+      ])
+      setServCustosDiretos([
+        { id: '1', categoria: 'mao_obra_propria', descricao: 'Tempo de entrega do projeto', modo: 'horas', horas: 10, valorHora: 50, valor: 500 }
+      ])
+      setServPrecoAlvo(1000)
+    }
+  }, [servicesPricingData, activeProjectId])
+
+  const saveServicesPricingMutation = useMutation({
+    mutationFn: async (value: any) => {
+      if (!activeProjectId) return
+      
+      const { data: existing } = await supabase
+        .from('text_fields')
+        .select('id')
+        .eq('project_id', activeProjectId)
+        .eq('key', 'services-pricing')
+        .maybeSingle()
+        
+      if (existing) {
+        const { error } = await supabase
+          .from('text_fields')
+          .update({ value: JSON.stringify(value) })
+          .eq('id', existing.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('text_fields')
+          .insert({
+            project_id: activeProjectId,
+            key: 'services-pricing',
+            value: JSON.stringify(value)
+          })
+        if (error) throw error
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['services_pricing', activeProjectId] })
+      showToast('Dados de precificação de serviços salvos!')
+    },
+    onError: (err) => {
+      showToast('Erro ao salvar: ' + err.message, 'err')
+    }
+  })
+
+  const triggerSaveServices = (
+    margem = servMargemAlvo,
+    vars = servVariaveis,
+    costs = servCustosDiretos,
+    targetPrice = servPrecoAlvo
+  ) => {
+    saveServicesPricingMutation.mutate({
+      margemAlvo: margem,
+      variaveis: vars,
+      custosDiretos: costs,
+      precoAlvo: targetPrice
+    })
+  }
 
   // Local state for typing optimization
   const [localFin, setLocalFin] = useState<FinancialDataPayload | null>(null)
@@ -640,6 +757,7 @@ export default function FinanceiroModule() {
           { id: 'brief', name: 'Briefing' },
           { id: 'params', name: 'Parâmetros' },
           { id: 'price', name: 'Precificação' },
+          { id: 'serv', name: 'Precificação de Serviços' },
           { id: 'prov', name: 'Provisionamento' },
           { id: 'real', name: 'Realizado & Vendas' },
           { id: 'inv', name: 'Investimentos' },
@@ -1199,6 +1317,439 @@ export default function FinanceiroModule() {
           </div>
         </div>
       )}
+
+      {/* ==========================================
+          TAB: PRECIFICAÇÃO DE SERVIÇOS
+          ========================================== */}
+      {activeSubTab === 'serv' && (() => {
+        // Calculations
+        const sumV = servVariaveis.reduce((acc, v) => acc + (Number(v.pct) || 0), 0)
+        const totalDirect = servCustosDiretos.reduce((acc, c) => {
+          if (c.modo === 'horas') {
+            return acc + ((Number(c.horas) || 0) * (Number(c.valorHora) || 0))
+          }
+          return acc + (Number(c.valor) || 0)
+        }, 0)
+
+        const denominator = 1 - ((servMargemAlvo + sumV) / 100)
+        const isDivergent = (servMargemAlvo + sumV) >= 100
+
+        const precoSugerido = !isDivergent && denominator > 0
+          ? totalDirect / denominator
+          : 0
+
+        const lucroReais = precoSugerido * (servMargemAlvo / 100)
+
+        // Price Target (cálculo reverso)
+        const orcamentoDisponivel = servPrecoAlvo * (1 - (sumV / 100) - (servMargemAlvo / 100))
+        const saldoAlvo = orcamentoDisponivel - totalDirect
+        const margemReal = servPrecoAlvo > 0
+          ? (1 - (sumV / 100) - (totalDirect / servPrecoAlvo)) * 100
+          : 0
+
+        const formatCurrency = (val: number) => {
+          return 'R$ ' + val.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+        }
+
+        const handleAddVariable = () => {
+          const updated = [...servVariaveis, { id: Math.random().toString(36).substring(7), nome: 'Nova taxa', pct: 5 }]
+          setServVariaveis(updated)
+          triggerSaveServices(servMargemAlvo, updated, servCustosDiretos, servPrecoAlvo)
+        }
+
+        const handleRemoveVariable = (id: string) => {
+          const updated = servVariaveis.filter(v => v.id !== id)
+          setServVariaveis(updated)
+          triggerSaveServices(servMargemAlvo, updated, servCustosDiretos, servPrecoAlvo)
+        }
+
+        const handleVarChange = (id: string, field: 'nome' | 'pct', val: any) => {
+          const updated = servVariaveis.map(v => {
+            if (v.id === id) {
+              return { ...v, [field]: field === 'pct' ? (val === '' ? '' : Number(val)) : val }
+            }
+            return v
+          })
+          setServVariaveis(updated)
+          triggerSaveServices(servMargemAlvo, updated, servCustosDiretos, servPrecoAlvo)
+        }
+
+        const handleAddCost = () => {
+          const updated = [
+            ...servCustosDiretos,
+            {
+              id: Math.random().toString(36).substring(7),
+              categoria: 'mao_obra_propria' as const,
+              descricao: 'Novo custo',
+              modo: 'valor' as const,
+              valor: 100
+            }
+          ]
+          setServCustosDiretos(updated)
+          triggerSaveServices(servMargemAlvo, servVariaveis, updated, servPrecoAlvo)
+        }
+
+        const handleRemoveCost = (id: string) => {
+          const updated = servCustosDiretos.filter(c => c.id !== id)
+          setServCustosDiretos(updated)
+          triggerSaveServices(servMargemAlvo, servVariaveis, updated, servPrecoAlvo)
+        }
+
+        const handleCostChange = (id: string, field: string, val: any) => {
+          const updated = servCustosDiretos.map(c => {
+            if (c.id === id) {
+              const updatedItem = { ...c, [field]: val }
+              if (field === 'modo') {
+                if (val === 'horas') {
+                  updatedItem.horas = 10
+                  updatedItem.valorHora = 50
+                  updatedItem.valor = 500
+                } else {
+                  updatedItem.valor = 100
+                  delete updatedItem.horas
+                  delete updatedItem.valorHora
+                }
+              }
+              if (field === 'horas' || field === 'valorHora') {
+                const h = field === 'horas' ? Number(val) : (c.horas || 0)
+                const vh = field === 'valorHora' ? Number(val) : (c.valorHora || 0)
+                updatedItem.valor = h * vh
+              }
+              if (field === 'valor') {
+                updatedItem.valor = val === '' ? 0 : Number(val)
+              }
+              return updatedItem
+            }
+            return c
+          }) as any
+          setServCustosDiretos(updated)
+          triggerSaveServices(servMargemAlvo, servVariaveis, updated, servPrecoAlvo)
+        }
+
+        return (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-[fadeUp_0.15s_ease_both]">
+            {/* Inputs Column */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Passo 1: Margem */}
+              <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+                <div>
+                  <h4 className="text-xs font-bold text-text-custom flex items-center gap-2">
+                    <span className="w-5 h-5 flex items-center justify-center rounded-full bg-yellow-500/10 text-yellow-400 text-[11px] font-extrabold border border-yellow-500/20">1</span>
+                    <span>Margem de Lucro Alvo</span>
+                  </h4>
+                  <p className="text-[10px] text-text3 mt-0.5 ml-7">Sua rentabilidade pretendida sobre o preço final de venda.</p>
+                </div>
+                <div className="pl-7 flex items-center gap-4">
+                  <input
+                    type="range"
+                    min="5"
+                    max="95"
+                    className="flex-1 accent-yellow-400 cursor-pointer"
+                    value={servMargemAlvo}
+                    onChange={(e) => {
+                      const val = Number(e.target.value)
+                      setServMargemAlvo(val)
+                      triggerSaveServices(val, servVariaveis, servCustosDiretos, servPrecoAlvo)
+                    }}
+                  />
+                  <span className="text-2xl font-bold text-yellow-400 w-16 text-right">{servMargemAlvo}%</span>
+                </div>
+              </div>
+
+              {/* Passo 2: Taxas variáveis */}
+              <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h4 className="text-xs font-bold text-text-custom flex items-center gap-2">
+                      <span className="w-5 h-5 flex items-center justify-center rounded-full bg-yellow-500/10 text-yellow-400 text-[11px] font-extrabold border border-yellow-500/20">2</span>
+                      <span>Variáveis sobre o Preço de Venda</span>
+                    </h4>
+                    <p className="text-[10px] text-text3 mt-0.5 ml-7">Custos calculados sob o preço final (impostos, comissões, taxas).</p>
+                  </div>
+                  <button
+                    onClick={handleAddVariable}
+                    className="px-2.5 py-1 bg-surface border border-border-custom hover:bg-surface2 text-text-custom hover:text-text-custom text-[11px] font-semibold rounded cursor-pointer transition-colors"
+                  >
+                    + Adicionar
+                  </button>
+                </div>
+
+                <div className="pl-7 space-y-3">
+                  {servVariaveis.map((v) => (
+                    <div key={v.id} className="flex items-center gap-3">
+                      <input
+                        type="text"
+                        placeholder="Nome da taxa"
+                        className="flex-1 px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom text-xs outline-none"
+                        value={v.nome}
+                        onChange={(e) => handleVarChange(v.id, 'nome', e.target.value)}
+                      />
+                      <div className="relative w-24">
+                        <input
+                          type="number"
+                          placeholder="0"
+                          className="w-full pr-7 pl-3 py-1.5 border border-border2 rounded bg-surface text-text-custom text-xs outline-none text-right"
+                          value={v.pct}
+                          onChange={(e) => handleVarChange(v.id, 'pct', e.target.value)}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text3 text-[11px] font-bold">%</span>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveVariable(v.id)}
+                        className="p-1.5 border border-border-custom hover:border-red-500/30 rounded-lg text-text3 hover:text-red-400 hover:bg-red-500/5 transition-colors cursor-pointer"
+                        title="Remover"
+                      >
+                        <Trash className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  <div className="text-[11px] text-text3 flex justify-between pt-2 border-t border-border-custom">
+                    <span>Soma das variáveis:</span>
+                    <span className="font-bold text-text-custom">{sumV}%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Passo 3: Custos Diretos */}
+              <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h4 className="text-xs font-bold text-text-custom flex items-center gap-2">
+                      <span className="w-5 h-5 flex items-center justify-center rounded-full bg-yellow-500/10 text-yellow-400 text-[11px] font-extrabold border border-yellow-500/20">3</span>
+                      <span>Custos Diretos do Serviço</span>
+                    </h4>
+                    <p className="text-[10px] text-text3 mt-0.5 ml-7">Materiais, mão de obra, softwares e despesas dedicadas.</p>
+                  </div>
+                  <button
+                    onClick={handleAddCost}
+                    className="px-2.5 py-1 bg-surface border border-border-custom hover:bg-surface2 text-text-custom hover:text-text-custom text-[11px] font-semibold rounded cursor-pointer transition-colors"
+                  >
+                    + Novo Custo
+                  </button>
+                </div>
+
+                <div className="pl-7 space-y-3">
+                  {servCustosDiretos.length === 0 ? (
+                    <p className="text-xs text-text3 py-2">Nenhum custo direto cadastrado.</p>
+                  ) : (
+                    servCustosDiretos.map((c) => (
+                      <div key={c.id} className="p-3 bg-surface2/45 border border-border-custom rounded-lg space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <select
+                            className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom text-xs outline-none cursor-pointer w-full"
+                            value={c.categoria}
+                            onChange={(e) => handleCostChange(c.id, 'categoria', e.target.value)}
+                          >
+                            <option value="mao_obra_propria">Mão de obra própria</option>
+                            <option value="mao_obra_terceirizada">Mão de obra terceirizada</option>
+                            <option value="material">Material / Insumo</option>
+                            <option value="ferramenta">Ferramenta / Software</option>
+                            <option value="deslocamento">Deslocamento / Viagem</option>
+                            <option value="fixo_rateado">Rateio de Custo Fixo</option>
+                            <option value="outro">Outro custo</option>
+                          </select>
+
+                          <input
+                            type="text"
+                            placeholder="Descrição curta"
+                            className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom text-xs outline-none w-full"
+                            value={c.descricao}
+                            onChange={(e) => handleCostChange(c.id, 'descricao', e.target.value)}
+                          />
+
+                          <div className="flex justify-end gap-1.5">
+                            <button
+                              onClick={() => handleCostChange(c.id, 'modo', c.modo === 'horas' ? 'valor' : 'horas')}
+                              className={`px-2.5 py-1 border rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                                c.modo === 'horas'
+                                  ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/25'
+                                  : 'bg-surface border-border2 text-text3 hover:text-text-custom'
+                              }`}
+                            >
+                              {c.modo === 'horas' ? 'Por Horas' : 'Valor Direto'}
+                            </button>
+                            <button
+                              onClick={() => handleRemoveCost(c.id)}
+                              className="p-1.5 border border-border-custom hover:border-red-500/30 rounded-lg text-text3 hover:text-red-400 hover:bg-red-500/5 transition-colors cursor-pointer"
+                              title="Remover"
+                            >
+                              <Trash className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {c.modo === 'horas' ? (
+                          <div className="grid grid-cols-2 gap-3 pl-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-text3 uppercase font-bold">Horas:</span>
+                              <input
+                                type="number"
+                                className="w-full px-2.5 py-1 border border-border2 rounded bg-surface text-text-custom text-xs outline-none text-right"
+                                value={c.horas === undefined ? '' : c.horas}
+                                onChange={(e) => handleCostChange(c.id, 'horas', e.target.value)}
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-text3 uppercase font-bold">Valor/Hora:</span>
+                              <div className="relative w-full">
+                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text3 text-[9px] font-bold">R$</span>
+                                <input
+                                  type="number"
+                                  className="w-full pl-7 pr-2.5 py-1 border border-border2 rounded bg-surface text-text-custom text-xs outline-none text-right"
+                                  value={c.valorHora === undefined ? '' : c.valorHora}
+                                  onChange={(e) => handleCostChange(c.id, 'valorHora', e.target.value)}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-3 pl-1">
+                            <span className="text-[10px] text-text3 uppercase font-bold whitespace-nowrap">Valor Total:</span>
+                            <div className="relative w-full max-w-[180px]">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text3 text-[9px] font-bold">R$</span>
+                              <input
+                                type="number"
+                                className="w-full pl-7 pr-2.5 py-1 border border-border2 rounded bg-surface text-text-custom text-xs outline-none text-right font-bold"
+                                value={c.valor}
+                                onChange={(e) => handleCostChange(c.id, 'valor', e.target.value)}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+
+                  <div className="text-[11px] text-text3 flex justify-between pt-2 border-t border-border-custom">
+                    <span>Total custos diretos:</span>
+                    <span className="font-bold text-text-custom">{formatCurrency(totalDirect)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Results Sidebar Column */}
+            <div className="space-y-6">
+              {/* Preço sugerido Hero */}
+              <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+                <div>
+                  <span className="text-[9px] font-bold text-text3 uppercase tracking-wider block">Preço de Venda Sugerido</span>
+                  {isDivergent ? (
+                    <div className="text-sm font-bold text-red-t mt-1">Divergência matemática</div>
+                  ) : (
+                    <div className="text-3xl font-extrabold text-yellow-400 leading-tight mt-1">
+                      {formatCurrency(precoSugerido)}
+                    </div>
+                  )}
+                </div>
+
+                {isDivergent ? (
+                  <div className="p-3 bg-red-500/5 border border-red-500/10 rounded-lg text-[10px] text-red-t leading-normal">
+                    Aviso: A soma das margens e taxas atingiu ou superou 100% ({servMargemAlvo + sumV}%). Reduza a margem ou taxas para possibilitar o cálculo do preço.
+                  </div>
+                ) : (
+                  <>
+                    {/* Visual Breakdown bar */}
+                    <div className="h-5 rounded-lg overflow-hidden flex text-[9px] font-bold text-bg border border-border-custom">
+                      <div
+                        className="bg-emerald-500 flex items-center justify-center"
+                        style={{ width: `${precoSugerido > 0 ? (totalDirect / precoSugerido) * 100 : 0}%` }}
+                        title={`Custo Direto: ${formatCurrency(totalDirect)}`}
+                      >
+                        {totalDirect > 0 && 'Custo'}
+                      </div>
+                      <div
+                        className="bg-yellow-400 flex items-center justify-center text-zinc-900"
+                        style={{ width: `${precoSugerido > 0 ? (lucroReais / precoSugerido) * 100 : 0}%` }}
+                        title={`Lucro: ${formatCurrency(lucroReais)}`}
+                      >
+                        {lucroReais > 0 && 'Lucro'}
+                      </div>
+                      <div
+                        className="bg-purple-500 flex items-center justify-center text-white"
+                        style={{ width: `${precoSugerido > 0 ? (precoSugerido * (sumV / 100) / precoSugerido) * 100 : 0}%` }}
+                        title={`Variáveis: ${sumV}%`}
+                      >
+                        {sumV > 0 && 'Taxas'}
+                      </div>
+                    </div>
+
+                    {/* Cost values table breakdown */}
+                    <div className="text-[11px] divide-y divide-border-custom space-y-1.5">
+                      <div className="flex justify-between py-1 pt-2">
+                        <span className="text-text2">Custo Direto Total:</span>
+                        <span className="font-semibold text-text-custom">{formatCurrency(totalDirect)}</span>
+                      </div>
+                      <div className="flex justify-between py-1 text-emerald-400">
+                        <span>Lucro Pretendido ({servMargemAlvo}%):</span>
+                        <span className="font-bold">{formatCurrency(lucroReais)}</span>
+                      </div>
+                      {servVariaveis.map(v => {
+                        const valReais = precoSugerido * ((Number(v.pct) || 0) / 100)
+                        return (
+                          <div key={v.id} className="flex justify-between py-1 text-text3">
+                            <span>{v.nome} ({v.pct}%):</span>
+                            <span>{formatCurrency(valReais)}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Simulador Preço Alvo */}
+              <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+                <div>
+                  <h4 className="text-xs font-bold text-text-custom flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-yellow-400" />
+                    <span>Simulador de Preço Alvo</span>
+                  </h4>
+                  <p className="text-[10px] text-text3 mt-0.5">Analise a margem real se negociar por outro preço.</p>
+                </div>
+
+                <div className="space-y-3.5 text-xs">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] text-text3 uppercase font-bold block">Preço de Negociação (Preço-Alvo)</label>
+                    <div className="relative w-full">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text3 text-[11px] font-bold">R$</span>
+                      <input
+                        type="number"
+                        className="w-full pl-8 pr-3 py-1.5 border border-border2 rounded bg-surface text-text-custom text-xs font-bold outline-none"
+                        value={servPrecoAlvo === 0 ? '' : servPrecoAlvo}
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? 0 : Number(e.target.value)
+                          setServPrecoAlvo(val)
+                          triggerSaveServices(servMargemAlvo, servVariaveis, servCustosDiretos, val)
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-border-custom space-y-2 text-[11px] pt-1">
+                    <div className="flex justify-between py-1">
+                      <span className="text-text2">Orçamento para Custos:</span>
+                      <span className="font-semibold text-text-custom">{formatCurrency(Math.max(0, orcamentoDisponivel))}</span>
+                    </div>
+                    <div className="flex justify-between py-1">
+                      <span className="text-text2">Saldo Restante:</span>
+                      <span className={`font-bold ${saldoAlvo >= 0 ? 'text-emerald-400' : 'text-red-t'}`}>
+                        {formatCurrency(saldoAlvo)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between py-1">
+                      <span className="text-text2">Margem Real Resultante:</span>
+                      <span className={`font-bold ${margemReal >= servMargemAlvo ? 'text-emerald-400' : margemReal > 0 ? 'text-yellow-400' : 'text-red-t'}`}>
+                        {servPrecoAlvo > 0 ? `${margemReal.toFixed(1)}%` : '—'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* ==========================================
           TAB: PROVISIONAMENTO (SCENARIOS)
