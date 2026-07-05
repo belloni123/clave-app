@@ -299,6 +299,7 @@ end;
 $$ language plpgsql security definer;
 
 -- Habilitar RLS em todas as tabelas
+alter table public.agencies enable row level security;
 alter table public.project_users enable row level security;
 alter table public.project_access_audit enable row level security;
 alter table public.lancamentos enable row level security;
@@ -310,6 +311,21 @@ alter table public.lancamentos_investimentos enable row level security;
 alter table public.chips enable row level security;
 
 -- Configurar Políticas
+drop policy if exists "agencies_select_policy" on public.agencies;
+create policy "agencies_select_policy" on public.agencies
+  for select using (
+    exists (
+      select 1 from public.profiles
+      where profiles.id = auth.uid()
+        and profiles.agency_id = agencies.id
+    )
+    or exists (
+      select 1 from public.profiles
+      where profiles.id = auth.uid()
+        and profiles.role = 'admin'
+    )
+  );
+
 drop policy if exists "project_users_policy" on public.project_users;
 create policy "project_users_policy" on public.project_users
   for all using (public.user_has_project_access(project_id, auth.uid()));
