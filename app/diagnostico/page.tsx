@@ -21,6 +21,24 @@ export default function DiagnosticoPage() {
       } else {
         document.documentElement.classList.remove('dark')
       }
+
+      // CRM UTM / Referrer tracking logic
+      const params = new URLSearchParams(window.location.search)
+      const utms = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term']
+      
+      utms.forEach(function(key) {
+        const val = params.get(key)
+        if (val) {
+          localStorage.setItem('nfs_' + key, val)
+        }
+      })
+
+      if (document.referrer && !localStorage.getItem('nfs_referrer')) {
+        localStorage.setItem('nfs_referrer', document.referrer)
+      }
+      if (!localStorage.getItem('nfs_url')) {
+        localStorage.setItem('nfs_url', window.location.href)
+      }
     }
   }, [])
 
@@ -89,6 +107,62 @@ export default function DiagnosticoPage() {
     setSelectedQuiz(type)
     setCurrentStep(0)
     setPoliteExit(false)
+  }
+
+  const submitToCrm = async (type: 'expert' | 'bastidores') => {
+    const url = type === 'expert'
+      ? 'https://crm.agenciab16.com.br/api/forms/submit/nfs_form_2d697ff02737cdcf0281dfe0e5d3dcc107146d3807b0666e'
+      : 'https://crm.agenciab16.com.br/api/forms/submit/nfs_form_1be53bd9b42379da855a5425bf80f2a10af9a9c244e3f9e6'
+
+    const state = type === 'expert' ? expertAnswers : bastidoresAnswers
+
+    // Gather UTM values
+    const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
+    const getUtm = (key: string) => params.get(key) || localStorage.getItem('nfs_' + key) || ''
+
+    const formData = new FormData()
+    formData.append('name', state.leadNome)
+    formData.append('email', state.leadEmail)
+    formData.append('phone', state.leadWhatsapp)
+    formData.append('021ebd1e-23cd-4110-bed8-e4be899477c2', state.leadInstagram)
+    
+    formData.append('utm_source', getUtm('utm_source'))
+    formData.append('utm_medium', getUtm('utm_medium'))
+    formData.append('utm_campaign', getUtm('utm_campaign'))
+    formData.append('utm_content', getUtm('utm_content'))
+    formData.append('utm_term', getUtm('utm_term'))
+    formData.append('referrer', document.referrer || localStorage.getItem('nfs_referrer') || '')
+    formData.append('url', typeof window !== 'undefined' ? window.location.href : '')
+
+    // Add all quiz answers dynamically
+    Object.entries(state).forEach(([key, value]) => {
+      if (['leadNome', 'leadEmail', 'leadWhatsapp', 'leadInstagram', 'lgpdConsent'].includes(key)) return
+      if (Array.isArray(value)) {
+        formData.append(key, value.join(', '))
+      } else {
+        formData.append(key, String(value))
+      }
+    })
+
+    try {
+      await fetch(url, {
+        method: 'POST',
+        body: formData,
+        mode: 'no-cors'
+      })
+    } catch (err) {
+      console.error('CRM submit error', err)
+    }
+  }
+
+  const handleExpertSubmit = async () => {
+    await submitToCrm('expert')
+    handleNextStep()
+  }
+
+  const handleBastidoresSubmit = async () => {
+    await submitToCrm('bastidores')
+    handleNextStep()
   }
 
   const handleBackToSelect = () => {
@@ -904,7 +978,7 @@ export default function DiagnosticoPage() {
                 </div>
 
                 <button
-                  onClick={handleNextStep}
+                  onClick={handleExpertSubmit}
                   disabled={!expertAnswers.leadNome || !expertAnswers.leadWhatsapp || !expertAnswers.leadEmail || !expertAnswers.leadInstagram || !expertAnswers.lgpdConsent}
                   className="w-full py-2.5 bg-text-custom text-white font-bold rounded-lg text-xs hover:opacity-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1"
                 >
@@ -1453,7 +1527,7 @@ export default function DiagnosticoPage() {
                 </div>
 
                 <button
-                  onClick={handleNextStep}
+                  onClick={handleBastidoresSubmit}
                   disabled={!bastidoresAnswers.leadNome || !bastidoresAnswers.leadWhatsapp || !bastidoresAnswers.leadEmail || !bastidoresAnswers.lgpdConsent}
                   className="w-full py-2.5 bg-text-custom text-white font-bold rounded-lg text-xs hover:opacity-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1"
                 >
