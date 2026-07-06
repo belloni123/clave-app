@@ -136,7 +136,7 @@ export default function AcessoModule() {
         .from('profiles')
         .select('id, nome, email, agency_role')
         .eq('agency_id', profile.agency_id)
-        .eq('ativo', true)
+        .is('deleted_at', null)
       if (error) return []
       return data as any[]
     },

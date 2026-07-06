@@ -278,7 +278,7 @@ begin
       where id = usr_id
         and agency_id = v_agency_projeto
         and agency_role = 'admin'
-        and ativo
+        and deleted_at is null
     ) into v_is_agency_admin;
     if v_is_agency_admin then
       return true;
