@@ -764,267 +764,19 @@ export default function LancamentosModule() {
               )}
 
               {/* TAB 4: PROVISIONAMENTO */}
-              {activeSubTab === 'prov' && (() => {
-                const prov = activeLaunchData.provisionamento
-                const verba = activeLaunchData.cronograma.verba_total
-                const template = activeLaunchData.launch.template
-
-                // For standard PLF traditional
-                if (template !== 'evento_pago') {
-                  const scenarios = prov.dados.scenarios || []
-                  
-                  const handleSaveScenarios = (updatedScenarios: Scenario[]) => {
+              {activeSubTab === 'prov' && (
+                <ProvisionamentoTab
+                  provisionamento={activeLaunchData.provisionamento}
+                  verba={activeLaunchData.cronograma.verba_total}
+                  template={activeLaunchData.launch.template}
+                  onSave={(data) => {
                     saveLaunchPartMutation.mutate({
                       table: 'lancamentos_provisionamento',
-                      data: {
-                        cenario_ativo: prov.cenario_ativo,
-                        dados: { ...prov.dados, scenarios: updatedScenarios }
-                      }
+                      data
                     })
-                  }
-
-                  const handleScenarioChange = (idx: number, field: keyof Scenario, val: any) => {
-                    const copy = [...scenarios]
-                    copy[idx] = { ...copy[idx], [field]: val === '' ? 0 : Number(val) }
-                    handleSaveScenarios(copy)
-                  }
-
-                  return (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs animate-[fadeUp_0.15s_ease_both]">
-                      <div className="lg:col-span-2 bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
-                        <div className="flex justify-between items-center border-b border-border-custom pb-2">
-                          <h4 className="text-xs font-bold text-text-custom">Simulação de Cenários de Lançamento</h4>
-                          <span className="text-[10px] text-text3">Verba Total: R$ {verba.toLocaleString('pt-BR')}</span>
-                        </div>
-
-                        <div className="space-y-4">
-                          {scenarios.map((sc, idx) => {
-                            const leadsTrafego = sc.custo_lead > 0 ? verba / sc.custo_lead : 0
-                            const totalLeads = leadsTrafego + sc.leads_organicos
-                            const compradores = totalLeads * (sc.conversao_pct / 100)
-                            const faturamento = compradores * sc.valor_produto
-                            const roas = verba > 0 ? faturamento / verba : 0
-
-                            return (
-                              <div key={idx} className="p-4 bg-surface2/50 border border-border-custom rounded-xl space-y-3">
-                                <div className="flex justify-between items-center">
-                                  <label className="flex items-center gap-2 font-bold text-text-custom text-xs cursor-pointer">
-                                    <input
-                                      type="radio"
-                                      name="cenario_ativo"
-                                      className="accent-purple-custom"
-                                      checked={prov.cenario_ativo === sc.nome}
-                                      onChange={() => {
-                                        saveLaunchPartMutation.mutate({
-                                          table: 'lancamentos_provisionamento',
-                                          data: { cenario_ativo: sc.nome, dados: prov.dados }
-                                        })
-                                      }}
-                                    />
-                                    <span>Cenário: {sc.nome}</span>
-                                  </label>
-                                </div>
-
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                  <div className="flex flex-col gap-0.5">
-                                    <span className="text-[9px] text-text3 uppercase font-bold">Custo por Lead (CPL)</span>
-                                    <input
-                                      type="number"
-                                      className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                                      value={sc.custo_lead}
-                                      onChange={(e) => handleScenarioChange(idx, 'custo_lead', e.target.value)}
-                                    />
-                                  </div>
-                                  <div className="flex flex-col gap-0.5">
-                                    <span className="text-[9px] text-text3 uppercase font-bold">Leads Orgânicos</span>
-                                    <input
-                                      type="number"
-                                      className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                                      value={sc.leads_organicos}
-                                      onChange={(e) => handleScenarioChange(idx, 'leads_organicos', e.target.value)}
-                                    />
-                                  </div>
-                                  <div className="flex flex-col gap-0.5">
-                                    <span className="text-[9px] text-text3 uppercase font-bold">Valor do Curso (R$)</span>
-                                    <input
-                                      type="number"
-                                      className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                                      value={sc.valor_produto}
-                                      onChange={(e) => handleScenarioChange(idx, 'valor_produto', e.target.value)}
-                                    />
-                                  </div>
-                                  <div className="flex flex-col gap-0.5">
-                                    <span className="text-[9px] text-text3 uppercase font-bold">Conversão (%)</span>
-                                    <input
-                                      type="number"
-                                      step="0.1"
-                                      className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                                      value={sc.conversao_pct}
-                                      onChange={(e) => handleScenarioChange(idx, 'conversao_pct', e.target.value)}
-                                    />
-                                  </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-border-custom text-[11px] text-text3">
-                                  <div>Total Leads: <strong className="text-text-custom">{Math.round(totalLeads)}</strong></div>
-                                  <div>Compradores: <strong className="text-text-custom">{Math.round(compradores)}</strong></div>
-                                  <div>Faturamento: <strong className="text-emerald-400">R$ {Math.round(faturamento).toLocaleString('pt-BR')}</strong></div>
-                                  <div>ROAS Previsto: <strong className="text-purple-custom">{roas.toFixed(2)}x</strong></div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Side references */}
-                      <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4 h-fit">
-                        <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">Referência de Conversão</h4>
-                        <div className="space-y-2 text-[11px]">
-                          <div className="flex justify-between py-1 border-b border-border-custom"><span className="text-text2">Normal / Legal</span><span className="font-bold text-zinc-400">1.0%</span></div>
-                          <div className="flex justify-between py-1 border-b border-border-custom"><span className="text-text2">Boa</span><span className="font-bold text-blue-400">2.0%</span></div>
-                          <div className="flex justify-between py-1 border-b border-border-custom"><span className="text-text2">Foda</span><span className="font-bold text-purple-400">5.0%</span></div>
-                          <div className="flex justify-between py-1 border-b border-border-custom"><span className="text-text2">Explodiu</span><span className="font-bold text-emerald-400">10.0%</span></div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                }
-
-                // For Evento Pago
-                const ev = prov.dados.eventoPago || {
-                  faturamento_desejado: 20000,
-                  ticket_ingresso: 197,
-                  conversao_ingresso_pct: 5,
-                  investimento_desejado: 10000,
-                  ticket_mentoria: 2000,
-                  comparecimento_pct: 50,
-                  conversao_mentoria_pct: 10,
-                }
-
-                const handleSaveEv = (updatedEv: EventoPagoFunnel) => {
-                  saveLaunchPartMutation.mutate({
-                    table: 'lancamentos_provisionamento',
-                    data: {
-                      cenario_ativo: prov.cenario_ativo,
-                      dados: { ...prov.dados, eventoPago: updatedEv }
-                    }
-                  })
-                }
-
-                const handleEvChange = (field: keyof EventoPagoFunnel, val: any) => {
-                  const updated = { ...ev, [field]: val === '' ? 0 : Number(val) }
-                  handleSaveEv(updated)
-                }
-
-                // Calculations
-                const ingressosVendas = ev.ticket_ingresso > 0 ? ev.faturamento_desejado / ev.ticket_ingresso : 0
-                const ingressosLeads = ev.conversao_ingresso_pct > 0 ? ingressosVendas / (ev.conversao_ingresso_pct / 100) : 0
-                const cplResultante = ingressosLeads > 0 ? ev.investimento_desejado / ingressosLeads : 0
-
-                const mentoriaLeads = ingressosVendas * (ev.comparecimento_pct / 100)
-                const mentoriaVendas = mentoriaLeads * (ev.conversao_mentoria_pct / 100)
-                const faturamentoMentoria = mentoriaVendas * ev.ticket_mentoria
-
-                return (
-                  <div className="space-y-6 text-xs animate-[fadeUp_0.15s_ease_both]">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Subfunnel 1 */}
-                      <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
-                        <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
-                          Sub-Funil 1: Ingresso / Imersão
-                        </h4>
-                        <div className="space-y-3">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-[10px] text-text3 font-bold uppercase">Quanto quer faturar (R$)</span>
-                            <input
-                              type="number"
-                              className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                              value={ev.faturamento_desejado}
-                              onChange={(e) => handleEvChange('faturamento_desejado', e.target.value)}
-                            />
-                          </div>
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-[10px] text-text3 font-bold uppercase">Ticket do Ingresso (R$)</span>
-                            <input
-                              type="number"
-                              className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                              value={ev.ticket_ingresso}
-                              onChange={(e) => handleEvChange('ticket_ingresso', e.target.value)}
-                            />
-                          </div>
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-[10px] text-text3 font-bold uppercase">Conversão em vendas (%)</span>
-                            <input
-                              type="number"
-                              className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                              value={ev.conversao_ingresso_pct}
-                              onChange={(e) => handleEvChange('conversao_ingresso_pct', e.target.value)}
-                            />
-                          </div>
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-[10px] text-text3 font-bold uppercase">Quanto quer investir (R$)</span>
-                            <input
-                              type="number"
-                              className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                              value={ev.investimento_desejado}
-                              onChange={(e) => handleEvChange('investimento_desejado', e.target.value)}
-                            />
-                          </div>
-
-                          <div className="p-3 bg-surface2/50 border border-border-custom rounded-lg space-y-1 text-[11px] text-text3">
-                            <div>Vendas necessárias: <strong className="text-text-custom">{Math.round(ingressosVendas)}</strong></div>
-                            <div>Leads necessários: <strong className="text-text-custom">{Math.round(ingressosLeads)}</strong></div>
-                            <div>CPL Resultante máximo: <strong className="text-emerald-400">R$ {cplResultante.toFixed(2)}</strong></div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Subfunnel 2 */}
-                      <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
-                        <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
-                          Sub-Funil 2: Mentoria / Upsell
-                        </h4>
-                        <div className="space-y-3">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-[10px] text-text3 font-bold uppercase">Ticket da Mentoria (R$)</span>
-                            <input
-                              type="number"
-                              className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                              value={ev.ticket_mentoria}
-                              onChange={(e) => handleEvChange('ticket_mentoria', e.target.value)}
-                            />
-                          </div>
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-[10px] text-text3 font-bold uppercase">Taxa de Comparecimento ao vivo (%)</span>
-                            <input
-                              type="number"
-                              className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                              value={ev.comparecimento_pct}
-                              onChange={(e) => handleEvChange('comparecimento_pct', e.target.value)}
-                            />
-                          </div>
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-[10px] text-text3 font-bold uppercase">Taxa de Conversão Mentoria (%)</span>
-                            <input
-                              type="number"
-                              className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                              value={ev.conversao_mentoria_pct}
-                              onChange={(e) => handleEvChange('conversao_mentoria_pct', e.target.value)}
-                            />
-                          </div>
-
-                          <div className="p-3 bg-surface2/50 border border-border-custom rounded-lg space-y-1 text-[11px] text-text3">
-                            <div>Leads ao vivo: <strong className="text-text-custom">{Math.round(mentoriaLeads)}</strong></div>
-                            <div>Vendas Mentoria: <strong className="text-text-custom">{Math.round(mentoriaVendas)}</strong></div>
-                            <div>Faturamento Mentoria: <strong className="text-emerald-400">R$ {Math.round(faturamentoMentoria).toLocaleString('pt-BR')}</strong></div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })()}
+                  }}
+                />
+              )}
 
               {/* TAB 5: REALIZADO */}
               {activeSubTab === 'real' && (
@@ -1041,311 +793,18 @@ export default function LancamentosModule() {
               )}
 
               {/* TAB 6: INVESTIMENTOS */}
-              {activeSubTab === 'inv' && (() => {
-                const inv = activeLaunchData.investimentos.dados
-                const verba = activeLaunchData.cronograma.verba_total
-                const realizadoVal = activeLaunchData.realizado.dados
-                const faturamentoReal = (Number(realizadoVal.vendas) || 0) * (Number(realizadoVal.valor_produto) || 997)
-
-                const custos = inv.custos || []
-                const ofertas = inv.ofertas || []
-                const socios = inv.socios || []
-                const impostoPct = inv.imposto_pct || 6
-                const fundoPct = inv.fundo_reserva_pct || 10
-
-                const handleSaveInvestimentos = (updatedInv: any) => {
-                  saveLaunchPartMutation.mutate({
-                    table: 'lancamentos_investimentos',
-                    data: {
-                      dados: {
-                        custos,
-                        ofertas,
-                        imposto_pct: impostoPct,
-                        fundo_reserva_pct: fundoPct,
-                        socios,
-                        ...updatedInv
-                      }
-                    }
-                  })
-                }
-
-                const handleAddCost = () => {
-                  const updated = [...custos, { nome: 'Novo custo', valor: 500 }]
-                  handleSaveInvestimentos({ custos: updated })
-                }
-
-                const handleRemoveCost = (idx: number) => {
-                  const updated = custos.filter((_, i) => i !== idx)
-                  handleSaveInvestimentos({ custos: updated })
-                }
-
-                const handleCostChange = (idx: number, field: keyof CostItem, val: any) => {
-                  const copy = [...custos]
-                  copy[idx] = { ...copy[idx], [field]: field === 'valor' ? Number(val) : val }
-                  handleSaveInvestimentos({ custos: copy })
-                }
-
-                const handleAddOffer = () => {
-                  const updated = [...ofertas, { nome: 'Novo produto', ticket: 997, vendas: 0, comissao_pct: 10, vendas_ads: 0, valor_gasto_ads: 0 }]
-                  handleSaveInvestimentos({ ofertas: updated })
-                }
-
-                const handleRemoveOffer = (idx: number) => {
-                  const updated = ofertas.filter((_, i) => i !== idx)
-                  handleSaveInvestimentos({ ofertas: updated })
-                }
-
-                const handleOfferChange = (idx: number, field: keyof OfferItem, val: any) => {
-                  const copy = [...ofertas]
-                  copy[idx] = { ...copy[idx], [field]: field === 'nome' ? val : Number(val) }
-                  handleSaveInvestimentos({ ofertas: copy })
-                }
-
-                const handleAddPartner = () => {
-                  const updated = [...socios, { nome: 'Novo Sócio', pct: 50 }]
-                  handleSaveInvestimentos({ socios: updated })
-                }
-
-                const handleRemovePartner = (idx: number) => {
-                  const updated = socios.filter((_, i) => i !== idx)
-                  handleSaveInvestimentos({ socios: updated })
-                }
-
-                const handlePartnerChange = (idx: number, field: keyof PartnerCommission, val: any) => {
-                  const copy = [...socios]
-                  copy[idx] = { ...copy[idx], [field]: field === 'nome' ? val : Number(val) }
-                  handleSaveInvestimentos({ socios: copy })
-                }
-
-                // Math P&L calculations
-                const totalCustos = custos.reduce((acc, c) => acc + c.valor, 0)
-                
-                const totalOffersGross = ofertas.reduce((acc, o) => acc + (o.ticket * o.vendas), 0)
-                const totalOffersNet = ofertas.reduce((acc, o) => {
-                  const gross = o.ticket * o.vendas
-                  return acc + (gross - (gross * (o.comissao_pct / 100)))
-                }, 0)
-
-                const impostoReal = totalOffersGross * (impostoPct / 100)
-                const netProfit = totalOffersNet - totalCustos - impostoReal
-
-                const fundoAmount = netProfit > 0 ? netProfit * (fundoPct / 100) : 0
-                const remainderProfit = netProfit > 0 ? netProfit - fundoAmount : 0
-
-                return (
-                  <div className="space-y-6 text-xs animate-[fadeUp_0.15s_ease_both]">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Custos Card */}
-                      <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
-                        <div className="flex justify-between items-center border-b border-border-custom pb-2">
-                          <h4 className="text-xs font-bold text-text-custom">Detalhamento de Custos Operacionais</h4>
-                          <button
-                            onClick={handleAddCost}
-                            className="px-2 py-1 bg-surface border border-border-custom hover:bg-surface2 text-text-custom text-[10px] font-semibold rounded cursor-pointer"
-                          >
-                            + Novo Custo
-                          </button>
-                        </div>
-                        <div className="space-y-2">
-                          {custos.map((c, idx) => (
-                            <div key={idx} className="flex items-center gap-3">
-                              <input
-                                type="text"
-                                className="flex-1 px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                                value={c.nome}
-                                onChange={(e) => handleCostChange(idx, 'nome', e.target.value)}
-                              />
-                              <div className="relative w-28">
-                                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text3 text-[9px] font-bold">R$</span>
-                                <input
-                                  type="number"
-                                  className="w-full pl-7 pr-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none text-right font-bold"
-                                  value={c.valor}
-                                  onChange={(e) => handleCostChange(idx, 'valor', e.target.value)}
-                                />
-                              </div>
-                              <button
-                                onClick={() => handleRemoveCost(idx)}
-                                className="p-1.5 border border-border-custom hover:border-red-500/30 rounded-lg text-text3 hover:text-red-400 hover:bg-red-500/5 transition-colors cursor-pointer"
-                              >
-                                <Trash className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ))}
-                          <div className="flex justify-between py-2 border-t border-border-custom font-bold text-text-custom pt-3">
-                            <span>Soma dos custos:</span>
-                            <span>R$ {totalCustos.toLocaleString('pt-BR')}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Receitas / Ofertas Card */}
-                      <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
-                        <div className="flex justify-between items-center border-b border-border-custom pb-2">
-                          <h4 className="text-xs font-bold text-text-custom">Receitas por Ofertas</h4>
-                          <button
-                            onClick={handleAddOffer}
-                            className="px-2 py-1 bg-surface border border-border-custom hover:bg-surface2 text-text-custom text-[10px] font-semibold rounded cursor-pointer"
-                          >
-                            + Nova Oferta
-                          </button>
-                        </div>
-                        <div className="space-y-3">
-                          {ofertas.map((o, idx) => (
-                            <div key={idx} className="p-3 bg-surface2/50 border border-border-custom rounded-lg space-y-2">
-                              <div className="flex justify-between items-center">
-                                <input
-                                  type="text"
-                                  className="font-bold text-text-custom bg-transparent outline-none border-b border-transparent focus:border-border2"
-                                  value={o.nome}
-                                  onChange={(e) => handleOfferChange(idx, 'nome', e.target.value)}
-                                />
-                                <button
-                                  onClick={() => handleRemoveOffer(idx)}
-                                  className="text-text3 hover:text-red-400 cursor-pointer"
-                                >
-                                  Remover
-                                </button>
-                              </div>
-                              <div className="grid grid-cols-3 gap-2">
-                                <div className="flex flex-col gap-0.5">
-                                  <span className="text-[9px] text-text3 font-bold uppercase">Ticket (R$)</span>
-                                  <input
-                                    type="number"
-                                    className="px-2 py-1 border border-border2 rounded bg-surface text-text-custom outline-none"
-                                    value={o.ticket}
-                                    onChange={(e) => handleOfferChange(idx, 'ticket', e.target.value)}
-                                  />
-                                </div>
-                                <div className="flex flex-col gap-0.5">
-                                  <span className="text-[9px] text-text3 font-bold uppercase">N° Vendas</span>
-                                  <input
-                                    type="number"
-                                    className="px-2 py-1 border border-border2 rounded bg-surface text-text-custom outline-none"
-                                    value={o.vendas}
-                                    onChange={(e) => handleOfferChange(idx, 'vendas', e.target.value)}
-                                  />
-                                </div>
-                                <div className="flex flex-col gap-0.5">
-                                  <span className="text-[9px] text-text3 font-bold uppercase">Comissão (%)</span>
-                                  <input
-                                    type="number"
-                                    className="px-2 py-1 border border-border2 rounded bg-surface text-text-custom outline-none"
-                                    value={o.comissao_pct}
-                                    onChange={(e) => handleOfferChange(idx, 'comissao_pct', e.target.value)}
-                                  />
-                                </div>
-                              </div>
-                              
-                              <div className="grid grid-cols-2 gap-2 text-[10px] text-text3 pt-1">
-                                <div>Bruto: R$ {(o.ticket * o.vendas).toLocaleString('pt-BR')}</div>
-                                <div className="text-right">Líquido: R$ {(o.ticket * o.vendas - (o.ticket * o.vendas * o.comissao_pct / 100)).toLocaleString('pt-BR')}</div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* DRE Summary & Comissões */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      <div className="lg:col-span-2 bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
-                        <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">Resultado Líquido Geral</h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="space-y-2 text-[11px] text-text3">
-                            <div className="flex justify-between py-1 border-b border-border-custom"><span>Receita Líquida Total:</span><span className="font-bold text-text-custom">R$ {totalOffersNet.toLocaleString('pt-BR')}</span></div>
-                            <div className="flex justify-between py-1 border-b border-border-custom"><span>Custos Operacionais:</span><span className="font-bold text-text-custom">R$ {totalCustos.toLocaleString('pt-BR')}</span></div>
-                            <div className="flex justify-between items-center py-1 border-b border-border-custom">
-                              <span>Impostos (%):</span>
-                              <input
-                                type="number"
-                                className="w-14 px-1.5 py-0.5 border border-border2 rounded bg-surface text-text-custom text-right outline-none"
-                                value={impostoPct}
-                                onChange={(e) => {
-                                  handleSaveInvestimentos({ imposto_pct: Number(e.target.value) })
-                                }}
-                              />
-                            </div>
-                            <div className="flex justify-between py-1 font-bold text-emerald-400 text-xs"><span>Resultado Líquido:</span><span>R$ {netProfit.toLocaleString('pt-BR')}</span></div>
-                          </div>
-
-                          <div className="p-3.5 bg-surface2/50 border border-border-custom rounded-xl flex flex-col justify-between">
-                            <div>
-                              <span className="text-[10px] text-text3 font-bold uppercase">Reserva do Fundo de Lançamento</span>
-                              <div className="flex items-center gap-2 mt-1.5">
-                                <input
-                                  type="number"
-                                  className="w-16 px-2 py-1 border border-border2 rounded bg-surface text-text-custom font-bold outline-none"
-                                  value={fundoPct}
-                                  onChange={(e) => {
-                                    handleSaveInvestimentos({ fundo_reserva_pct: Number(e.target.value) })
-                                  }}
-                                />
-                                <span className="font-bold text-text-custom">%</span>
-                              </div>
-                            </div>
-                            <div className="text-[11px] text-text3 pt-3 border-t border-border-custom">
-                              Valor retido: <strong className="text-purple-custom">R$ {fundoAmount.toLocaleString('pt-BR')}</strong>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Partner Split */}
-                      <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
-                        <div className="flex justify-between items-center border-b border-border-custom pb-2">
-                          <h4 className="text-xs font-bold text-text-custom">Divisão de Lucro (Sócios)</h4>
-                          <button
-                            onClick={handleAddPartner}
-                            className="px-2 py-0.5 bg-surface border border-border-custom hover:bg-surface2 text-text-custom text-[10px] font-semibold rounded cursor-pointer"
-                          >
-                            + Sócio
-                          </button>
-                        </div>
-                        <div className="space-y-3">
-                          {socios.map((s, idx) => {
-                            const socioProfit = remainderProfit * (s.pct / 100)
-                            return (
-                              <div key={idx} className="flex items-center gap-3">
-                                <input
-                                  type="text"
-                                  className="flex-1 px-2.5 py-1 border border-border2 rounded bg-surface text-text-custom outline-none"
-                                  value={s.nome}
-                                  onChange={(e) => handlePartnerChange(idx, 'nome', e.target.value)}
-                                />
-                                <div className="relative w-20">
-                                  <input
-                                    type="number"
-                                    className="w-full pr-6 pl-2.5 py-1 border border-border2 rounded bg-surface text-text-custom outline-none text-right font-bold"
-                                    value={s.pct}
-                                    onChange={(e) => handlePartnerChange(idx, 'pct', e.target.value)}
-                                  />
-                                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text3 font-bold">%</span>
-                                </div>
-                                <button
-                                  onClick={() => handleRemovePartner(idx)}
-                                  className="text-text3 hover:text-red-400 cursor-pointer"
-                                >
-                                  X
-                                </button>
-                              </div>
-                            )
-                          })}
-                          
-                          <div className="p-3 bg-surface2/50 border border-border-custom rounded-lg text-[10px] text-text3 divide-y divide-border-custom space-y-1.5">
-                            {socios.map((s, idx) => (
-                              <div key={idx} className="flex justify-between py-1">
-                                <span>{s.nome}:</span>
-                                <span className="font-bold text-text-custom">R$ {(remainderProfit * s.pct / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })()}
+              {activeSubTab === 'inv' && (
+                <InvestimentosTab
+                  investimentos={activeLaunchData.investimentos.dados}
+                  faturamentoReal={(Number(activeLaunchData.realizado.dados.vendas) || 0) * (Number(activeLaunchData.realizado.dados.valor_produto) || 997)}
+                  onSave={(data) => {
+                    saveLaunchPartMutation.mutate({
+                      table: 'lancamentos_investimentos',
+                      data: { dados: data }
+                    })
+                  }}
+                />
+              )}
             </>
           )}
         </div>
@@ -1757,6 +1216,568 @@ function RealizadoTab({ real, verba, onSave }: RealizadoTabProps) {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+interface ProvisionamentoTabProps {
+  provisionamento: ProvisionamentoData
+  verba: number
+  template: string
+  onSave: (data: any) => void
+}
+
+function ProvisionamentoTab({ provisionamento, verba, template, onSave }: ProvisionamentoTabProps) {
+  const [cenarioAtivo, setCenarioAtivo] = useState(provisionamento.cenario_ativo || 'Médio')
+  const [scenarios, setScenarios] = useState<Scenario[]>(provisionamento.dados.scenarios || [])
+  const [ev, setEv] = useState<EventoPagoFunnel>(provisionamento.dados.eventoPago || {
+    faturamento_desejado: 20000,
+    ticket_ingresso: 197,
+    conversao_ingresso_pct: 5,
+    investimento_desejado: 10000,
+    ticket_mentoria: 2000,
+    comparecimento_pct: 50,
+    conversao_mentoria_pct: 10,
+  })
+
+  const handleScenarioChange = (idx: number, field: keyof Scenario, val: any) => {
+    const copy = [...scenarios]
+    copy[idx] = { ...copy[idx], [field]: val === '' ? 0 : Number(val) }
+    setScenarios(copy)
+  }
+
+  const handleEvChange = (field: keyof EventoPagoFunnel, val: any) => {
+    setEv({ ...ev, [field]: val === '' ? 0 : Number(val) })
+  }
+
+  const handleSave = () => {
+    onSave({
+      cenario_ativo: cenarioAtivo,
+      dados: {
+        scenarios,
+        eventoPago: ev
+      }
+    })
+  }
+
+  if (template !== 'evento_pago') {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs animate-[fadeUp_0.15s_ease_both]">
+        <div className="lg:col-span-2 bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+          <div className="flex justify-between items-center border-b border-border-custom pb-2">
+            <h4 className="text-xs font-bold text-text-custom">Simulação de Cenários de Lançamento</h4>
+            <span className="text-[10px] text-text3">Verba Total: R$ {verba.toLocaleString('pt-BR')}</span>
+          </div>
+
+          <div className="space-y-4">
+            {scenarios.map((sc, idx) => {
+              const leadsTrafego = sc.custo_lead > 0 ? verba / sc.custo_lead : 0
+              const totalLeads = leadsTrafego + sc.leads_organicos
+              const compradores = totalLeads * (sc.conversao_pct / 100)
+              const faturamento = compradores * sc.valor_produto
+              const roas = verba > 0 ? faturamento / verba : 0
+
+              return (
+                <div key={idx} className="p-4 bg-surface2/50 border border-border-custom rounded-xl space-y-3">
+                  <div className="flex justify-between items-center">
+                    <label className="flex items-center gap-2 font-bold text-text-custom text-xs cursor-pointer">
+                      <input
+                        type="radio"
+                        name="cenario_ativo"
+                        className="accent-purple-custom"
+                        checked={cenarioAtivo === sc.nome}
+                        onChange={() => setCenarioAtivo(sc.nome)}
+                      />
+                      <span>Cenário: {sc.nome}</span>
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[9px] text-text3 uppercase font-bold">Custo por Lead (CPL)</span>
+                      <input
+                        type="number"
+                        className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                        value={sc.custo_lead}
+                        onChange={(e) => handleScenarioChange(idx, 'custo_lead', e.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[9px] text-text3 uppercase font-bold">Leads Orgânicos</span>
+                      <input
+                        type="number"
+                        className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                        value={sc.leads_organicos}
+                        onChange={(e) => handleScenarioChange(idx, 'leads_organicos', e.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[9px] text-text3 uppercase font-bold">Valor do Curso (R$)</span>
+                      <input
+                        type="number"
+                        className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                        value={sc.valor_produto}
+                        onChange={(e) => handleScenarioChange(idx, 'valor_produto', e.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[9px] text-text3 uppercase font-bold">Conversão (%)</span>
+                      <input
+                        type="number"
+                        step="0.1"
+                        className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                        value={sc.conversao_pct}
+                        onChange={(e) => handleScenarioChange(idx, 'conversao_pct', e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-border-custom text-[11px] text-text3">
+                    <div>Total Leads: <strong className="text-text-custom">{Math.round(totalLeads)}</strong></div>
+                    <div>Compradores: <strong className="text-text-custom">{Math.round(compradores)}</strong></div>
+                    <div>Faturamento: <strong className="text-emerald-400">R$ {Math.round(faturamento).toLocaleString('pt-BR')}</strong></div>
+                    <div>ROAS Previsto: <strong className="text-purple-custom">{roas.toFixed(2)}x</strong></div>
+                  </div>
+                </div>
+              )
+            })}
+
+            <button
+              onClick={handleSave}
+              className="w-full py-2 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors mt-2"
+            >
+              Salvar Simulações
+            </button>
+          </div>
+        </div>
+
+        {/* Side references */}
+        <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4 h-fit">
+          <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">Referência de Conversão</h4>
+          <div className="space-y-2 text-[11px]">
+            <div className="flex justify-between py-1 border-b border-border-custom"><span className="text-text2">Normal / Legal</span><span className="font-bold text-zinc-400">1.0%</span></div>
+            <div className="flex justify-between py-1 border-b border-border-custom"><span className="text-text2">Boa</span><span className="font-bold text-blue-400">2.0%</span></div>
+            <div className="flex justify-between py-1 border-b border-border-custom"><span className="text-text2">Foda</span><span className="font-bold text-purple-400">5.0%</span></div>
+            <div className="flex justify-between py-1 border-b border-border-custom"><span className="text-text2">Explodiu</span><span className="font-bold text-emerald-400">10.0%</span></div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Calculations for Evento Pago
+  const ingressosVendas = ev.ticket_ingresso > 0 ? ev.faturamento_desejado / ev.ticket_ingresso : 0
+  const ingressosLeads = ev.conversao_ingresso_pct > 0 ? ingressosVendas / (ev.conversao_ingresso_pct / 100) : 0
+  const cplResultante = ingressosLeads > 0 ? ev.investimento_desejado / ingressosLeads : 0
+
+  const mentoriaLeads = ingressosVendas * (ev.comparecimento_pct / 100)
+  const mentoriaVendas = mentoriaLeads * (ev.conversao_mentoria_pct / 100)
+  const faturamentoMentoria = mentoriaVendas * ev.ticket_mentoria
+
+  return (
+    <div className="space-y-6 text-xs animate-[fadeUp_0.15s_ease_both]">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Subfunnel 1 */}
+        <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+          <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
+            Sub-Funil 1: Ingresso / Imersão
+          </h4>
+          <div className="space-y-3">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-text3 font-bold uppercase">Quanto quer faturar (R$)</span>
+              <input
+                type="number"
+                className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                value={ev.faturamento_desejado}
+                onChange={(e) => handleEvChange('faturamento_desejado', e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-text3 font-bold uppercase">Ticket do Ingresso (R$)</span>
+              <input
+                type="number"
+                className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                value={ev.ticket_ingresso}
+                onChange={(e) => handleEvChange('ticket_ingresso', e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-text3 font-bold uppercase">Conversão em vendas (%)</span>
+              <input
+                type="number"
+                className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                value={ev.conversao_ingresso_pct}
+                onChange={(e) => handleEvChange('conversao_ingresso_pct', e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-text3 font-bold uppercase">Quanto quer investir (R$)</span>
+              <input
+                type="number"
+                className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                value={ev.investimento_desejado}
+                onChange={(e) => handleEvChange('investimento_desejado', e.target.value)}
+              />
+            </div>
+
+            <div className="p-3 bg-surface2/50 border border-border-custom rounded-lg space-y-1 text-[11px] text-text3">
+              <div>Vendas necessárias: <strong className="text-text-custom">{Math.round(ingressosVendas)}</strong></div>
+              <div>Leads necessários: <strong className="text-text-custom">{Math.round(ingressosLeads)}</strong></div>
+              <div>CPL Resultante máximo: <strong className="text-emerald-400">R$ {cplResultante.toFixed(2)}</strong></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Subfunnel 2 */}
+        <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+          <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
+            Sub-Funil 2: Mentoria / Upsell
+          </h4>
+          <div className="space-y-3">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-text3 font-bold uppercase">Ticket da Mentoria (R$)</span>
+              <input
+                type="number"
+                className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                value={ev.ticket_mentoria}
+                onChange={(e) => handleEvChange('ticket_mentoria', e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-text3 font-bold uppercase">Taxa de Comparecimento ao vivo (%)</span>
+              <input
+                type="number"
+                className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                value={ev.comparecimento_pct}
+                onChange={(e) => handleEvChange('comparecimento_pct', e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] text-text3 font-bold uppercase">Taxa de Conversão Mentoria (%)</span>
+              <input
+                type="number"
+                className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                value={ev.conversao_mentoria_pct}
+                onChange={(e) => handleEvChange('conversao_mentoria_pct', e.target.value)}
+              />
+            </div>
+
+            <div className="p-3 bg-surface2/50 border border-border-custom rounded-lg space-y-1 text-[11px] text-text3">
+              <div>Leads ao vivo: <strong className="text-text-custom">{Math.round(mentoriaLeads)}</strong></div>
+              <div>Vendas Mentoria: <strong className="text-text-custom">{Math.round(mentoriaVendas)}</strong></div>
+              <div>Faturamento Mentoria: <strong className="text-emerald-400">R$ {Math.round(faturamentoMentoria).toLocaleString('pt-BR')}</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button
+        onClick={handleSave}
+        className="w-full py-2 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+      >
+        Salvar Simulações
+      </button>
+    </div>
+  )
+}
+
+
+interface InvestimentosTabProps {
+  investimentos: InvestimentosData['dados']
+  faturamentoReal: number
+  onSave: (data: InvestimentosData['dados']) => void
+}
+
+function InvestimentosTab({ investimentos, faturamentoReal, onSave }: InvestimentosTabProps) {
+  const [custos, setCustos] = useState<CostItem[]>(investimentos.custos || [])
+  const [ofertas, setOfertas] = useState<OfferItem[]>(investimentos.ofertas || [])
+  const [socios, setSocios] = useState<PartnerCommission[]>(investimentos.socios || [])
+  const [impostoPct, setImpostoPct] = useState(investimentos.imposto_pct || 6)
+  const [fundoPct, setFundoPct] = useState(investimentos.fundo_reserva_pct || 10)
+
+  const handleAddCost = () => {
+    setCustos([...custos, { nome: 'Novo custo', valor: 500 }])
+  }
+
+  const handleRemoveCost = (idx: number) => {
+    setCustos(custos.filter((_, i) => i !== idx))
+  }
+
+  const handleCostChange = (idx: number, field: keyof CostItem, val: any) => {
+    const copy = [...custos]
+    copy[idx] = { ...copy[idx], [field]: field === 'valor' ? Number(val) : val }
+    setCustos(copy)
+  }
+
+  const handleAddOffer = () => {
+    setOfertas([...ofertas, { nome: 'Novo produto', ticket: 997, vendas: 0, comissao_pct: 10, vendas_ads: 0, valor_gasto_ads: 0 }])
+  }
+
+  const handleRemoveOffer = (idx: number) => {
+    setOfertas(ofertas.filter((_, i) => i !== idx))
+  }
+
+  const handleOfferChange = (idx: number, field: keyof OfferItem, val: any) => {
+    const copy = [...ofertas]
+    copy[idx] = { ...copy[idx], [field]: field === 'nome' ? val : Number(val) }
+    setOfertas(copy)
+  }
+
+  const handleAddPartner = () => {
+    setSocios([...socios, { nome: 'Novo Sócio', pct: 50 }])
+  }
+
+  const handleRemovePartner = (idx: number) => {
+    setSocios(socios.filter((_, i) => i !== idx))
+  }
+
+  const handlePartnerChange = (idx: number, field: keyof PartnerCommission, val: any) => {
+    const copy = [...socios]
+    copy[idx] = { ...copy[idx], [field]: field === 'nome' ? val : Number(val) }
+    setSocios(copy)
+  }
+
+  const handleSave = () => {
+    onSave({
+      custos,
+      ofertas,
+      socios,
+      imposto_pct: impostoPct,
+      fundo_reserva_pct: fundoPct
+    })
+  }
+
+  // Math P&L calculations
+  const totalCustos = custos.reduce((acc, c) => acc + c.valor, 0)
+  
+  const totalOffersGross = ofertas.reduce((acc, o) => acc + (o.ticket * o.vendas), 0)
+  const totalOffersNet = ofertas.reduce((acc, o) => {
+    const gross = o.ticket * o.vendas
+    return acc + (gross - (gross * (o.comissao_pct / 100)))
+  }, 0)
+
+  const impostoReal = totalOffersGross * (impostoPct / 100)
+  const netProfit = totalOffersNet - totalCustos - impostoReal
+
+  const fundoAmount = netProfit > 0 ? netProfit * (fundoPct / 100) : 0
+  const remainderProfit = netProfit > 0 ? netProfit - fundoAmount : 0
+
+  return (
+    <div className="space-y-6 text-xs animate-[fadeUp_0.15s_ease_both]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Custos Card */}
+        <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+          <div className="flex justify-between items-center border-b border-border-custom pb-2">
+            <h4 className="text-xs font-bold text-text-custom">Detalhamento de Custos Operacionais</h4>
+            <button
+              onClick={handleAddCost}
+              className="px-2 py-1 bg-surface border border-border-custom hover:bg-surface2 text-text-custom text-[10px] font-semibold rounded cursor-pointer"
+            >
+              + Novo Custo
+            </button>
+          </div>
+          <div className="space-y-2">
+            {custos.map((c, idx) => (
+              <div key={idx} className="flex items-center gap-3">
+                <input
+                  type="text"
+                  className="flex-1 px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                  value={c.nome}
+                  onChange={(e) => handleCostChange(idx, 'nome', e.target.value)}
+                />
+                <div className="relative w-28">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text3 text-[9px] font-bold">R$</span>
+                  <input
+                    type="number"
+                    className="w-full pl-7 pr-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none text-right font-bold"
+                    value={c.valor}
+                    onChange={(e) => handleCostChange(idx, 'valor', e.target.value)}
+                  />
+                </div>
+                <button
+                  onClick={() => handleRemoveCost(idx)}
+                  className="p-1.5 border border-border-custom hover:border-red-500/30 rounded-lg text-text3 hover:text-red-400 hover:bg-red-500/5 transition-colors cursor-pointer"
+                >
+                  <Trash className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+            <div className="flex justify-between py-2 border-t border-border-custom font-bold text-text-custom pt-3">
+              <span>Soma dos custos:</span>
+              <span>R$ {totalCustos.toLocaleString('pt-BR')}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Receitas / Ofertas Card */}
+        <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+          <div className="flex justify-between items-center border-b border-border-custom pb-2">
+            <h4 className="text-xs font-bold text-text-custom">Receitas por Ofertas</h4>
+            <button
+              onClick={handleAddOffer}
+              className="px-2 py-1 bg-surface border border-border-custom hover:bg-surface2 text-text-custom text-[10px] font-semibold rounded cursor-pointer"
+            >
+              + Nova Oferta
+            </button>
+          </div>
+          <div className="space-y-3">
+            {ofertas.map((o, idx) => (
+              <div key={idx} className="p-3 bg-surface2/50 border border-border-custom rounded-lg space-y-2">
+                <div className="flex justify-between items-center">
+                  <input
+                    type="text"
+                    className="font-bold text-text-custom bg-transparent outline-none border-b border-transparent focus:border-border2"
+                    value={o.nome}
+                    onChange={(e) => handleOfferChange(idx, 'nome', e.target.value)}
+                  />
+                  <button
+                    onClick={() => handleRemoveOffer(idx)}
+                    className="text-text3 hover:text-red-400 cursor-pointer"
+                  >
+                    Remover
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[9px] text-text3 font-bold uppercase">Ticket (R$)</span>
+                    <input
+                      type="number"
+                      className="px-2 py-1 border border-border2 rounded bg-surface text-text-custom outline-none"
+                      value={o.ticket}
+                      onChange={(e) => handleOfferChange(idx, 'ticket', e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[9px] text-text3 font-bold uppercase">N° Vendas</span>
+                    <input
+                      type="number"
+                      className="px-2 py-1 border border-border2 rounded bg-surface text-text-custom outline-none"
+                      value={o.vendas}
+                      onChange={(e) => handleOfferChange(idx, 'vendas', e.target.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-[9px] text-text3 font-bold uppercase">Comissão (%)</span>
+                    <input
+                      type="number"
+                      className="px-2 py-1 border border-border2 rounded bg-surface text-text-custom outline-none"
+                      value={o.comissao_pct}
+                      onChange={(e) => handleOfferChange(idx, 'comissao_pct', e.target.value)}
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 text-[10px] text-text3 pt-1">
+                  <div>Bruto: R$ {(o.ticket * o.vendas).toLocaleString('pt-BR')}</div>
+                  <div className="text-right">Líquido: R$ {(o.ticket * o.vendas - (o.ticket * o.vendas * o.comissao_pct / 100)).toLocaleString('pt-BR')}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* DRE Summary & Comissões */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+          <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">Resultado Líquido Geral</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2 text-[11px] text-text3">
+              <div className="flex justify-between py-1 border-b border-border-custom"><span>Receita Líquida Total:</span><span className="font-bold text-text-custom">R$ {totalOffersNet.toLocaleString('pt-BR')}</span></div>
+              <div className="flex justify-between py-1 border-b border-border-custom"><span>Custos Operacionais:</span><span className="font-bold text-text-custom">R$ {totalCustos.toLocaleString('pt-BR')}</span></div>
+              <div className="flex justify-between items-center py-1 border-b border-border-custom">
+                <span>Impostos (%):</span>
+                <input
+                  type="number"
+                  className="w-14 px-1.5 py-0.5 border border-border2 rounded bg-surface text-text-custom text-right outline-none"
+                  value={impostoPct}
+                  onChange={(e) => setImpostoPct(Number(e.target.value))}
+                />
+              </div>
+              <div className="flex justify-between py-1 font-bold text-emerald-400 text-xs"><span>Resultado Líquido:</span><span>R$ {netProfit.toLocaleString('pt-BR')}</span></div>
+            </div>
+
+            <div className="p-3.5 bg-surface2/50 border border-border-custom rounded-xl flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] text-text3 font-bold uppercase">Reserva do Fundo de Lançamento</span>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <input
+                    type="number"
+                    className="w-16 px-2 py-1 border border-border2 rounded bg-surface text-text-custom font-bold outline-none"
+                    value={fundoPct}
+                    onChange={(e) => setFundoPct(Number(e.target.value))}
+                  />
+                  <span className="font-bold text-text-custom">%</span>
+                </div>
+              </div>
+              <div className="text-[11px] text-text3 pt-3 border-t border-border-custom">
+                Valor retido: <strong className="text-purple-custom">R$ {fundoAmount.toLocaleString('pt-BR')}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Partner Split */}
+        <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+          <div className="flex justify-between items-center border-b border-border-custom pb-2">
+            <h4 className="text-xs font-bold text-text-custom">Divisão de Lucro (Sócios)</h4>
+            <div className="flex gap-2">
+              <button
+                onClick={handleAddPartner}
+                className="px-2 py-0.5 bg-surface border border-border-custom hover:bg-surface2 text-text-custom text-[10px] font-semibold rounded cursor-pointer"
+              >
+                + Sócio
+              </button>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {socios.map((s, idx) => {
+              const socioProfit = remainderProfit * (s.pct / 100)
+              return (
+                <div key={idx} className="flex items-center gap-3">
+                  <input
+                    type="text"
+                    className="flex-1 px-2.5 py-1 border border-border2 rounded bg-surface text-text-custom outline-none"
+                    value={s.nome}
+                    onChange={(e) => handlePartnerChange(idx, 'nome', e.target.value)}
+                  />
+                  <div className="relative w-20">
+                    <input
+                      type="number"
+                      className="w-full pr-6 pl-2.5 py-1 border border-border2 rounded bg-surface text-text-custom outline-none text-right font-bold"
+                      value={s.pct}
+                      onChange={(e) => handlePartnerChange(idx, 'pct', e.target.value)}
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text3 font-bold">%</span>
+                  </div>
+                  <button
+                    onClick={() => handleRemovePartner(idx)}
+                    className="text-text3 hover:text-red-400 cursor-pointer"
+                  >
+                    X
+                  </button>
+                </div>
+              )
+            })}
+            
+            <div className="p-3 bg-surface2/50 border border-border-custom rounded-lg text-[10px] text-text3 divide-y divide-border-custom space-y-1.5">
+              {socios.map((s, idx) => (
+                <div key={idx} className="flex justify-between py-1">
+                  <span>{s.nome}:</span>
+                  <span className="font-bold text-text-custom">R$ {(remainderProfit * s.pct / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button
+        onClick={handleSave}
+        className="w-full py-2.5 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-sm"
+      >
+        Salvar Investimentos
+      </button>
     </div>
   )
 }
