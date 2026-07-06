@@ -748,177 +748,20 @@ export default function LancamentosModule() {
               })()}
 
               {/* TAB 2: BRIEFING */}
-              {activeSubTab === 'briefing' && (() => {
-                const [bMote, setBMote] = useState(activeLaunchData.briefing.mote || '')
-                const [bPublico, setBPublico] = useState(activeLaunchData.briefing.publico_alvo || '')
-                const [bOfertaNome, setBOfertaNome] = useState(activeLaunchData.briefing.oferta?.nome || '')
-                const [bOfertaTicket, setBOfertaTicket] = useState(activeLaunchData.briefing.oferta?.ticket || 997)
-
-                const handleSaveBriefing = () => {
-                  saveBriefingMutation.mutate({
-                    mote: bMote,
-                    publico_alvo: bPublico,
-                    oferta: { nome: bOfertaNome, ticket: Number(bOfertaTicket), formato: 'Curso Online' }
-                  })
-                }
-
-                return (
-                  <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4 max-w-2xl text-xs">
-                    <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
-                      Briefing Estratégico do Lançamento
-                    </h4>
-
-                    <div className="space-y-4">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[10px] font-bold text-text2 uppercase block">Mote / Tema Central</label>
-                        <input
-                          type="text"
-                          className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none"
-                          value={bMote}
-                          onChange={(e) => setBMote(e.target.value)}
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[10px] font-bold text-text2 uppercase block">Público-Alvo e Dores Principais</label>
-                        <textarea
-                          className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none h-20"
-                          value={bPublico}
-                          onChange={(e) => setBPublico(e.target.value)}
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[10px] font-bold text-text2 uppercase block">Nome da Oferta Principal</label>
-                          <input
-                            type="text"
-                            className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none"
-                            value={bOfertaNome}
-                            onChange={(e) => setBOfertaNome(e.target.value)}
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[10px] font-bold text-text2 uppercase block">Ticket da Oferta (R$)</label>
-                          <input
-                            type="number"
-                            className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none"
-                            value={bOfertaTicket}
-                            onChange={(e) => setBOfertaTicket(Number(e.target.value))}
-                          />
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={handleSaveBriefing}
-                        className="px-4 py-2 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
-                      >
-                        Salvar Briefing
-                      </button>
-                    </div>
-                  </div>
-                )
-              })()}
+              {activeSubTab === 'briefing' && (
+                <BriefingTab
+                  briefing={activeLaunchData.briefing}
+                  onSave={(data) => saveBriefingMutation.mutate(data)}
+                />
+              )}
 
               {/* TAB 3: CRONOGRAMA */}
-              {activeSubTab === 'crono' && (() => {
-                const crono = activeLaunchData.cronograma
-                const [verba, setVerba] = useState(crono.verba_total)
-                const [anchor, setAnchor] = useState(crono.data_ancora)
-                const [cpls, setCpls] = useState(crono.qtd_cpls)
-
-                return (
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs animate-[fadeUp_0.15s_ease_both]">
-                    <div className="lg:col-span-2 space-y-6">
-                      <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
-                        <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
-                          Parâmetros de Cronograma e Verba
-                        </h4>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          <div className="flex flex-col gap-1">
-                            <label className="text-[10px] font-bold text-text2 uppercase tracking-wider">Verba Total (Pico)</label>
-                            <input
-                              type="number"
-                              className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                              value={verba}
-                              onChange={(e) => setVerba(Number(e.target.value))}
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            <label className="text-[10px] font-bold text-text2 uppercase tracking-wider">Data do 1º CPL (Âncora)</label>
-                            <input
-                              type="date"
-                              className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                              value={anchor}
-                              onChange={(e) => setAnchor(e.target.value)}
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            <label className="text-[10px] font-bold text-text2 uppercase tracking-wider">Quantidade de CPLs</label>
-                            <input
-                              type="number"
-                              className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                              value={cpls}
-                              onChange={(e) => setCpls(Number(e.target.value))}
-                            />
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={() => handleSaveCronograma({ verba_total: verba, data_ancora: anchor, qtd_cpls: cpls })}
-                          className="px-4 py-2 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
-                        >
-                          Calcular Prazos e Etapas
-                        </button>
-                      </div>
-
-                      {/* Display Stages calculated */}
-                      <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
-                        <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
-                          Etapas do Cronograma
-                        </h4>
-                        <div className="divide-y divide-border-custom">
-                          {crono.etapas.map((e, idx) => (
-                            <div key={idx} className="flex justify-between items-center py-2.5">
-                              <div>
-                                <span className="font-bold text-text-custom text-xs">{e.nome}</span>
-                                <span className="text-[10px] text-text3 block mt-0.5 font-mono">
-                                  {e.inicio !== 'Sem data de fim' ? `${new Date(e.inicio).toLocaleDateString('pt-BR')} até ${new Date(e.fim).toLocaleDateString('pt-BR')}` : e.fim}
-                                </span>
-                              </div>
-                              <div className="text-right">
-                                <span className="font-bold text-text-custom text-xs">{e.pct_verba}% da verba</span>
-                                <span className="text-[10px] text-text3 block mt-0.5">
-                                  R$ {((crono.verba_total * e.pct_verba) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                </span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Right column: Deadlines table */}
-                    <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
-                      <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
-                        Prazos Internos da Equipe
-                      </h4>
-                      <div className="space-y-3">
-                        {crono.prazos_equipe.map((p, idx) => (
-                          <div key={idx} className="p-2.5 bg-surface2/50 border border-border-custom rounded-lg space-y-0.5">
-                            <span className="text-[10px] text-text3 uppercase font-bold tracking-wider">{p.regra}</span>
-                            <span className="text-xs font-bold text-text-custom block">{p.nome}</span>
-                            <span className="text-[11px] text-purple-custom font-bold font-mono">
-                              Prazo: {new Date(p.data).toLocaleDateString('pt-BR')}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })()}
+              {activeSubTab === 'crono' && (
+                <CronogramaTab
+                  crono={activeLaunchData.cronograma}
+                  onSave={handleSaveCronograma}
+                />
+              )}
 
               {/* TAB 4: PROVISIONAMENTO */}
               {activeSubTab === 'prov' && (() => {
@@ -1184,155 +1027,18 @@ export default function LancamentosModule() {
               })()}
 
               {/* TAB 5: REALIZADO */}
-              {activeSubTab === 'real' && (() => {
-                const real = activeLaunchData.realizado.dados
-                const verba = activeLaunchData.cronograma.verba_total
-                
-                const [vendas, setVendas] = useState(real.vendas || 0)
-                const [leadsPagos, setLeadsPagos] = useState(real.leads_pagos || 0)
-                const [leadsOrg, setLeadsOrg] = useState(real.leads_organicos || 0)
-                const [valProd, setValProd] = useState(real.valor_produto || 997)
-                
-                const [notes, setNotes] = useState(real.anotacoes || '')
-                const [better, setBetter] = useState(real.melhorias || '')
-                const [missing, setMissing] = useState(real.faltou || '')
-
-                const handleSaveRealizado = () => {
-                  saveLaunchPartMutation.mutate({
-                    table: 'lancamentos_realizado',
-                    data: {
-                      dados: {
-                        vendas: Number(vendas),
-                        leads_pagos: Number(leadsPagos),
-                        leads_organicos: Number(leadsOrg),
-                        valor_produto: Number(valProd),
-                        anotacoes: notes,
-                        melhorias: better,
-                        faltou: missing,
-                      }
-                    }
-                  })
-                }
-
-                // Calculations
-                const totalLeads = Number(leadsPagos) + Number(leadsOrg)
-                const faturamento = Number(vendas) * Number(valProd)
-                const cpl = Number(leadsPagos) > 0 ? verba / Number(leadsPagos) : 0
-                const conv = totalLeads > 0 ? (Number(vendas) / totalLeads) * 100 : 0
-                const roas = verba > 0 ? faturamento / verba : 0
-
-                return (
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs animate-[fadeUp_0.15s_ease_both]">
-                    <div className="lg:col-span-2 bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
-                      <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
-                        Registro de Métricas Alcançadas
-                      </h4>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-[9px] text-text3 uppercase font-bold">N° de Vendas</span>
-                          <input
-                            type="number"
-                            className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                            value={vendas === 0 ? '' : vendas}
-                            onChange={(e) => setVendas(Number(e.target.value))}
-                          />
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-[9px] text-text3 uppercase font-bold">Leads Pagos</span>
-                          <input
-                            type="number"
-                            className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                            value={leadsPagos === 0 ? '' : leadsPagos}
-                            onChange={(e) => setLeadsPagos(Number(e.target.value))}
-                          />
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-[9px] text-text3 uppercase font-bold">Leads Orgânicos</span>
-                          <input
-                            type="number"
-                            className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                            value={leadsOrg === 0 ? '' : leadsOrg}
-                            onChange={(e) => setLeadsOrg(Number(e.target.value))}
-                          />
-                        </div>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-[9px] text-text3 uppercase font-bold">Ticket Médio (R$)</span>
-                          <input
-                            type="number"
-                            className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                            value={valProd === 0 ? '' : valProd}
-                            onChange={(e) => setValProd(Number(e.target.value))}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Text debriefing inputs */}
-                      <div className="space-y-3 pt-3 border-t border-border-custom">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[10px] font-bold text-text2 uppercase block">Percepção Geral</label>
-                          <textarea
-                            className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none h-14"
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[10px] font-bold text-text2 uppercase block">O que melhorar no próximo?</label>
-                          <textarea
-                            className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none h-14"
-                            value={better}
-                            onChange={(e) => setBetter(e.target.value)}
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[10px] font-bold text-text2 uppercase block">O que faltou executar?</label>
-                          <textarea
-                            className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none h-14"
-                            value={missing}
-                            onChange={(e) => setMissing(e.target.value)}
-                          />
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={handleSaveRealizado}
-                        className="px-4 py-2 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
-                      >
-                        Salvar Realizado
-                      </button>
-                    </div>
-
-                    {/* Side panel comparison */}
-                    <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
-                      <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
-                        Comparativo de Resultados
-                      </h4>
-                      <div className="space-y-3 text-[11px] text-text3">
-                        <div className="flex justify-between py-1 border-b border-border-custom">
-                          <span>Total Leads:</span>
-                          <span className="font-bold text-text-custom">{Math.round(totalLeads)}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-border-custom">
-                          <span>CPL Real:</span>
-                          <span className="font-bold text-text-custom">R$ {cpl.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-border-custom">
-                          <span>Faturamento Real:</span>
-                          <span className="font-bold text-emerald-400">R$ {faturamento.toLocaleString('pt-BR')}</span>
-                        </div>
-                        <div className="flex justify-between py-1 border-b border-border-custom">
-                          <span>ROAS Real:</span>
-                          <span className="font-bold text-purple-custom">{roas.toFixed(2)}x</span>
-                        </div>
-                        <div className="flex justify-between py-1">
-                          <span>Conversão Real:</span>
-                          <span className="font-bold text-text-custom">{conv.toFixed(1)}%</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })()}
+              {activeSubTab === 'real' && (
+                <RealizadoTab
+                  real={activeLaunchData.realizado.dados}
+                  verba={activeLaunchData.cronograma.verba_total}
+                  onSave={(data) => {
+                    saveLaunchPartMutation.mutate({
+                      table: 'lancamentos_realizado',
+                      data: { dados: data }
+                    })
+                  }}
+                />
+              )}
 
               {/* TAB 6: INVESTIMENTOS */}
               {activeSubTab === 'inv' && (() => {
@@ -1719,6 +1425,338 @@ export default function LancamentosModule() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ==========================================
+// SUB-TAB COMPONENTS (React hooks isolation)
+// ==========================================
+
+interface BriefingTabProps {
+  briefing: BriefingData
+  onSave: (data: { mote: string; publico_alvo: string; oferta: any }) => void
+}
+
+function BriefingTab({ briefing, onSave }: BriefingTabProps) {
+  const [bMote, setBMote] = useState(briefing.mote || '')
+  const [bPublico, setBPublico] = useState(briefing.publico_alvo || '')
+  const [bOfertaNome, setBOfertaNome] = useState(briefing.oferta?.nome || '')
+  const [bOfertaTicket, setBOfertaTicket] = useState(briefing.oferta?.ticket || 997)
+
+  const handleSaveBriefing = () => {
+    onSave({
+      mote: bMote,
+      publico_alvo: bPublico,
+      oferta: { nome: bOfertaNome, ticket: Number(bOfertaTicket), formato: 'Curso Online' }
+    })
+  }
+
+  return (
+    <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4 max-w-2xl text-xs animate-[fadeUp_0.15s_ease_both]">
+      <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
+        Briefing Estratégico do Lançamento
+      </h4>
+
+      <div className="space-y-4">
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-text2 uppercase block">Mote / Tema Central</label>
+          <input
+            type="text"
+            className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none"
+            value={bMote}
+            onChange={(e) => setBMote(e.target.value)}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-bold text-text2 uppercase block">Público-Alvo e Dores Principais</label>
+          <textarea
+            className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none h-20"
+            value={bPublico}
+            onChange={(e) => setBPublico(e.target.value)}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-text2 uppercase block">Nome da Oferta Principal</label>
+            <input
+              type="text"
+              className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none"
+              value={bOfertaNome}
+              onChange={(e) => setBOfertaNome(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-text2 uppercase block">Ticket da Oferta (R$)</label>
+            <input
+              type="number"
+              className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none"
+              value={bOfertaTicket}
+              onChange={(e) => setBOfertaTicket(Number(e.target.value))}
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={handleSaveBriefing}
+          className="px-4 py-2 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+        >
+          Salvar Briefing
+        </button>
+      </div>
+    </div>
+  )
+}
+
+interface CronogramaTabProps {
+  crono: CronogramaData
+  onSave: (data: { verba_total: number; data_ancora: string; qtd_cpls: number }) => void
+}
+
+function CronogramaTab({ crono, onSave }: CronogramaTabProps) {
+  const [verba, setVerba] = useState(crono.verba_total)
+  const [anchor, setAnchor] = useState(crono.data_ancora)
+  const [cpls, setCpls] = useState(crono.qtd_cpls)
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs animate-[fadeUp_0.15s_ease_both]">
+      <div className="lg:col-span-2 space-y-6">
+        <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+          <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
+            Parâmetros de Cronograma e Verba
+          </h4>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-text2 uppercase tracking-wider">Verba Total (Pico)</label>
+              <input
+                type="number"
+                className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                value={verba}
+                onChange={(e) => setVerba(Number(e.target.value))}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-text2 uppercase tracking-wider">Data do 1º CPL (Âncora)</label>
+              <input
+                type="date"
+                className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                value={anchor}
+                onChange={(e) => setAnchor(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-text2 uppercase tracking-wider">Quantidade de CPLs</label>
+              <input
+                type="number"
+                className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                value={cpls}
+                onChange={(e) => setCpls(Number(e.target.value))}
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={() => onSave({ verba_total: verba, data_ancora: anchor, qtd_cpls: cpls })}
+            className="px-4 py-2 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+          >
+            Calcular Prazos e Etapas
+          </button>
+        </div>
+
+        {/* Display Stages calculated */}
+        <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+          <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
+            Etapas do Cronograma
+          </h4>
+          <div className="divide-y divide-border-custom">
+            {crono.etapas.map((e, idx) => (
+              <div key={idx} className="flex justify-between items-center py-2.5">
+                <div>
+                  <span className="font-bold text-text-custom text-xs">{e.nome}</span>
+                  <span className="text-[10px] text-text3 block mt-0.5 font-mono">
+                    {e.inicio !== 'Sem data de fim' ? `${new Date(e.inicio).toLocaleDateString('pt-BR')} até ${new Date(e.fim).toLocaleDateString('pt-BR')}` : e.fim}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="font-bold text-text-custom text-xs">{e.pct_verba}% da verba</span>
+                  <span className="text-[10px] text-text3 block mt-0.5">
+                    R$ {((crono.verba_total * e.pct_verba) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Right column: Deadlines table */}
+      <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+        <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
+          Prazos Internos da Equipe
+        </h4>
+        <div className="space-y-3">
+          {crono.prazos_equipe.map((p, idx) => (
+            <div key={idx} className="p-2.5 bg-surface2/50 border border-border-custom rounded-lg space-y-0.5">
+              <span className="text-[10px] text-text3 uppercase font-bold tracking-wider">{p.regra}</span>
+              <span className="text-xs font-bold text-text-custom block">{p.nome}</span>
+              <span className="text-[11px] text-purple-custom font-bold font-mono">
+                Prazo: {new Date(p.data).toLocaleDateString('pt-BR')}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface RealizadoTabProps {
+  real: RealizadoData['dados']
+  verba: number
+  onSave: (data: RealizadoData['dados']) => void
+}
+
+function RealizadoTab({ real, verba, onSave }: RealizadoTabProps) {
+  const [vendas, setVendas] = useState(real.vendas || 0)
+  const [leadsPagos, setLeadsPagos] = useState(real.leads_pagos || 0)
+  const [leadsOrg, setLeadsOrg] = useState(real.leads_organicos || 0)
+  const [valProd, setValProd] = useState(real.valor_produto || 997)
+  
+  const [notes, setNotes] = useState(real.anotacoes || '')
+  const [better, setBetter] = useState(real.melhorias || '')
+  const [missing, setMissing] = useState(real.faltou || '')
+
+  const handleSaveRealizado = () => {
+    onSave({
+      vendas: Number(vendas),
+      leads_pagos: Number(leadsPagos),
+      leads_organicos: Number(leadsOrg),
+      valor_produto: Number(valProd),
+      anotacoes: notes,
+      melhorias: better,
+      faltou: missing,
+    })
+  }
+
+  // Calculations
+  const totalLeads = Number(leadsPagos) + Number(leadsOrg)
+  const faturamento = Number(vendas) * Number(valProd)
+  const cpl = Number(leadsPagos) > 0 ? verba / Number(leadsPagos) : 0
+  const conv = totalLeads > 0 ? (Number(vendas) / totalLeads) * 100 : 0
+  const roas = verba > 0 ? faturamento / verba : 0
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs animate-[fadeUp_0.15s_ease_both]">
+      <div className="lg:col-span-2 bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+        <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
+          Registro de Métricas Alcançadas
+        </h4>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[9px] text-text3 uppercase font-bold">N° de Vendas</span>
+            <input
+              type="number"
+              className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+              value={vendas === 0 ? '' : vendas}
+              onChange={(e) => setVendas(Number(e.target.value))}
+            />
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[9px] text-text3 uppercase font-bold">Leads Pagos</span>
+            <input
+              type="number"
+              className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+              value={leadsPagos === 0 ? '' : leadsPagos}
+              onChange={(e) => setLeadsPagos(Number(e.target.value))}
+            />
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[9px] text-text3 uppercase font-bold">Leads Orgânicos</span>
+            <input
+              type="number"
+              className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+              value={leadsOrg === 0 ? '' : leadsOrg}
+              onChange={(e) => setLeadsOrg(Number(e.target.value))}
+            />
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[9px] text-text3 uppercase font-bold">Ticket Médio (R$)</span>
+            <input
+              type="number"
+              className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+              value={valProd === 0 ? '' : valProd}
+              onChange={(e) => setValProd(Number(e.target.value))}
+            />
+          </div>
+        </div>
+
+        {/* Text debriefing inputs */}
+        <div className="space-y-3 pt-3 border-t border-border-custom">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-text2 uppercase block">Percepção Geral</label>
+            <textarea
+              className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none h-14"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-text2 uppercase block">O que melhorar no próximo?</label>
+            <textarea
+              className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none h-14"
+              value={better}
+              onChange={(e) => setBetter(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-text2 uppercase block">O que faltou executar?</label>
+            <textarea
+              className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none h-14"
+              value={missing}
+              onChange={(e) => setMissing(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={handleSaveRealizado}
+          className="px-4 py-2 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+        >
+          Salvar Realizado
+        </button>
+      </div>
+
+      {/* Side panel comparison */}
+      <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+        <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
+          Comparativo de Resultados
+        </h4>
+        <div className="space-y-3 text-[11px] text-text3">
+          <div className="flex justify-between py-1 border-b border-border-custom">
+            <span>Total Leads:</span>
+            <span className="font-bold text-text-custom">{Math.round(totalLeads)}</span>
+          </div>
+          <div className="flex justify-between py-1 border-b border-border-custom">
+            <span>CPL Real:</span>
+            <span className="font-bold text-text-custom">R$ {cpl.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between py-1 border-b border-border-custom">
+            <span>Faturamento Real:</span>
+            <span className="font-bold text-emerald-400">R$ {faturamento.toLocaleString('pt-BR')}</span>
+          </div>
+          <div className="flex justify-between py-1 border-b border-border-custom">
+            <span>ROAS Real:</span>
+            <span className="font-bold text-purple-custom">{roas.toFixed(2)}x</span>
+          </div>
+          <div className="flex justify-between py-1">
+            <span>Conversão Real:</span>
+            <span className="font-bold text-text-custom">{conv.toFixed(1)}%</span>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
