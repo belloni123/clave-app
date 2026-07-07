@@ -133,6 +133,8 @@ export default function AcessoModule() {
     queryKey: ['project_members', activeProjectId],
     queryFn: async () => {
       if (!activeProjectId) return []
+      // project_users tem duas FKs para profiles (user_id e concedido_por);
+      // o hint !user_id desfaz a ambiguidade do join aninhado no PostgREST.
       const { data, error } = await supabase
         .from('project_users')
         .select(`
@@ -141,7 +143,7 @@ export default function AcessoModule() {
           ativo,
           criado_em,
           user_id,
-          profiles (
+          profiles:profiles!user_id (
             nome,
             email,
             agency_role

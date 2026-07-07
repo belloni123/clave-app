@@ -12,7 +12,13 @@ Armazena as informações adicionais dos usuários autenticados da plataforma.
 *   `role`: `text` (Tipo de conta: `'admin'`, `'client'`, `'colab'`, `'student'`).
 *   `plan`: `text` (Plano de cobrança: `'free'`, `'pro'`, etc).
 *   `max_projects`: `integer` (Limite histórico de projetos associados. O sistema agora ignora esse limite no client-side para permitir projetos ilimitados).
-*   `created_at`, `updated_at`: `timestamp`.
+*   `nome`: `text` (Nome de exibição do usuário; desnormalizado a partir do `auth.users`). Usado na Central de Acesso.
+*   `email`: `text` (E-mail desnormalizado a partir do `auth.users`, já que essa tabela não é acessível diretamente via RLS/select do cliente). Usado na Central de Acesso.
+*   `agency_id`: `uuid` (Referencia `public.agencies.id`; agência à qual o usuário pertence).
+*   `agency_role`: `text` (Papel dentro da agência: `'admin'`, `'gestor'`, `'colaborador'`).
+*   `created_at`, `updated_at`, `deleted_at`: `timestamp`.
+
+> **Nota (migration `20260707020000`)**: as colunas `nome` e `email` foram adicionadas para corrigir um erro `400 (Bad Request)` no módulo Central de Acesso, que consultava esses campos antes de existirem. O trigger `handle_new_user` popula ambos automaticamente a cada novo cadastro, e a migration faz o backfill dos perfis já existentes a partir do `auth.users`.
 
 ### `public.projects`
 Representa os projetos cadastrados. Cada projeto atua como um **Tenant** lógico isolado.
