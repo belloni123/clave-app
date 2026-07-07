@@ -7,7 +7,8 @@ import { useAppStore } from '@/store/useAppStore'
 import { 
   Smartphone, Plus, Search, Trash2, Archive, History, 
   AlertTriangle, CheckCircle2, ShieldAlert, Cpu, 
-  DollarSign, Activity, FileText, Lock, X, Edit2
+  DollarSign, Activity, FileText, Lock, X, Edit2,
+  Eye, EyeOff
 } from 'lucide-react'
 
 interface HistEntry {
@@ -47,6 +48,7 @@ export default function ChipsModule() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [showArchived, setShowArchived] = useState(false)
+  const [hideNumbers, setHideNumbers] = useState(false)
 
   // Modals state
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -311,6 +313,17 @@ export default function ChipsModule() {
     saveChipMutation.mutate(chipData)
   }
 
+  const handleDeleteChip = () => {
+    if (!selectedChip) return
+    if (confirm(`Tem certeza que deseja excluir o número ${selectedChip.numero} permanentemente?`)) {
+      deleteChipMutation.mutate(selectedChip.id, {
+        onSuccess: () => {
+          closeModal()
+        }
+      })
+    }
+  }
+
   const handleAddHist = () => {
     if (!selectedChip) return
     const entry: HistEntry = {
@@ -341,6 +354,20 @@ export default function ChipsModule() {
     if (!a.arquivado && b.arquivado) return -1
     return (a.id_chip || 9999) - (b.id_chip || 9999)
   })
+
+  const maskNumber = (num: string) => {
+    if (!hideNumbers) return num
+    const cleanDigits = num.replace(/\D/g, '')
+    const totalDigits = cleanDigits.length
+    let digitIndex = 0
+    return num.replace(/\d/g, (d) => {
+      digitIndex++
+      if (digitIndex > 2 && digitIndex <= totalDigits - 2) {
+        return '•'
+      }
+      return d
+    })
+  }
 
   // KPIs
   const activeCount = chips.filter(c => !c.arquivado && c.status === 'Ativo').length
@@ -435,6 +462,15 @@ export default function ChipsModule() {
             </label>
 
             <button
+              onClick={() => setHideNumbers(!hideNumbers)}
+              className="px-2.5 py-1.5 border border-border2 hover:bg-surface2 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer text-text-custom transition-all"
+              title={hideNumbers ? 'Mostrar Números' : 'Ocultar Números'}
+            >
+              {hideNumbers ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              <span>{hideNumbers ? 'Mostrar Números' : 'Ocultar Números'}</span>
+            </button>
+
+            <button
               onClick={() => openModal(null)}
               className="px-3 py-1.5 bg-purple-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
             >
@@ -483,7 +519,7 @@ export default function ChipsModule() {
                           onClick={() => openHistorico(chip)}
                           className="font-bold text-text-custom hover:text-purple-custom hover:underline text-left cursor-pointer"
                         >
-                          {chip.numero}
+                          {maskNumber(chip.numero)}
                         </button>
                       </td>
                       <td className="p-3">
@@ -708,19 +744,31 @@ export default function ChipsModule() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 pt-3 border-t border-border-custom">
-              <button
-                onClick={closeModal}
-                className="px-4 py-2 border border-border2 hover:bg-surface2 rounded-lg text-xs font-semibold cursor-pointer text-text-custom"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSave}
-                className="px-4 py-2 bg-purple-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer shadow-sm"
-              >
-                Salvar
-              </button>
+            <div className="flex justify-between items-center pt-3 border-t border-border-custom">
+              {selectedChip ? (
+                <button
+                  onClick={handleDeleteChip}
+                  className="px-4 py-2 bg-red-t/10 hover:bg-red-t/20 border border-red-t/30 text-red-t rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                >
+                  Excluir Número
+                </button>
+              ) : (
+                <div />
+              )}
+              <div className="flex gap-3">
+                <button
+                  onClick={closeModal}
+                  className="px-4 py-2 border border-border2 hover:bg-surface2 rounded-lg text-xs font-semibold cursor-pointer text-text-custom"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="px-4 py-2 bg-purple-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer shadow-sm"
+                >
+                  Salvar
+                </button>
+              </div>
             </div>
           </div>
         </div>

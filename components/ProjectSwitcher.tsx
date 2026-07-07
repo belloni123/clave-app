@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore, Project } from '@/store/useAppStore'
@@ -36,7 +37,14 @@ export default function ProjectSwitcher() {
   const [editId, setEditId] = useState<string | null>(null)
   const [projName, setProjName] = useState('')
   const [selectedColor, setSelectedColor] = useState(PROJ_COLORS[0])
+  const [mounted, setMounted] = useState(false)
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setMounted(true)
+    return () => setMounted(false)
+  }, [])
 
   // 1. QUERY PROJECTS
   const { data: dbProjects } = useQuery({
@@ -113,6 +121,9 @@ export default function ProjectSwitcher() {
         if (error) throw error
       } else {
         // Create
+        if (profile?.role !== 'admin') {
+          throw new Error('Apenas administradores podem criar projetos.')
+        }
         const maxLimit = Infinity
         if (projects.length >= maxLimit) {
           throw new Error(`Limite de ${maxLimit} projetos atingido.`)
@@ -140,6 +151,9 @@ export default function ProjectSwitcher() {
   // 3. MUTATION DELETE (SOFT DELETE)
   const deleteProjectMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (profile?.role !== 'admin') {
+        throw new Error('Apenas administradores podem excluir projetos.')
+      }
       const { error } = await supabase
         .from('projects')
         .update({ deleted_at: new Date().toISOString() })
@@ -184,6 +198,7 @@ export default function ProjectSwitcher() {
     setModalOpen(false)
     setEditId(null)
     setProjName('')
+    setIsConfirmingDelete(false)
   }
 
   const handleSave = () => {
@@ -201,14 +216,7 @@ export default function ProjectSwitcher() {
       showToast('Não é possível excluir o único projeto', 'err')
       return
     }
-    const p = projects.find((x) => x.id === editId)
-    if (
-      confirm(
-        `Excluir o projeto "${p?.name || ''}"?\n\nTodos os dados deste projeto serão apagados permanentemente.`
-      )
-    ) {
-      deleteProjectMutation.mutate(editId)
-    }
+    setIsConfirmingDelete(true)
   }
 
   const maxLimit = Infinity
@@ -290,96 +298,143 @@ export default function ProjectSwitcher() {
             ))}
           </div>
 
-          {maxReached ? (
-            <div className="m-2 p-2 bg-amber-bg text-amber-t rounded text-[11px]">
-              Limite de {profile?.role === 'admin' ? 'Infinitos' : '3'} projetos atingido.
-            </div>
+          {profile?.role === 'admin' ? (
+            maxReached ? (
+              <div className="m-2 p-2 bg-amber-bg text-amber-t rounded text-[11px]">
+                Limite de Infinitos projetos atingido.
+              </div>
+            ) : (
+              <button
+                onClick={openCreateModal}
+                className="w-full flex items-center gap-2 px-3 py-2 cursor-pointer border-t border-border-custom text-text2 text-xs transition-colors hover:bg-surface2 hover:text-text-custom text-left"
+              >
+                <Plus className="w-4 h-4 shrink-0" />
+                <span>Novo projeto</span>
+              </button>
+            )
           ) : (
-            <button
-              onClick={openCreateModal}
-              className="w-full flex items-center gap-2 px-3 py-2 cursor-pointer border-t border-border-custom text-text2 text-xs transition-colors hover:bg-surface2 hover:text-text-custom text-left"
-            >
-              <Plus className="w-4 h-4 shrink-0" />
-              <span>Novo projeto</span>
-            </button>
+            <div className="p-2 border-t border-border-custom text-center text-[10px] text-text3 italic">
+              Apenas administradores podem criar projetos.
+            </div>
           )}
         </div>
       )}
 
-      {/* Modal Criar/Editar */}
-      {modalOpen && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100] animate-[fadeUp_0.15s_ease_both]">
+      {/* Modal Criar/Editar (Rendered outside the sidebar hierarchy using Portals to prevent Containing Block layout breaks) */}
+      {mounted && modalOpen && createPortal(
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] animate-[fadeUp_0.15s_ease_both] backdrop-blur-[1px]">
           <div className="bg-surface rounded-xl p-5 w-full max-w-[360px] shadow-2xl border border-border2">
-            <div className="flex justify-between items-center mb-4">
-              <p className="text-sm font-semibold text-text-custom">
-                {editId ? 'Editar projeto' : 'Novo projeto'}
-              </p>
-              <button onClick={closeModal} className="text-text3 hover:text-text-custom">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            
+            {isConfirmingDelete ? (
+              /* Custom Confirm Delete Step */
+              <div className="space-y-4 animate-[fadeIn_0.15s_ease_both]">
+                <div className="flex justify-between items-center pb-2 border-b border-border-custom">
+                  <p className="text-sm font-bold text-red-t flex items-center gap-1.5">
+                    <Trash2 className="w-4 h-4" />
+                    <span>Excluir Projeto</span>
+                  </p>
+                  <button onClick={closeModal} className="text-text3 hover:text-text-custom cursor-pointer">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
+                <p className="text-xs text-text2 leading-relaxed">
+                  Tem certeza que deseja excluir o projeto <strong className="text-text-custom">"{projName}"</strong>? 
+                  Todos os dados de lançamentos, cronogramas e P&L vinculados a este projeto serão excluídos permanentemente.
+                </p>
 
-            <div className="mb-4">
-              <label className="text-xs font-semibold text-text2 mb-1 block">
-                Nome do projeto
-              </label>
-              <input
-                className="w-full px-3 py-2 text-xs border border-border2 rounded-md bg-surface text-text-custom outline-none focus:border-text-custom transition-colors"
-                value={projName}
-                onChange={(e) => setProjName(e.target.value)}
-                placeholder="Ex: Lançamento Thiago Santos"
-                maxLength={40}
-                autoFocus
-              />
-            </div>
+                <div className="flex gap-2.5 pt-2">
+                  <button
+                    onClick={() => setIsConfirmingDelete(false)}
+                    className="flex-1 py-2 border border-border2 rounded-md text-xs hover:bg-surface2 text-text2 font-semibold transition-all duration-150 cursor-pointer"
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    onClick={() => deleteProjectMutation.mutate(editId!)}
+                    disabled={deleteProjectMutation.isPending}
+                    className="flex-1 py-2 bg-red-t hover:opacity-90 text-white rounded-md text-xs font-bold transition-all duration-150 flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                  >
+                    {deleteProjectMutation.isPending ? 'Excluindo...' : 'Confirmar'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Regular Create / Edit Form */
+              <div className="animate-[fadeIn_0.15s_ease_both] space-y-4">
+                <div className="flex justify-between items-center border-b border-border-custom pb-2">
+                  <p className="text-sm font-bold text-text-custom">
+                    {editId ? 'Editar projeto' : 'Novo projeto'}
+                  </p>
+                  <button onClick={closeModal} className="text-text3 hover:text-text-custom cursor-pointer">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
 
-            <div className="mb-4">
-              <label className="text-xs font-semibold text-text2 mb-1.5 block">Cor</label>
-              <div className="flex gap-2 flex-wrap">
-                {PROJ_COLORS.map((c) => (
-                  <div
-                    key={c}
-                    onClick={() => setSelectedColor(c)}
-                    className={`w-6 h-6 rounded-md cursor-pointer border-2 transition-all duration-150 hover:scale-105 ${
-                      c === selectedColor
-                        ? 'border-text-custom scale-105'
-                        : 'border-transparent'
-                    }`}
-                    style={{ background: c }}
+                <div>
+                  <label className="text-xs font-semibold text-text2 mb-1 block">
+                    Nome do projeto
+                  </label>
+                  <input
+                    className="w-full px-3 py-2 text-xs border border-border2 rounded-md bg-surface text-text-custom outline-none focus:border-text-custom transition-colors"
+                    value={projName}
+                    onChange={(e) => setProjName(e.target.value)}
+                    placeholder="Ex: Lançamento Thiago Santos"
+                    maxLength={40}
+                    autoFocus
                   />
-                ))}
-              </div>
-            </div>
+                </div>
 
-            <div className="flex justify-between items-center gap-2 mt-6">
-              {editId && (
-                <button
-                  onClick={handleDelete}
-                  disabled={projects.length <= 1}
-                  className="px-3 py-2 border border-red-t/30 text-red-t rounded-md text-xs hover:bg-red-bg disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 flex items-center gap-1.5"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Excluir</span>
-                </button>
-              )}
-              <div className="flex gap-2 ml-auto">
-                <button
-                  onClick={closeModal}
-                  className="px-3 py-2 border border-border2 rounded-md text-xs hover:bg-surface2 text-text2 transition-all duration-150"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={!projName.trim() || saveProjectMutation.isPending}
-                  className="px-4 py-2 bg-text-custom text-surface rounded-md text-xs font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150"
-                >
-                  {saveProjectMutation.isPending ? 'Salvando...' : 'Salvar'}
-                </button>
+                <div>
+                  <label className="text-xs font-semibold text-text2 mb-1.5 block">Cor</label>
+                  <div className="flex gap-2 flex-wrap">
+                    {PROJ_COLORS.map((c) => (
+                      <div
+                        key={c}
+                        onClick={() => setSelectedColor(c)}
+                        className={`w-6 h-6 rounded-md cursor-pointer border-2 transition-all duration-150 hover:scale-105 ${
+                          c === selectedColor
+                            ? 'border-text-custom scale-105'
+                            : 'border-transparent'
+                        }`}
+                        style={{ background: c }}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center gap-2 pt-2">
+                  {editId && profile?.role === 'admin' && (
+                    <button
+                      onClick={handleDelete}
+                      disabled={projects.length <= 1}
+                      className="px-3 py-2 border border-red-t/30 text-red-t rounded-md text-xs hover:bg-red-bg disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Excluir</span>
+                    </button>
+                  )}
+                  <div className="flex gap-2 ml-auto">
+                    <button
+                      onClick={closeModal}
+                      className="px-3 py-2 border border-border2 rounded-md text-xs hover:bg-surface2 text-text2 transition-all duration-150 cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      disabled={!projName.trim() || saveProjectMutation.isPending}
+                      className="px-4 py-2 bg-purple-custom text-white rounded-md text-xs font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-150 shadow-sm cursor-pointer"
+                    >
+                      {saveProjectMutation.isPending ? 'Salvando...' : 'Salvar'}
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
