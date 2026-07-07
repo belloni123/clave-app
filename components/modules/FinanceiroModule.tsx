@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
+import { friendlyErrorMessage } from '@/utils/errorMessage'
 import { Trash, AlertTriangle, Check, Plus, Sparkles } from 'lucide-react'
 
 interface Offer {
@@ -18,6 +19,29 @@ interface Offer {
 interface Investment {
   nome: string
   valor: number | string
+}
+
+interface ServVariavel {
+  id: string
+  nome: string
+  pct: number | string
+}
+
+interface ServCustoDireto {
+  id: string
+  categoria: 'mao_obra_propria' | 'mao_obra_terceirizada' | 'material' | 'ferramenta' | 'deslocamento' | 'fixo_rateado' | 'outro'
+  descricao: string
+  modo: 'valor' | 'horas'
+  horas?: number
+  valorHora?: number
+  valor: number
+}
+
+interface ServicesPricingPayload {
+  margemAlvo: number
+  variaveis: ServVariavel[]
+  custosDiretos: ServCustoDireto[]
+  precoAlvo: number
 }
 
 interface PricingConfig {
@@ -121,21 +145,13 @@ export default function FinanceiroModule() {
   // SERVICES PRICING CALCULATOR LOGIC & STATE
   // ==========================================
   const [servMargemAlvo, setServMargemAlvo] = useState<number>(20)
-  const [servVariaveis, setServVariaveis] = useState<{ id: string; nome: string; pct: number }[]>([
+  const [servVariaveis, setServVariaveis] = useState<ServVariavel[]>([
     { id: '1', nome: 'Impostos', pct: 6 },
     { id: '2', nome: 'Gateway/Taxas', pct: 4 },
     { id: '3', nome: 'Comissão de Vendas', pct: 10 },
     { id: '4', nome: 'Inadimplência/Reembolso', pct: 5 }
   ])
-  const [servCustosDiretos, setServCustosDiretos] = useState<{
-    id: string
-    categoria: 'mao_obra_propria' | 'mao_obra_terceirizada' | 'material' | 'ferramenta' | 'deslocamento' | 'fixo_rateado' | 'outro'
-    descricao: string
-    modo: 'valor' | 'horas'
-    horas?: number
-    valorHora?: number
-    valor: number
-  }[]>([
+  const [servCustosDiretos, setServCustosDiretos] = useState<ServCustoDireto[]>([
     { id: '1', categoria: 'mao_obra_propria', descricao: 'Tempo de entrega do projeto', modo: 'horas', horas: 10, valorHora: 50, valor: 500 }
   ])
   const [servPrecoAlvo, setServPrecoAlvo] = useState<number>(1000)
@@ -163,60 +179,51 @@ export default function FinanceiroModule() {
 
   // Sync loaded data to states
   useEffect(() => {
-    if (servicesPricingData) {
-      if (servicesPricingData.margemAlvo !== undefined) setServMargemAlvo(servicesPricingData.margemAlvo)
-      if (servicesPricingData.variaveis !== undefined) setServVariaveis(servicesPricingData.variaveis)
-      if (servicesPricingData.custosDiretos !== undefined) setServCustosDiretos(servicesPricingData.custosDiretos)
-      if (servicesPricingData.precoAlvo !== undefined) setServPrecoAlvo(servicesPricingData.precoAlvo)
-    } else {
-      setServMargemAlvo(20)
-      setServVariaveis([
-        { id: '1', nome: 'Impostos', pct: 6 },
-        { id: '2', nome: 'Gateway/Taxas', pct: 4 },
-        { id: '3', nome: 'Comissão de Vendas', pct: 10 },
-        { id: '4', nome: 'Inadimplência/Reembolso', pct: 5 }
-      ])
-      setServCustosDiretos([
-        { id: '1', categoria: 'mao_obra_propria', descricao: 'Tempo de entrega do projeto', modo: 'horas', horas: 10, valorHora: 50, valor: 500 }
-      ])
-      setServPrecoAlvo(1000)
-    }
+    const timer = setTimeout(() => {
+      if (servicesPricingData) {
+        if (servicesPricingData.margemAlvo !== undefined) setServMargemAlvo(servicesPricingData.margemAlvo)
+        if (servicesPricingData.variaveis !== undefined) setServVariaveis(servicesPricingData.variaveis)
+        if (servicesPricingData.custosDiretos !== undefined) setServCustosDiretos(servicesPricingData.custosDiretos)
+        if (servicesPricingData.precoAlvo !== undefined) setServPrecoAlvo(servicesPricingData.precoAlvo)
+      } else {
+        setServMargemAlvo(20)
+        setServVariaveis([
+          { id: '1', nome: 'Impostos', pct: 6 },
+          { id: '2', nome: 'Gateway/Taxas', pct: 4 },
+          { id: '3', nome: 'Comissão de Vendas', pct: 10 },
+          { id: '4', nome: 'Inadimplência/Reembolso', pct: 5 }
+        ])
+        setServCustosDiretos([
+          { id: '1', categoria: 'mao_obra_propria', descricao: 'Tempo de entrega do projeto', modo: 'horas', horas: 10, valorHora: 50, valor: 500 }
+        ])
+        setServPrecoAlvo(1000)
+      }
+    }, 0)
+    return () => clearTimeout(timer)
   }, [servicesPricingData, activeProjectId])
 
   const saveServicesPricingMutation = useMutation({
-    mutationFn: async (value: any) => {
+    mutationFn: async (value: ServicesPricingPayload) => {
       if (!activeProjectId) return
-      
-      const { data: existing } = await supabase
+
+      const { error } = await supabase
         .from('text_fields')
-        .select('id')
-        .eq('project_id', activeProjectId)
-        .eq('key', 'services-pricing')
-        .maybeSingle()
-        
-      if (existing) {
-        const { error } = await supabase
-          .from('text_fields')
-          .update({ value: JSON.stringify(value) })
-          .eq('id', existing.id)
-        if (error) throw error
-      } else {
-        const { error } = await supabase
-          .from('text_fields')
-          .insert({
+        .upsert(
+          {
             project_id: activeProjectId,
             key: 'services-pricing',
             value: JSON.stringify(value)
-          })
-        if (error) throw error
-      }
+          },
+          { onConflict: 'project_id,key' }
+        )
+      if (error) throw error
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['services_pricing', activeProjectId] })
       showToast('Dados de precificação de serviços salvos!')
     },
     onError: (err) => {
-      showToast('Erro ao salvar: ' + err.message, 'err')
+      showToast(friendlyErrorMessage(err, 'Erro ao salvar precificação de serviços.'), 'err')
     }
   })
 
@@ -562,6 +569,9 @@ export default function FinanceiroModule() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financial_data', activeProjectId] })
+    },
+    onError: (err) => {
+      showToast(friendlyErrorMessage(err, 'Erro ao salvar dados financeiros. Suas últimas alterações podem não ter sido salvas.'), 'err')
     },
   })
 
@@ -1363,7 +1373,7 @@ export default function FinanceiroModule() {
           triggerSaveServices(servMargemAlvo, updated, servCustosDiretos, servPrecoAlvo)
         }
 
-        const handleVarChange = (id: string, field: 'nome' | 'pct', val: any) => {
+        const handleVarChange = (id: string, field: 'nome' | 'pct', val: string | number) => {
           const updated = servVariaveis.map(v => {
             if (v.id === id) {
               return { ...v, [field]: field === 'pct' ? (val === '' ? '' : Number(val)) : val }
@@ -1395,10 +1405,10 @@ export default function FinanceiroModule() {
           triggerSaveServices(servMargemAlvo, servVariaveis, updated, servPrecoAlvo)
         }
 
-        const handleCostChange = (id: string, field: string, val: any) => {
+        const handleCostChange = (id: string, field: keyof ServCustoDireto, val: string | number) => {
           const updated = servCustosDiretos.map(c => {
             if (c.id === id) {
-              const updatedItem = { ...c, [field]: val }
+              const updatedItem = { ...c, [field]: val } as ServCustoDireto
               if (field === 'modo') {
                 if (val === 'horas') {
                   updatedItem.horas = 10
@@ -1421,7 +1431,7 @@ export default function FinanceiroModule() {
               return updatedItem
             }
             return c
-          }) as any
+          })
           setServCustosDiretos(updated)
           triggerSaveServices(servMargemAlvo, servVariaveis, updated, servPrecoAlvo)
         }
@@ -1666,7 +1676,7 @@ export default function FinanceiroModule() {
                         {lucroReais > 0 && 'Lucro'}
                       </div>
                       <div
-                        className="bg-purple-500 flex items-center justify-center text-white"
+                        className="bg-purple-custom flex items-center justify-center text-white"
                         style={{ width: `${precoSugerido > 0 ? (precoSugerido * (sumV / 100) / precoSugerido) * 100 : 0}%` }}
                         title={`Variáveis: ${sumV}%`}
                       >
@@ -2056,7 +2066,7 @@ export default function FinanceiroModule() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
             <div>
               <label className="text-[10px] font-bold text-text2 mb-1 block">Expert (%)</label>
               <input

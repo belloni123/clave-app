@@ -4,9 +4,10 @@ import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
-import { 
-  Smartphone, Plus, Search, Trash2, Archive, History, 
-  AlertTriangle, CheckCircle2, ShieldAlert, Cpu, 
+import { friendlyErrorMessage } from '@/utils/errorMessage'
+import {
+  Smartphone, Plus, Search, Trash2, Archive, History,
+  AlertTriangle, CheckCircle2, ShieldAlert, Cpu,
   DollarSign, Activity, FileText, Lock, X, Edit2,
   Eye, EyeOff
 } from 'lucide-react'
@@ -129,7 +130,7 @@ export default function ChipsModule() {
       closeModal()
     },
     onError: (err) => {
-      showToast('Erro ao salvar chip: ' + err.message, 'err')
+      showToast(friendlyErrorMessage(err, 'Erro ao salvar chip.'), 'err')
     }
   })
 
@@ -193,7 +194,7 @@ export default function ChipsModule() {
       closeHistorico()
     },
     onError: (err) => {
-      showToast('Erro ao registrar histórico: ' + err.message, 'err')
+      showToast(friendlyErrorMessage(err, 'Erro ao registrar histórico.'), 'err')
     }
   })
 

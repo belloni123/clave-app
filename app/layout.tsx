@@ -23,6 +23,17 @@ export const metadata: Metadata = {
   },
 };
 
+const THEME_INIT_SCRIPT = `
+(function () {
+  try {
+    var theme = localStorage.getItem('clave_theme') || 'dark';
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    }
+  } catch (e) {}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -33,6 +44,9 @@ export default function RootLayout({
       lang="pt-BR"
       className={`${dmSans.variable} ${dmMono.variable} h-full`}
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body className="h-full bg-bg text-text-custom font-sans antialiased">
         {children}
         <Toast />

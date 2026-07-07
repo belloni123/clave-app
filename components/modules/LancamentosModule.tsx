@@ -4,8 +4,9 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
-import { 
-  ChevronLeft, Plus, Calendar, DollarSign, Target, Award, BarChart3, 
+import { friendlyErrorMessage } from '@/utils/errorMessage'
+import {
+  ChevronLeft, Plus, Calendar, DollarSign, Target, Award, BarChart3,
   Settings, User, Clock, Trash, AlertTriangle, ArrowRight, Save, CheckCircle, Rocket
 } from 'lucide-react'
 
@@ -125,6 +126,14 @@ interface BriefingData {
   materiais_apoio: { nome: string; url: string }[]
   tag?: string
   dores_principais?: string
+}
+
+type BriefingSavePayload = {
+  mote: string
+  publico_alvo: string
+  dores_principais?: string
+  tag?: string
+  oferta: BriefingData['oferta']
 }
 
 const TEMPLATE_NAMES: Record<LaunchTemplate, string> = {
@@ -254,7 +263,7 @@ export default function LancamentosModule() {
       }
 
       return {
-        launch: { ...lRes.data, links: (lRes.data as any).links || [] } as Launch,
+        launch: { ...lRes.data, links: (lRes.data as Partial<Launch>).links || [] } as Launch,
         cronograma: cronograma as CronogramaData,
         provisionamento: provisionamento as ProvisionamentoData,
         realizado: realizado as RealizadoData,
@@ -267,14 +276,20 @@ export default function LancamentosModule() {
 
   // Sync links when activeLaunchData changes
   useEffect(() => {
-    if (activeLaunchData?.launch) {
-      setLocalLinks(activeLaunchData.launch.links || [])
-    }
+    const timer = setTimeout(() => {
+      if (activeLaunchData?.launch) {
+        setLocalLinks(activeLaunchData.launch.links || [])
+      }
+    }, 0)
+    return () => clearTimeout(timer)
   }, [activeLaunchData])
 
   // Reset local links when selectedLaunchId changes
   useEffect(() => {
-    setLocalLinks(null)
+    const timer = setTimeout(() => {
+      setLocalLinks(null)
+    }, 0)
+    return () => clearTimeout(timer)
   }, [selectedLaunchId])
 
   // 3. MUTATIONS
@@ -338,12 +353,12 @@ export default function LancamentosModule() {
       showToast('Lançamento criado com sucesso!')
     },
     onError: (err) => {
-      showToast('Erro ao criar lançamento: ' + err.message, 'err')
+      showToast(friendlyErrorMessage(err, 'Erro ao criar lançamento.'), 'err')
     }
   })
 
   const saveLaunchPartMutation = useMutation({
-    mutationFn: async (vars: { table: string; data: any }) => {
+    mutationFn: async (vars: { table: string; data: object }) => {
       if (!selectedLaunchId) return
       const { error } = await supabase
         .from(vars.table)
@@ -359,12 +374,12 @@ export default function LancamentosModule() {
       showToast('Alterações salvas com sucesso!')
     },
     onError: (err) => {
-      showToast('Erro ao salvar: ' + err.message, 'err')
+      showToast(friendlyErrorMessage(err, 'Erro ao salvar alterações.'), 'err')
     }
   })
 
   const saveBriefingMutation = useMutation({
-    mutationFn: async (briefingData: any) => {
+    mutationFn: async (briefingData: BriefingSavePayload) => {
       if (!selectedLaunchId || !activeProjectId) return
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
@@ -412,9 +427,9 @@ export default function LancamentosModule() {
           .maybeSingle()
 
         if (pData) {
-          const updatedDados = { ...pData.dados }
+          const updatedDados = { ...pData.dados } as ProvisionamentoData['dados']
           if (updatedDados.scenarios) {
-            updatedDados.scenarios = updatedDados.scenarios.map((sc: any) => ({
+            updatedDados.scenarios = updatedDados.scenarios.map((sc) => ({
               ...sc,
               valor_produto: newTicket
             }))
@@ -439,9 +454,9 @@ export default function LancamentosModule() {
           .maybeSingle()
 
         if (iData) {
-          const updatedDados = { ...iData.dados }
+          const updatedDados = { ...iData.dados } as InvestimentosData['dados']
           if (updatedDados.ofertas && updatedDados.ofertas.length > 0) {
-            updatedDados.ofertas = updatedDados.ofertas.map((o: any, idx: number) => {
+            updatedDados.ofertas = updatedDados.ofertas.map((o, idx) => {
               if (idx === 0) {
                 return { ...o, ticket: newTicket }
               }
@@ -460,7 +475,7 @@ export default function LancamentosModule() {
       showToast('Briefing salvo com sucesso!')
     },
     onError: (err) => {
-      showToast('Erro ao salvar briefing: ' + err.message, 'err')
+      showToast(friendlyErrorMessage(err, 'Erro ao salvar briefing.'), 'err')
     }
   })
 
@@ -481,7 +496,7 @@ export default function LancamentosModule() {
       showToast('Links atualizados com sucesso!')
     },
     onError: (err) => {
-      showToast('Erro ao salvar links: ' + err.message, 'err')
+      showToast(friendlyErrorMessage(err, 'Erro ao salvar links.'), 'err')
     }
   })
 
@@ -499,7 +514,7 @@ export default function LancamentosModule() {
       showToast('Lançamento excluído com sucesso')
     },
     onError: (err) => {
-      showToast('Erro ao excluir: ' + err.message, 'err')
+      showToast(friendlyErrorMessage(err, 'Erro ao excluir lançamento.'), 'err')
     }
   })
 
@@ -665,7 +680,7 @@ export default function LancamentosModule() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {launches.length === 0 ? (
               <div className="col-span-full bg-surface border border-border-custom rounded-xl p-10 text-center text-xs text-text3">
-                Nenhum lançamento planejado para este projeto. Clique em "+ Novo Lançamento" para iniciar.
+                Nenhum lançamento planejado para este projeto. Clique em &quot;+ Novo Lançamento&quot; para iniciar.
               </div>
             ) : (
               launches.map((l) => (
@@ -1164,7 +1179,7 @@ export default function LancamentosModule() {
 
 interface BriefingTabProps {
   briefing: BriefingData
-  onSave: (data: { mote: string; publico_alvo: string; dores_principais?: string; tag?: string; oferta: any }) => void
+  onSave: (data: BriefingSavePayload) => void
 }
 
 function BriefingTab({ briefing, onSave }: BriefingTabProps) {
@@ -1374,7 +1389,7 @@ interface RealizadoTabProps {
   verba: number
   provisionamento: ProvisionamentoData
   template: string
-  onSave: (data: any) => void
+  onSave: (data: RealizadoData['dados']) => void
 }
 
 function RealizadoTab({ real, verba, provisionamento, template, onSave }: RealizadoTabProps) {
@@ -1637,7 +1652,7 @@ interface ProvisionamentoTabProps {
   verba: number
   template: string
   briefingTicket: number
-  onSave: (data: any) => void
+  onSave: (data: ProvisionamentoData) => void
 }
 
 function ProvisionamentoTab({ provisionamento, verba, template, briefingTicket, onSave }: ProvisionamentoTabProps) {
@@ -1655,18 +1670,21 @@ function ProvisionamentoTab({ provisionamento, verba, template, briefingTicket, 
 
   // Synchronize with briefingTicket when it changes
   useEffect(() => {
-    if (briefingTicket) {
-      setEv(prev => ({ ...prev, ticket_ingresso: briefingTicket }))
-    }
+    const timer = setTimeout(() => {
+      if (briefingTicket) {
+        setEv(prev => ({ ...prev, ticket_ingresso: briefingTicket }))
+      }
+    }, 0)
+    return () => clearTimeout(timer)
   }, [briefingTicket])
 
-  const handleScenarioChange = (idx: number, field: keyof Scenario, val: any) => {
+  const handleScenarioChange = (idx: number, field: keyof Scenario, val: string | number) => {
     const copy = [...scenarios]
     copy[idx] = { ...copy[idx], [field]: val === '' ? 0 : Number(val) }
     setScenarios(copy)
   }
 
-  const handleEvChange = (field: keyof EventoPagoFunnel, val: any) => {
+  const handleEvChange = (field: keyof EventoPagoFunnel, val: string | number) => {
     setEv({ ...ev, [field]: val === '' ? 0 : Number(val) })
   }
 
@@ -1923,9 +1941,9 @@ function InvestimentosTab({ investimentos, faturamentoReal, briefingTicket, onSa
     setCustos(custos.filter((_, i) => i !== idx))
   }
 
-  const handleCostChange = (idx: number, field: keyof CostItem, val: any) => {
+  const handleCostChange = (idx: number, field: keyof CostItem, val: string | number) => {
     const copy = [...custos]
-    copy[idx] = { ...copy[idx], [field]: field === 'valor' ? Number(val) : val }
+    copy[idx] = { ...copy[idx], [field]: field === 'valor' ? Number(val) : val } as CostItem
     setCustos(copy)
   }
 
@@ -1937,9 +1955,9 @@ function InvestimentosTab({ investimentos, faturamentoReal, briefingTicket, onSa
     setOfertas(ofertas.filter((_, i) => i !== idx))
   }
 
-  const handleOfferChange = (idx: number, field: keyof OfferItem, val: any) => {
+  const handleOfferChange = (idx: number, field: keyof OfferItem, val: string | number) => {
     const copy = [...ofertas]
-    copy[idx] = { ...copy[idx], [field]: field === 'nome' ? val : Number(val) }
+    copy[idx] = { ...copy[idx], [field]: field === 'nome' ? val : Number(val) } as OfferItem
     setOfertas(copy)
   }
 
@@ -1951,9 +1969,9 @@ function InvestimentosTab({ investimentos, faturamentoReal, briefingTicket, onSa
     setSocios(socios.filter((_, i) => i !== idx))
   }
 
-  const handlePartnerChange = (idx: number, field: keyof PartnerCommission, val: any) => {
+  const handlePartnerChange = (idx: number, field: keyof PartnerCommission, val: string | number) => {
     const copy = [...socios]
-    copy[idx] = { ...copy[idx], [field]: field === 'nome' ? val : Number(val) }
+    copy[idx] = { ...copy[idx], [field]: field === 'nome' ? val : Number(val) } as PartnerCommission
     setSocios(copy)
   }
 
@@ -2064,7 +2082,7 @@ function InvestimentosTab({ investimentos, faturamentoReal, briefingTicket, onSa
                     Remover
                   </button>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[9px] text-text3 font-bold uppercase">Ticket (R$)</span>
                     {idx === 0 ? (

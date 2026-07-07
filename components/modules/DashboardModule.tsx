@@ -200,7 +200,7 @@ export default function DashboardModule() {
               <span className="text-xs font-semibold text-text-custom">
                 {MODULE_NAMES[p.module]}
               </span>
-              <span className="text-[10px] px-2 py-0.5 rounded bg-black/5 text-text2 font-medium">
+              <span className="text-[10px] px-2 py-0.5 rounded bg-surface2 text-text2 font-medium">
                 {p.label}
               </span>
             </div>

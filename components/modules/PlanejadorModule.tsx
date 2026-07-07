@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
+import { friendlyErrorMessage } from '@/utils/errorMessage'
 import { ChevronLeft, ChevronRight, Calendar, X, Trash2 } from 'lucide-react'
 
 type EventType = 'Lançamento' | 'Conteúdo' | 'Anúncio' | 'Reunião' | 'Outro'
@@ -90,7 +91,7 @@ export default function PlanejadorModule() {
         } else {
           showToast('Erro ao desconectar do Google Agenda', 'err')
         }
-      } catch (err) {
+      } catch {
         showToast('Erro ao desconectar do Google Agenda', 'err')
       } finally {
         setSyncing(false)
@@ -111,7 +112,7 @@ export default function PlanejadorModule() {
           showToast('Erro ao obter link de autorização', 'err')
           setSyncing(false)
         }
-      } catch (err) {
+      } catch {
         showToast('Erro ao iniciar integração', 'err')
         setSyncing(false)
       }
@@ -192,7 +193,7 @@ export default function PlanejadorModule() {
       closeModal()
     },
     onError: (err: Error) => {
-      showToast(err.message || 'Erro ao salvar evento', 'err')
+      showToast(friendlyErrorMessage(err, 'Erro ao salvar evento.'), 'err')
     },
   })
 
@@ -219,7 +220,7 @@ export default function PlanejadorModule() {
       closeModal()
     },
     onError: (err: Error) => {
-      showToast(err.message || 'Erro ao excluir evento', 'err')
+      showToast(friendlyErrorMessage(err, 'Erro ao excluir evento.'), 'err')
     },
   })
 

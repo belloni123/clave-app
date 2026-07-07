@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
+import { friendlyErrorMessage } from '@/utils/errorMessage'
+import { getStoredTheme, applyTheme } from '@/utils/theme'
 import { Star, ArrowLeft, Lock, Mail, Eye, EyeOff } from 'lucide-react'
 
 type LoginState = 'login' | 'esqueci' | 'ativar' | 'clave'
@@ -32,16 +34,10 @@ export default function LoginPage() {
   const [theme, setTheme] = useState<'light' | 'dark'>('dark')
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem('clave_theme') as 'light' | 'dark' | null
-      const finalTheme = savedTheme || 'dark'
-      setTimeout(() => setTheme(finalTheme), 0)
-      if (finalTheme === 'dark') {
-        document.documentElement.classList.add('dark')
-      } else {
-        document.documentElement.classList.remove('dark')
-      }
-    }
+    const finalTheme = getStoredTheme()
+    applyTheme(finalTheme)
+    const timer = setTimeout(() => setTheme(finalTheme), 0)
+    return () => clearTimeout(timer)
   }, [])
   const [actSuccess, setActSuccess] = useState(false)
 
@@ -85,15 +81,14 @@ export default function LoginPage() {
 
       setLoading(false)
       if (error) {
-        showToast(error.message || 'Credenciais inválidas', 'err')
+        showToast(friendlyErrorMessage(error, 'Não foi possível entrar. Verifique e-mail e senha.'), 'err')
       } else {
         showToast('Bem-vindo ao Clave!')
         router.push('/')
       }
     } catch (err: unknown) {
       setLoading(false)
-      const errMsg = err instanceof Error ? err.message : 'Erro inesperado no login'
-      showToast(errMsg, 'err')
+      showToast(friendlyErrorMessage(err, 'Erro inesperado no login.'), 'err')
     }
   }
 
@@ -112,15 +107,14 @@ export default function LoginPage() {
 
       setLoading(false)
       if (error) {
-        showToast(error.message || 'Erro ao enviar e-mail de recuperação', 'err')
+        showToast(friendlyErrorMessage(error, 'Erro ao enviar e-mail de recuperação.'), 'err')
       } else {
         setRecoverySent(true)
         showToast('E-mail de recuperação enviado!')
       }
     } catch (err: unknown) {
       setLoading(false)
-      const errMsg = err instanceof Error ? err.message : 'Erro inesperado na recuperação'
-      showToast(errMsg, 'err')
+      showToast(friendlyErrorMessage(err, 'Erro inesperado na recuperação.'), 'err')
     }
   }
 
@@ -156,7 +150,7 @@ export default function LoginPage() {
 
       setLoading(false)
       if (error) {
-        showToast(error.message || 'Erro ao criar conta', 'err')
+        showToast(friendlyErrorMessage(error, 'Erro ao criar conta.'), 'err')
       } else {
         setActSuccess(true)
         showToast('Conta ativada com sucesso!')
@@ -168,8 +162,7 @@ export default function LoginPage() {
       }
     } catch (err: unknown) {
       setLoading(false)
-      const errMsg = err instanceof Error ? err.message : 'Erro inesperado na ativação'
-      showToast(errMsg, 'err')
+      showToast(friendlyErrorMessage(err, 'Erro inesperado na ativação.'), 'err')
     }
   }
 
@@ -250,7 +243,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-2 bg-text-custom text-white rounded-md text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-55"
+                  className="w-full py-2 bg-text-custom text-bg rounded-md text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-55"
                 >
                   {loading ? 'Entrando...' : 'Entrar'}
                 </button>
@@ -319,7 +312,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2 bg-text-custom text-white rounded-md text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-55"
+                className="w-full py-2 bg-text-custom text-bg rounded-md text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-55"
               >
                 {loading ? 'Enviando...' : 'Enviar link'}
               </button>
@@ -411,7 +404,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2 bg-text-custom text-white rounded-md text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-55"
+                className="w-full py-2 bg-text-custom text-bg rounded-md text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-55"
               >
                 {loading ? 'Ativando...' : 'Ativar conta'}
               </button>
@@ -485,7 +478,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setState('ativar')}
-                className="w-full py-2 bg-text-custom text-white rounded-md text-xs font-semibold hover:opacity-90 transition-opacity"
+                className="w-full py-2 bg-text-custom text-bg rounded-md text-xs font-semibold hover:opacity-90 transition-opacity"
               >
                 Quero ativar minha conta
               </button>

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@/utils/supabase/server'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`
@@ -72,6 +73,15 @@ function mockGlobalConsultation(intent: string, context: string, stories: StoryD
 
 export async function POST(request: Request) {
   try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+    }
+
     const body = await request.json()
     const { task, story, intent, context, stories } = body
 
@@ -184,7 +194,6 @@ Cruze as histórias disponíveis para gerar uma sugestão de roteiro estruturada
 
   } catch (err: unknown) {
     console.error(err)
-    const errMsg = err instanceof Error ? err.message : 'Erro interno no servidor de IA'
-    return NextResponse.json({ error: errMsg }, { status: 500 })
+    return NextResponse.json({ error: 'Erro interno no servidor de IA. Tente novamente em instantes.' }, { status: 500 })
   }
 }

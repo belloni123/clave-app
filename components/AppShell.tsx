@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAppStore, MaturityLevel } from '@/store/useAppStore'
 import { createClient } from '@/utils/supabase/client'
+import { getStoredTheme, applyTheme } from '@/utils/theme'
 import ProjectSwitcher from './ProjectSwitcher'
 import LevelSelector from './LevelSelector'
 import Toast from './Toast'
@@ -86,16 +87,10 @@ export default function AppShell({ children }: AppShellProps) {
 
   // 1. INICIALIZAR TEMA
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem('clave_theme') as 'light' | 'dark' | null
-      const finalTheme = savedTheme || 'dark'
-      setTheme(finalTheme)
-      if (finalTheme === 'dark') {
-        document.documentElement.classList.add('dark')
-      } else {
-        document.documentElement.classList.remove('dark')
-      }
-    }
+    const finalTheme = getStoredTheme()
+    applyTheme(finalTheme)
+    const timer = setTimeout(() => setTheme(finalTheme), 0)
+    return () => clearTimeout(timer)
   }, [setTheme])
 
   // 2. VERIFICAR AUTENTICAÇÃO E CARREGAR PERFIL

@@ -24,6 +24,7 @@
   --coral-custom: #D85A30;
   --coral-bg: #FAECE7;
   --coral-t: #712B13;
+  --red-custom: #DC2626;
   --red-bg: #FCEBEB;
   --red-t: #791F1F;
   --gray-bg: #F1EFE8;
@@ -84,6 +85,7 @@
   --color-coral-custom: var(--coral-custom);
   --color-coral-bg: var(--coral-bg);
   --color-coral-t: var(--coral-t);
+  --color-red-custom: var(--red-custom);
   --color-red-bg: var(--red-bg);
   --color-red-t: var(--red-t);
   --color-gray-bg: var(--gray-bg);

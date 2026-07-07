@@ -122,27 +122,13 @@ export default function UrlBuilderModule() {
   const saveHistoryMutation = useMutation({
     mutationFn: async (list: HistoryUrl[]) => {
       if (!activeProjectId) return
-      const serialized = JSON.stringify(list)
-
-      const { data: existing } = await supabase
+      const { error } = await supabase
         .from('text_fields')
-        .select('id')
-        .eq('project_id', activeProjectId)
-        .eq('key', 'url_history')
-        .maybeSingle()
-
-      if (existing) {
-        const { error } = await supabase
-          .from('text_fields')
-          .update({ value: serialized })
-          .eq('id', existing.id)
-        if (error) throw error
-      } else {
-        const { error } = await supabase
-          .from('text_fields')
-          .insert({ project_id: activeProjectId, key: 'url_history', value: serialized })
-        if (error) throw error
-      }
+        .upsert(
+          { project_id: activeProjectId, key: 'url_history', value: JSON.stringify(list) },
+          { onConflict: 'project_id,key' }
+        )
+      if (error) throw error
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['url_history', activeProjectId] })
@@ -160,7 +146,7 @@ export default function UrlBuilderModule() {
   }, [urlHistory, localHistory])
 
   // Load launches for select
-  const { data: launches = [] } = useQuery<any[]>({
+  const { data: launches = [] } = useQuery<{ id: string; nome: string }[]>({
     queryKey: ['launches_dropdown', activeProjectId],
     queryFn: async () => {
       if (!activeProjectId) return []
@@ -676,7 +662,7 @@ export default function UrlBuilderModule() {
 
               {/* Table of UTMs */}
               <div className="border border-border-custom rounded-xl overflow-hidden shadow-sm">
-                <div className="max-h-[450px] overflow-y-auto scrollbar-thin">
+                <div className="max-h-[450px] overflow-y-auto overflow-x-auto scrollbar-thin">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
                       <tr className="bg-surface2 text-text3 font-bold border-b border-border-custom">

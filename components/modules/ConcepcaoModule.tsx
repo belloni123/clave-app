@@ -225,27 +225,13 @@ export default function ConcepcaoModule() {
   const saveCompetitorsMutation = useMutation({
     mutationFn: async (list: Competitor[]) => {
       if (!activeProjectId) return
-      const serialized = JSON.stringify(list)
-
-      const { data: existing } = await supabase
+      const { error } = await supabase
         .from('text_fields')
-        .select('id')
-        .eq('project_id', activeProjectId)
-        .eq('key', 'benchmarking')
-        .maybeSingle()
-
-      if (existing) {
-        const { error } = await supabase
-          .from('text_fields')
-          .update({ value: serialized })
-          .eq('id', existing.id)
-        if (error) throw error
-      } else {
-        const { error } = await supabase
-          .from('text_fields')
-          .insert({ project_id: activeProjectId, key: 'benchmarking', value: serialized })
-        if (error) throw error
-      }
+        .upsert(
+          { project_id: activeProjectId, key: 'benchmarking', value: JSON.stringify(list) },
+          { onConflict: 'project_id,key' }
+        )
+      if (error) throw error
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['benchmarking', activeProjectId] })

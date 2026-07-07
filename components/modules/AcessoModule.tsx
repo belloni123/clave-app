@@ -4,7 +4,37 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
+import { friendlyErrorMessage } from '@/utils/errorMessage'
 import { X, Check, Plus, Trash, Search, CheckSquare, Square } from 'lucide-react'
+
+type PermissionLevel = 'viewer' | 'editor' | 'admin'
+
+interface ProjectMemberRow {
+  id: string
+  permission_level: PermissionLevel
+  ativo: boolean
+  criado_em: string
+  user_id: string
+  profiles: { nome: string; email: string; agency_role: string } | null
+}
+
+interface AgencyProfileRow {
+  id: string
+  nome: string
+  email: string
+  agency_role: string
+}
+
+interface ProjectAccessAuditRow {
+  id: string
+  project_id: string
+  target_user_id: string
+  actor_id: string | null
+  acao: 'grant' | 'revoke' | 'update_level'
+  nivel_anterior: PermissionLevel | null
+  nivel_novo: PermissionLevel | null
+  criado_em: string
+}
 
 interface SaveColabPayload {
   id?: string
@@ -122,7 +152,7 @@ export default function AcessoModule() {
         showToast('Erro ao carregar colaboradores do projeto', 'err')
         return []
       }
-      return data as any[]
+      return data as unknown as ProjectMemberRow[]
     },
     enabled: !!activeProjectId,
   })
@@ -138,7 +168,7 @@ export default function AcessoModule() {
         .eq('agency_id', profile.agency_id)
         .is('deleted_at', null)
       if (error) return []
-      return data as any[]
+      return data as AgencyProfileRow[]
     },
     enabled: !!profile?.agency_id,
   })
@@ -154,7 +184,7 @@ export default function AcessoModule() {
         .eq('project_id', activeProjectId)
         .order('criado_em', { ascending: false })
       if (error) return []
-      return data as any[]
+      return data as ProjectAccessAuditRow[]
     },
     enabled: !!activeProjectId,
   })
@@ -179,13 +209,13 @@ export default function AcessoModule() {
       showToast('Acesso concedido com sucesso!')
     },
     onError: (err) => {
-      showToast('Erro ao conceder acesso: ' + err.message, 'err')
+      showToast(friendlyErrorMessage(err, 'Erro ao conceder acesso.'), 'err')
     }
   })
 
   const updateProjectMemberMutation = useMutation({
     mutationFn: async (vars: { id: string; level?: 'viewer' | 'editor' | 'admin'; ativo?: boolean }) => {
-      const updateData: any = {}
+      const updateData: { permission_level?: PermissionLevel; ativo?: boolean; revogado_em?: string | null } = {}
       if (vars.level !== undefined) updateData.permission_level = vars.level
       if (vars.ativo !== undefined) {
         updateData.ativo = vars.ativo
@@ -207,7 +237,7 @@ export default function AcessoModule() {
       showToast('Acesso atualizado!')
     },
     onError: (err) => {
-      showToast('Erro ao atualizar: ' + err.message, 'err')
+      showToast(friendlyErrorMessage(err, 'Erro ao atualizar acesso.'), 'err')
     }
   })
 
@@ -264,8 +294,8 @@ export default function AcessoModule() {
       showToast(editColabId ? 'Colaborador atualizado' : 'Colaborador adicionado')
       closeColabModal()
     },
-    onError: (err: any) => {
-      showToast('Erro ao salvar colaborador: ' + (err.message || 'Erro desconhecido'), 'err')
+    onError: (err) => {
+      showToast(friendlyErrorMessage(err, 'Erro ao salvar colaborador.'), 'err')
     },
   })
 
@@ -364,8 +394,8 @@ export default function AcessoModule() {
       showToast(editClientId ? 'Cliente atualizado' : 'Cliente adicionado')
       closeClientModal()
     },
-    onError: (err: any) => {
-      showToast('Erro ao salvar cliente: ' + (err.message || 'Erro desconhecido'), 'err')
+    onError: (err) => {
+      showToast(friendlyErrorMessage(err, 'Erro ao salvar cliente.'), 'err')
     },
   })
 
@@ -475,26 +505,13 @@ export default function AcessoModule() {
   const saveContactsMutation = useMutation({
     mutationFn: async (list: NetworkContact[]) => {
       if (!activeProjectId) return
-      const serialized = JSON.stringify(list)
-      const { data: existing } = await supabase
+      const { error } = await supabase
         .from('text_fields')
-        .select('id')
-        .eq('project_id', activeProjectId)
-        .eq('key', 'networking_contacts')
-        .maybeSingle()
-
-      if (existing) {
-        const { error } = await supabase
-          .from('text_fields')
-          .update({ value: serialized })
-          .eq('id', existing.id)
-        if (error) throw error
-      } else {
-        const { error } = await supabase
-          .from('text_fields')
-          .insert({ project_id: activeProjectId, key: 'networking_contacts', value: serialized })
-        if (error) throw error
-      }
+        .upsert(
+          { project_id: activeProjectId, key: 'networking_contacts', value: JSON.stringify(list) },
+          { onConflict: 'project_id,key' }
+        )
+      if (error) throw error
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['networking_contacts', activeProjectId] })
@@ -574,26 +591,13 @@ export default function AcessoModule() {
   const saveSubProjectsMutation = useMutation({
     mutationFn: async (list: SubProject[]) => {
       if (!activeProjectId) return
-      const serialized = JSON.stringify(list)
-      const { data: existing } = await supabase
+      const { error } = await supabase
         .from('text_fields')
-        .select('id')
-        .eq('project_id', activeProjectId)
-        .eq('key', 'sub_projects')
-        .maybeSingle()
-
-      if (existing) {
-        const { error } = await supabase
-          .from('text_fields')
-          .update({ value: serialized })
-          .eq('id', existing.id)
-        if (error) throw error
-      } else {
-        const { error } = await supabase
-          .from('text_fields')
-          .insert({ project_id: activeProjectId, key: 'sub_projects', value: serialized })
-        if (error) throw error
-      }
+        .upsert(
+          { project_id: activeProjectId, key: 'sub_projects', value: JSON.stringify(list) },
+          { onConflict: 'project_id,key' }
+        )
+      if (error) throw error
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sub_projects', activeProjectId] })
@@ -990,7 +994,7 @@ export default function AcessoModule() {
                 <select
                   className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none cursor-pointer"
                   value={selectedMemberLevel}
-                  onChange={(e) => setSelectedMemberLevel(e.target.value as any)}
+                  onChange={(e) => setSelectedMemberLevel(e.target.value as PermissionLevel)}
                 >
                   <option value="viewer">Viewer (Leitura)</option>
                   <option value="editor">Editor (Edição)</option>
@@ -1009,7 +1013,7 @@ export default function AcessoModule() {
                     level: selectedMemberLevel
                   })
                 }}
-                className="px-4 py-1.5 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer w-full sm:w-auto shrink-0"
+                className="px-4 py-1.5 bg-text-custom text-bg hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer w-full sm:w-auto shrink-0"
               >
                 Conceder Acesso
               </button>
@@ -1048,7 +1052,7 @@ export default function AcessoModule() {
                           className="px-2.5 py-1 border border-border2 rounded bg-surface text-text-custom text-xs outline-none cursor-pointer"
                           value={pm.permission_level}
                           onChange={(e) => {
-                            updateProjectMemberMutation.mutate({ id: pm.id, level: e.target.value as any })
+                            updateProjectMemberMutation.mutate({ id: pm.id, level: e.target.value as PermissionLevel })
                           }}
                           disabled={!pm.ativo}
                         >

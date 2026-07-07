@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore, Project } from '@/store/useAppStore'
+import { friendlyErrorMessage } from '@/utils/errorMessage'
 import { Pencil, Plus, Check, Trash2, X } from 'lucide-react'
 
 const PROJ_COLORS = [
@@ -42,8 +43,11 @@ export default function ProjectSwitcher() {
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    setMounted(true)
-    return () => setMounted(false)
+    const timer = setTimeout(() => setMounted(true), 0)
+    return () => {
+      clearTimeout(timer)
+      setMounted(false)
+    }
   }, [])
 
   // 1. QUERY PROJECTS
@@ -144,7 +148,7 @@ export default function ProjectSwitcher() {
       closeModal()
     },
     onError: (err: Error) => {
-      showToast(err.message || 'Erro ao salvar projeto', 'err')
+      showToast(friendlyErrorMessage(err, 'Erro ao salvar projeto.'), 'err')
     },
   })
 
@@ -339,7 +343,7 @@ export default function ProjectSwitcher() {
                 </div>
                 
                 <p className="text-xs text-text2 leading-relaxed">
-                  Tem certeza que deseja excluir o projeto <strong className="text-text-custom">"{projName}"</strong>? 
+                  Tem certeza que deseja excluir o projeto <strong className="text-text-custom">&quot;{projName}&quot;</strong>?
                   Todos os dados de lançamentos, cronogramas e P&L vinculados a este projeto serão excluídos permanentemente.
                 </p>
 
@@ -353,7 +357,7 @@ export default function ProjectSwitcher() {
                   <button
                     onClick={() => deleteProjectMutation.mutate(editId!)}
                     disabled={deleteProjectMutation.isPending}
-                    className="flex-1 py-2 bg-red-t hover:opacity-90 text-white rounded-md text-xs font-bold transition-all duration-150 flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                    className="flex-1 py-2 bg-red-custom hover:opacity-90 text-white rounded-md text-xs font-bold transition-all duration-150 flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
                   >
                     {deleteProjectMutation.isPending ? 'Excluindo...' : 'Confirmar'}
                   </button>

@@ -107,25 +107,13 @@ export default function ComunicacaoModule() {
   const saveFieldMutation = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: string }) => {
       if (!activeProjectId) return
-      const { data: existing } = await supabase
+      const { error } = await supabase
         .from('text_fields')
-        .select('id')
-        .eq('project_id', activeProjectId)
-        .eq('key', key)
-        .maybeSingle()
-
-      if (existing) {
-        const { error } = await supabase
-          .from('text_fields')
-          .update({ value })
-          .eq('id', existing.id)
-        if (error) throw error
-      } else {
-        const { error } = await supabase
-          .from('text_fields')
-          .insert({ project_id: activeProjectId, key, value })
-        if (error) throw error
-      }
+        .upsert(
+          { project_id: activeProjectId, key, value },
+          { onConflict: 'project_id,key' }
+        )
+      if (error) throw error
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['text_fields', activeProjectId] })
@@ -715,8 +703,8 @@ export default function ComunicacaoModule() {
             <div className="bg-surface border border-border-custom rounded-xl p-4 shadow-sm space-y-2 max-h-80 overflow-y-auto scrollbar-thin">
               {vslAnalysis.results.map((res) => {
                 const colors = {
-                  ok: 'bg-green-bg text-green-t border-[#9FE1CB]',
-                  partial: 'bg-amber-bg text-amber-t border-[#FAC775]',
+                  ok: 'bg-green-bg text-green-t border-green-custom/30',
+                  partial: 'bg-amber-bg text-amber-t border-amber-custom/30',
                   missing: 'bg-border2/30 text-text3 border-border2',
                 }
                 const labelText = {

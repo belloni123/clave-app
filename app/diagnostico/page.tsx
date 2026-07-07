@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Check, Star, Award, Zap, BookOpen, Compass, ChevronRight, User, ShieldAlert, Sparkles, Send } from 'lucide-react'
+import { getStoredTheme, applyTheme } from '@/utils/theme'
 
 type QuizType = 'expert' | 'bastidores'
 
@@ -12,16 +13,11 @@ export default function DiagnosticoPage() {
   const [theme, setTheme] = useState<'light' | 'dark'>('dark')
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem('clave_theme') as 'light' | 'dark' | null
-      const finalTheme = savedTheme || 'dark'
-      setTimeout(() => setTheme(finalTheme), 0)
-      if (finalTheme === 'dark') {
-        document.documentElement.classList.add('dark')
-      } else {
-        document.documentElement.classList.remove('dark')
-      }
+    const finalTheme = getStoredTheme()
+    applyTheme(finalTheme)
+    const timer = setTimeout(() => setTheme(finalTheme), 0)
 
+    if (typeof window !== 'undefined') {
       // CRM UTM / Referrer tracking logic
       const params = new URLSearchParams(window.location.search)
       const utms = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term']
@@ -40,6 +36,8 @@ export default function DiagnosticoPage() {
         localStorage.setItem('nfs_url', window.location.href)
       }
     }
+
+    return () => clearTimeout(timer)
   }, [])
 
   // General Quiz State
@@ -473,7 +471,7 @@ export default function DiagnosticoPage() {
                 </div>
                 <button
                   onClick={handleNextStep}
-                  className="w-full py-2.5 bg-text-custom text-white font-bold rounded-lg text-xs hover:opacity-95 transition-opacity"
+                  className="w-full py-2.5 bg-text-custom text-bg font-bold rounded-lg text-xs hover:opacity-95 transition-opacity"
                 >
                   Iniciar diagnóstico
                 </button>
@@ -523,7 +521,7 @@ export default function DiagnosticoPage() {
                 <button
                   onClick={handleNextStep}
                   disabled={!expertAnswers.etapa2_nicho.trim()}
-                  className="w-full py-2 bg-text-custom text-white font-bold rounded-lg text-xs hover:opacity-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full py-2 bg-text-custom text-bg font-bold rounded-lg text-xs hover:opacity-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Continuar
                 </button>
@@ -599,7 +597,7 @@ export default function DiagnosticoPage() {
                 <button
                   onClick={handleNextStep}
                   disabled={!expertAnswers.etapa5_trabalho.trim()}
-                  className="w-full py-2 bg-text-custom text-white font-bold rounded-lg text-xs hover:opacity-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full py-2 bg-text-custom text-bg font-bold rounded-lg text-xs hover:opacity-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Continuar
                 </button>
@@ -623,7 +621,7 @@ export default function DiagnosticoPage() {
                 <button
                   onClick={handleNextStep}
                   disabled={!expertAnswers.etapa6_referencia.trim()}
-                  className="w-full py-2 bg-text-custom text-white font-bold rounded-lg text-xs hover:opacity-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full py-2 bg-text-custom text-bg font-bold rounded-lg text-xs hover:opacity-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Continuar
                 </button>
@@ -887,7 +885,7 @@ export default function DiagnosticoPage() {
                 </div>
                 <button
                   onClick={handleNextStep}
-                  className="w-full py-2 bg-text-custom text-white font-bold rounded-lg text-xs hover:opacity-95 transition-opacity"
+                  className="w-full py-2 bg-text-custom text-bg font-bold rounded-lg text-xs hover:opacity-95 transition-opacity"
                 >
                   Continuar
                 </button>
@@ -911,7 +909,7 @@ export default function DiagnosticoPage() {
                 <button
                   onClick={handleNextStep}
                   disabled={!expertAnswers.etapa16_como_conheceu.trim()}
-                  className="w-full py-2 bg-text-custom text-white font-bold rounded-lg text-xs hover:opacity-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full py-2 bg-text-custom text-bg font-bold rounded-lg text-xs hover:opacity-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Continuar
                 </button>
@@ -980,7 +978,7 @@ export default function DiagnosticoPage() {
                 <button
                   onClick={handleExpertSubmit}
                   disabled={!expertAnswers.leadNome || !expertAnswers.leadWhatsapp || !expertAnswers.leadEmail || !expertAnswers.leadInstagram || !expertAnswers.lgpdConsent}
-                  className="w-full py-2.5 bg-text-custom text-white font-bold rounded-lg text-xs hover:opacity-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+                  className="w-full py-2.5 bg-text-custom text-bg font-bold rounded-lg text-xs hover:opacity-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>Ver meu Resultado Estratégico</span>
@@ -1042,7 +1040,7 @@ export default function DiagnosticoPage() {
                   <div className="pt-3 border-t border-border-custom space-y-2.5">
                     <button
                       onClick={() => router.push('/login?state=ativar')}
-                      className="w-full py-2.5 bg-text-custom text-white font-bold rounded-lg text-xs hover:bg-text-custom/90 transition-colors shadow-sm flex items-center justify-center gap-1.5"
+                      className="w-full py-2.5 bg-text-custom text-bg font-bold rounded-lg text-xs hover:bg-text-custom/90 transition-colors shadow-sm flex items-center justify-center gap-1.5"
                     >
                       <Sparkles className="w-4 h-4" />
                       <span>Criar minha conta no Clave para salvar diagnóstico</span>
@@ -1095,7 +1093,7 @@ export default function DiagnosticoPage() {
                 </div>
                 <button
                   onClick={handleNextStep}
-                  className="w-full py-2.5 bg-text-custom text-white font-bold rounded-lg text-xs hover:opacity-95 transition-opacity"
+                  className="w-full py-2.5 bg-text-custom text-bg font-bold rounded-lg text-xs hover:opacity-95 transition-opacity"
                 >
                   Iniciar diagnóstico
                 </button>
@@ -1244,7 +1242,7 @@ export default function DiagnosticoPage() {
                 <button
                   onClick={handleNextStep}
                   disabled={bastidoresAnswers.etapa4_ferramentas.length === 0}
-                  className="w-full py-2.5 bg-text-custom text-white font-bold rounded-lg text-xs hover:opacity-95 transition-opacity disabled:opacity-45"
+                  className="w-full py-2.5 bg-text-custom text-bg font-bold rounded-lg text-xs hover:opacity-95 transition-opacity disabled:opacity-45"
                 >
                   Continuar
                 </button>
@@ -1529,7 +1527,7 @@ export default function DiagnosticoPage() {
                 <button
                   onClick={handleBastidoresSubmit}
                   disabled={!bastidoresAnswers.leadNome || !bastidoresAnswers.leadWhatsapp || !bastidoresAnswers.leadEmail || !bastidoresAnswers.lgpdConsent}
-                  className="w-full py-2.5 bg-text-custom text-white font-bold rounded-lg text-xs hover:opacity-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+                  className="w-full py-2.5 bg-text-custom text-bg font-bold rounded-lg text-xs hover:opacity-95 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>Ver meu Nível de Maturidade</span>
@@ -1589,7 +1587,7 @@ export default function DiagnosticoPage() {
                   <div className="pt-3 border-t border-border-custom space-y-2.5">
                     <button
                       onClick={() => router.push('/login?state=ativar')}
-                      className="w-full py-2.5 bg-text-custom text-white font-bold rounded-lg text-xs hover:bg-text-custom/90 transition-colors shadow-sm flex items-center justify-center gap-1.5"
+                      className="w-full py-2.5 bg-text-custom text-bg font-bold rounded-lg text-xs hover:bg-text-custom/90 transition-colors shadow-sm flex items-center justify-center gap-1.5"
                     >
                       <Sparkles className="w-4 h-4" />
                       <span>Criar minha conta no Clave para salvar diagnóstico</span>
@@ -1629,7 +1627,7 @@ export default function DiagnosticoPage() {
                 href="https://instagram.com"
                 target="_blank"
                 rel="noreferrer"
-                className="w-full py-2.5 bg-text-custom text-white font-bold rounded-lg text-xs hover:opacity-95 transition-opacity block"
+                className="w-full py-2.5 bg-text-custom text-bg font-bold rounded-lg text-xs hover:opacity-95 transition-opacity block"
               >
                 Acompanhar no Instagram
               </a>

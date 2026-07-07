@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
+import { friendlyErrorMessage } from '@/utils/errorMessage'
 import { Trash, Sparkles, Check, BookOpenCheck } from 'lucide-react'
 
 interface Story {
@@ -189,8 +190,7 @@ export default function HistoriasModule() {
       })
       showToast('Análise de IA concluída!')
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : 'Erro inesperado'
-      showToast('Erro na análise da IA: ' + errMsg, 'err')
+      showToast(friendlyErrorMessage(err, 'Erro na análise da IA.'), 'err')
     } finally {
       setAiLoadingId(null)
     }
@@ -231,8 +231,7 @@ export default function HistoriasModule() {
       const data = await res.json()
       setIaGlobalResult(data.suggestion)
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : 'Erro inesperado'
-      showToast('Erro ao consultar IA: ' + errMsg, 'err')
+      showToast(friendlyErrorMessage(err, 'Erro ao consultar IA.'), 'err')
     } finally {
       setIaGlobalLoading(false)
     }

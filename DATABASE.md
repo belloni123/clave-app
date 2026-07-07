@@ -56,6 +56,7 @@ Armazena textos livres, logs e históricos associados a um projeto de forma gen�
 *   `project_id`: `uuid` (Referencia `public.projects.id`).
 *   `key`: `text` (Identificador do campo: `'benchmarking'`, `'utm_history'`, etc).
 *   `value`: `text` (Conteúdo serializado em texto ou string JSON).
+*   Restrição `unique_project_key unique (project_id, key)`: garante no máximo um registro por combinação de projeto e chave. O código sempre grava nessa tabela via `upsert(..., { onConflict: 'project_id,key' })` (nunca via `select` seguido de `insert`/`update` condicional), evitando linhas duplicadas em salvamentos concorrentes.
 
 ### `public.matrix_answers`
 Armazena as respostas da **Matriz do Perpétuo** (18 perguntas).
