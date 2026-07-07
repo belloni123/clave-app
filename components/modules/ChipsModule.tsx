@@ -436,7 +436,7 @@ export default function ChipsModule() {
 
             <button
               onClick={() => openModal(null)}
-              className="px-3 py-1.5 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+              className="px-3 py-1.5 bg-purple-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Novo Chip</span>
@@ -717,7 +717,7 @@ export default function ChipsModule() {
               </button>
               <button
                 onClick={handleSave}
-                className="px-4 py-2 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer"
+                className="px-4 py-2 bg-purple-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer shadow-sm"
               >
                 Salvar
               </button>
@@ -807,7 +807,7 @@ export default function ChipsModule() {
 
               <button
                 onClick={handleAddHist}
-                className="w-full py-2 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+                className="w-full py-2 bg-purple-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-sm"
               >
                 Adicionar Registro
               </button>

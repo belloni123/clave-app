@@ -20,6 +20,7 @@ interface Launch {
   criado_em: string
   atualizado_por: string | null
   atualizado_em: string | null
+  links?: { nome: string; url: string }[]
 }
 
 interface Stage {
@@ -78,6 +79,7 @@ interface RealizadoData {
     leads_organicos?: number
     valor_produto?: number
     anotacoes?: string
+    percepcao_cliente?: string
     melhorias?: string
     faltou?: string
   }
@@ -121,6 +123,8 @@ interface BriefingData {
     formato: string
   }
   materiais_apoio: { nome: string; url: string }[]
+  tag?: string
+  dores_principais?: string
 }
 
 const TEMPLATE_NAMES: Record<LaunchTemplate, string> = {
@@ -137,6 +141,7 @@ export default function LancamentosModule() {
   // State management
   const [selectedLaunchId, setSelectedLaunchId] = useState<string | null>(null)
   const [activeSubTab, setActiveSubTab] = useState<'resumo' | 'briefing' | 'crono' | 'prov' | 'real' | 'inv'>('resumo')
+  const [localLinks, setLocalLinks] = useState<{ nome: string; url: string }[] | null>(null)
 
   // Launch list modal state
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -244,19 +249,33 @@ export default function LancamentosModule() {
         publico_alvo: '',
         oferta: { nome: '', ticket: 997, formato: 'Curso Online' },
         materiais_apoio: [],
+        tag: '',
+        dores_principais: '',
       }
 
       return {
-        launch: lRes.data as Launch,
+        launch: { ...lRes.data, links: (lRes.data as any).links || [] } as Launch,
         cronograma: cronograma as CronogramaData,
         provisionamento: provisionamento as ProvisionamentoData,
         realizado: realizado as RealizadoData,
         investimentos: investimentos as InvestimentosData,
-        briefing: briefing as BriefingData,
+        briefing: { ...briefing, tag: briefing.tag || '', dores_principais: briefing.dores_principais || '' } as BriefingData,
       }
     },
     enabled: !!selectedLaunchId,
   })
+
+  // Sync links when activeLaunchData changes
+  useEffect(() => {
+    if (activeLaunchData?.launch) {
+      setLocalLinks(activeLaunchData.launch.links || [])
+    }
+  }, [activeLaunchData])
+
+  // Reset local links when selectedLaunchId changes
+  useEffect(() => {
+    setLocalLinks(null)
+  }, [selectedLaunchId])
 
   // 3. MUTATIONS
   const createLaunchMutation = useMutation({
@@ -381,6 +400,60 @@ export default function LancamentosModule() {
           })
         if (error) throw error
       }
+
+      // Espelhamento do Ticket da Oferta
+      const newTicket = Number(briefingData.oferta?.ticket)
+      if (!isNaN(newTicket) && newTicket > 0) {
+        // 1. Atualizar Provisionamento
+        const { data: pData } = await supabase
+          .from('lancamentos_provisionamento')
+          .select('*')
+          .eq('lancamento_id', selectedLaunchId)
+          .maybeSingle()
+
+        if (pData) {
+          const updatedDados = { ...pData.dados }
+          if (updatedDados.scenarios) {
+            updatedDados.scenarios = updatedDados.scenarios.map((sc: any) => ({
+              ...sc,
+              valor_produto: newTicket
+            }))
+          }
+          if (updatedDados.eventoPago) {
+            updatedDados.eventoPago = {
+              ...updatedDados.eventoPago,
+              ticket_ingresso: newTicket
+            }
+          }
+          await supabase
+            .from('lancamentos_provisionamento')
+            .update({ dados: updatedDados, atualizado_em: new Date().toISOString() })
+            .eq('lancamento_id', selectedLaunchId)
+        }
+
+        // 2. Atualizar Investimentos / PIL
+        const { data: iData } = await supabase
+          .from('lancamentos_investimentos')
+          .select('*')
+          .eq('lancamento_id', selectedLaunchId)
+          .maybeSingle()
+
+        if (iData) {
+          const updatedDados = { ...iData.dados }
+          if (updatedDados.ofertas && updatedDados.ofertas.length > 0) {
+            updatedDados.ofertas = updatedDados.ofertas.map((o: any, idx: number) => {
+              if (idx === 0) {
+                return { ...o, ticket: newTicket }
+              }
+              return o
+            })
+          }
+          await supabase
+            .from('lancamentos_investimentos')
+            .update({ dados: updatedDados, atualizado_em: new Date().toISOString() })
+            .eq('lancamento_id', selectedLaunchId)
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['launch_detail', selectedLaunchId] })
@@ -388,6 +461,27 @@ export default function LancamentosModule() {
     },
     onError: (err) => {
       showToast('Erro ao salvar briefing: ' + err.message, 'err')
+    }
+  })
+
+  const saveLaunchLinksMutation = useMutation({
+    mutationFn: async (links: { nome: string; url: string }[]) => {
+      if (!selectedLaunchId) return
+      const { error } = await supabase
+        .from('lancamentos')
+        .update({
+          links,
+          atualizado_em: new Date().toISOString()
+        })
+        .eq('id', selectedLaunchId)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['launch_detail', selectedLaunchId] })
+      showToast('Links atualizados com sucesso!')
+    },
+    onError: (err) => {
+      showToast('Erro ao salvar links: ' + err.message, 'err')
     }
   })
 
@@ -561,7 +655,7 @@ export default function LancamentosModule() {
             </div>
             <button
               onClick={() => setIsCreateOpen(true)}
-              className="px-3 py-1.5 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+              className="px-3 py-1.5 bg-purple-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Novo Lançamento</span>
@@ -684,8 +778,48 @@ export default function LancamentosModule() {
                   ? liquidRevenue - totalCustos - impostoReal
                   : faturamentoReal - verba - totalCustos - impostoReal
 
-                const roi = verba > 0 ? ((faturamentoReal - verba) / verba) * 100 : 0
                 const roas = verba > 0 ? faturamentoReal / verba : 0
+
+                const template = activeLaunchData.launch.template
+                const provVal = activeLaunchData.provisionamento
+                const cronoVal = activeLaunchData.cronograma
+                const activeCenarioNome = provVal.cenario_ativo || 'Médio'
+                
+                let faturamentoProvisionado = 0
+                let verbaInvestidaProvisionada = cronoVal.verba_total
+                let roasPrevisto = 0
+
+                if (template !== 'evento_pago') {
+                  const scenarios = provVal.dados.scenarios || []
+                  const activeScenario = scenarios.find(s => s.nome === activeCenarioNome) || scenarios[1] || scenarios[0]
+                  if (activeScenario) {
+                    const verbaForCalc = cronoVal.verba_total
+                    const leadsTrafego = activeScenario.custo_lead > 0 ? verbaForCalc / activeScenario.custo_lead : 0
+                    const totalLeads = leadsTrafego + (activeScenario.leads_organicos || 0)
+                    const compradores = totalLeads * (activeScenario.conversao_pct / 100)
+                    faturamentoProvisionado = compradores * activeScenario.valor_produto
+                    roasPrevisto = verbaForCalc > 0 ? faturamentoProvisionado / verbaForCalc : 0
+                  }
+                } else {
+                  // Evento pago
+                  const ev = provVal.dados.eventoPago || {
+                    faturamento_desejado: 20000,
+                    ticket_ingresso: 197,
+                    conversao_ingresso_pct: 5,
+                    investimento_desejado: 10000,
+                    ticket_mentoria: 2000,
+                    comparecimento_pct: 50,
+                    conversao_mentoria_pct: 10,
+                  }
+                  const ingressosVendas = ev.ticket_ingresso > 0 ? ev.faturamento_desejado / ev.ticket_ingresso : 0
+                  const mentoriaLeads = ingressosVendas * (ev.comparecimento_pct / 100)
+                  const mentoriaVendas = mentoriaLeads * (ev.conversao_mentoria_pct / 100)
+                  const faturamentoMentoria = mentoriaVendas * ev.ticket_mentoria
+
+                  faturamentoProvisionado = ev.faturamento_desejado + faturamentoMentoria
+                  verbaInvestidaProvisionada = ev.investimento_desejado
+                  roasPrevisto = verbaInvestidaProvisionada > 0 ? faturamentoProvisionado / verbaInvestidaProvisionada : 0
+                }
 
                 const healthColors = {
                   Verde: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -693,37 +827,77 @@ export default function LancamentosModule() {
                   Vermelho: 'bg-red-500/10 text-red-400 border-red-500/20',
                 }
 
+                const getProgress = (inicioStr: string, fimStr: string) => {
+                  try {
+                    const start = new Date(inicioStr).getTime()
+                    if (isNaN(start)) return 0
+                    if (!fimStr || fimStr === 'Sem data de fim') {
+                      return new Date().getTime() >= start ? 100 : 0
+                    }
+                    const end = new Date(fimStr).getTime()
+                    if (isNaN(end)) return 0
+                    const now = new Date().getTime()
+                    if (now >= end) return 100
+                    if (now <= start) return 0
+                    return Math.round(((now - start) / (end - start)) * 100)
+                  } catch {
+                    return 0
+                  }
+                }
+
+                const handleSaveLinks = () => {
+                  if (localLinks) {
+                    saveLaunchLinksMutation.mutate(localLinks)
+                  }
+                }
+
                 return (
-                  <div className="space-y-6">
+                  <div className="space-y-6 animate-[fadeUp_0.15s_ease_both]">
                     {/* Header summary KPIs */}
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                      <div className="bg-surface border border-border-custom rounded-xl p-4 flex flex-col justify-between shadow-sm">
-                        <span className="text-[9px] font-bold text-text3 uppercase">Saúde do Lançamento</span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border w-fit mt-2 ${healthColors[healthStatus]}`}>
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                      <div className="bg-surface border border-border-custom rounded-xl p-3 flex flex-col justify-between shadow-sm">
+                        <span className="text-[8px] font-bold text-text3 uppercase tracking-wider">Saúde</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold border w-fit mt-2 ${healthColors[healthStatus]}`}>
                           {healthStatus}
                         </span>
                       </div>
-                      <div className="bg-surface border border-border-custom rounded-xl p-4 flex flex-col justify-between shadow-sm">
-                        <span className="text-[9px] font-bold text-text3 uppercase">Faturamento Real</span>
-                        <span className="text-lg font-bold text-text-custom mt-2">
-                          R$ {faturamentoReal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      <div className="bg-surface border border-border-custom rounded-xl p-3 flex flex-col justify-between shadow-sm">
+                        <span className="text-[8px] font-bold text-text3 uppercase tracking-wider">Faturamento Realizado</span>
+                        <span className="text-[13px] font-bold text-text-custom mt-2 truncate">
+                          R$ {faturamentoReal.toLocaleString('pt-BR')}
                         </span>
                       </div>
-                      <div className="bg-surface border border-border-custom rounded-xl p-4 flex flex-col justify-between shadow-sm">
-                        <span className="text-[9px] font-bold text-text3 uppercase">ROAS Real</span>
-                        <span className="text-lg font-bold text-purple-custom mt-2">{roas.toFixed(2)}x</span>
-                      </div>
-                      <div className="bg-surface border border-border-custom rounded-xl p-4 flex flex-col justify-between shadow-sm">
-                        <span className="text-[9px] font-bold text-text3 uppercase">ROI Estimado</span>
-                        <span className={`text-lg font-bold mt-2 ${roi >= 0 ? 'text-emerald-400' : 'text-red-t'}`}>
-                          {roi.toFixed(1)}%
+                      <div className="bg-surface border border-border-custom rounded-xl p-3 flex flex-col justify-between shadow-sm">
+                        <span className="text-[8px] font-bold text-text3 uppercase tracking-wider">Faturamento Provisionado</span>
+                        <span className="text-[13px] font-bold text-text-custom mt-2 truncate">
+                          R$ {faturamentoProvisionado.toLocaleString('pt-BR')}
                         </span>
                       </div>
-                      <div className="bg-surface border border-border-custom rounded-xl p-4 flex flex-col justify-between shadow-sm">
-                        <span className="text-[9px] font-bold text-text3 uppercase">Resultado Líquido</span>
-                        <span className={`text-lg font-bold mt-2 ${netProfit >= 0 ? 'text-emerald-400' : 'text-red-t'}`}>
-                          R$ {netProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      <div className="bg-surface border border-border-custom rounded-xl p-3 flex flex-col justify-between shadow-sm">
+                        <span className="text-[8px] font-bold text-text3 uppercase tracking-wider">Resultado Líquido</span>
+                        <span className={`text-[13px] font-bold mt-2 truncate ${netProfit >= 0 ? 'text-green-t font-extrabold' : 'text-red-t font-extrabold'}`}>
+                          R$ {netProfit.toLocaleString('pt-BR')}
                         </span>
+                      </div>
+                      <div className="bg-surface border border-border-custom rounded-xl p-3 flex flex-col justify-between shadow-sm">
+                        <span className="text-[8px] font-bold text-text3 uppercase tracking-wider">Verba Investida</span>
+                        <span className="text-[13px] font-bold text-text-custom mt-2 truncate">
+                          R$ {verba.toLocaleString('pt-BR')}
+                        </span>
+                      </div>
+                      <div className="bg-surface border border-border-custom rounded-xl p-3 flex flex-col justify-between shadow-sm">
+                        <span className="text-[8px] font-bold text-text3 uppercase tracking-wider">Verba Provisionada</span>
+                        <span className="text-[13px] font-bold text-text-custom mt-2 truncate">
+                          R$ {verbaInvestidaProvisionada.toLocaleString('pt-BR')}
+                        </span>
+                      </div>
+                      <div className="bg-surface border border-border-custom rounded-xl p-3 flex flex-col justify-between shadow-sm">
+                        <span className="text-[8px] font-bold text-text3 uppercase tracking-wider">ROAS Real</span>
+                        <span className="text-[13px] font-bold text-purple-custom mt-2">{roas.toFixed(2)}x</span>
+                      </div>
+                      <div className="bg-surface border border-border-custom rounded-xl p-3 flex flex-col justify-between shadow-sm">
+                        <span className="text-[8px] font-bold text-text3 uppercase tracking-wider">ROAS Estimado</span>
+                        <span className="text-[13px] font-bold text-purple-custom mt-2">{roasPrevisto.toFixed(2)}x</span>
                       </div>
                     </div>
 
@@ -731,17 +905,109 @@ export default function LancamentosModule() {
                     <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
                       <h4 className="text-xs font-bold text-text-custom">Linha do tempo das etapas</h4>
                       <div className="grid grid-cols-1 md:grid-cols-5 gap-3 pt-2">
-                        {activeLaunchData.cronograma.etapas.slice(0, 5).map((e, idx) => (
-                          <div key={idx} className="p-3 bg-surface2/40 border border-border-custom rounded-lg space-y-1">
-                            <span className="text-[9px] font-bold text-text3 uppercase block">Etapa {idx+1}</span>
-                            <span className="text-xs font-bold text-text-custom block">{e.nome}</span>
-                            <span className="text-[10px] text-text2 block">{e.pct_verba}% verba ({e.dias} dias)</span>
-                            <span className="text-[10px] text-text3 block font-mono">
-                              {new Date(e.inicio).toLocaleDateString('pt-BR')} - {new Date(e.fim).toLocaleDateString('pt-BR')}
-                            </span>
-                          </div>
-                        ))}
+                        {activeLaunchData.cronograma.etapas.slice(0, 5).map((e, idx) => {
+                          const progress = getProgress(e.inicio, e.fim)
+                          return (
+                            <div key={idx} className="p-3 bg-surface2/40 border border-border-custom rounded-lg space-y-1 flex flex-col justify-between">
+                              <div>
+                                <span className="text-[9px] font-bold text-text3 uppercase block">Etapa {idx+1}</span>
+                                <span className="text-xs font-bold text-text-custom block truncate">{e.nome}</span>
+                                <span className="text-[10px] text-text2 block">{e.pct_verba}% verba ({e.dias} dias)</span>
+                                <span className="text-[10px] text-text3 block font-mono text-[9px] truncate">
+                                  {new Date(e.inicio).toLocaleDateString('pt-BR')} - {new Date(e.fim).toLocaleDateString('pt-BR')}
+                                </span>
+                              </div>
+                              <div className="pt-2">
+                                <div className="w-full bg-border2 rounded-full h-1.5 overflow-hidden">
+                                  <div 
+                                    className="bg-purple-custom h-1.5 rounded-full transition-all duration-300"
+                                    style={{ width: `${progress}%` }}
+                                  />
+                                </div>
+                                <span className="text-[8px] text-text3 font-semibold mt-1 block text-right">
+                                  {progress}% concluído
+                                </span>
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
+                    </div>
+
+                    {/* LINKS ÚTEIS */}
+                    <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+                      <div className="flex justify-between items-center border-b border-border-custom pb-2">
+                        <div>
+                          <h4 className="text-xs font-bold text-text-custom">Links Úteis</h4>
+                          <p className="text-[10px] text-text3 mt-0.5">Gerencie os links de suporte e acompanhamento deste lançamento (planilhas, dashs, etc.).</p>
+                        </div>
+                        <button
+                          onClick={() => setLocalLinks([...(localLinks || []), { nome: 'Novo Link', url: '' }])}
+                          className="px-2 py-1 bg-surface border border-border-custom hover:bg-surface2 text-text-custom text-[10px] font-semibold rounded cursor-pointer transition-colors"
+                        >
+                          + Novo Link
+                        </button>
+                      </div>
+
+                      {(localLinks || []).length === 0 ? (
+                        <div className="text-center py-6 text-[10px] text-text3 italic">Nenhum link adicionado ainda.</div>
+                      ) : (
+                        <div className="space-y-3">
+                          {(localLinks || []).map((lk, idx) => (
+                            <div key={idx} className="flex items-center gap-3">
+                              <input
+                                type="text"
+                                placeholder="Nome do Link"
+                                className="flex-1 px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none text-xs"
+                                value={lk.nome}
+                                onChange={(e) => {
+                                  const copy = [...(localLinks || [])]
+                                  copy[idx] = { ...copy[idx], nome: e.target.value }
+                                  setLocalLinks(copy)
+                                }}
+                              />
+                              <input
+                                type="text"
+                                placeholder="https://..."
+                                className="flex-2 px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none text-xs font-mono"
+                                value={lk.url}
+                                onChange={(e) => {
+                                  const copy = [...(localLinks || [])]
+                                  copy[idx] = { ...copy[idx], url: e.target.value }
+                                  setLocalLinks(copy)
+                                }}
+                              />
+                              {lk.url && (
+                                <a
+                                  href={lk.url.startsWith('http') ? lk.url : `https://${lk.url}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-2.5 py-1.5 bg-surface border border-border-custom hover:bg-surface2 text-text-custom text-[10px] font-semibold rounded text-center transition-colors"
+                                >
+                                  Acessar
+                                </a>
+                              )}
+                              <button
+                                onClick={() => {
+                                  const copy = (localLinks || []).filter((_, i) => i !== idx)
+                                  setLocalLinks(copy)
+                                }}
+                                className="p-1.5 border border-border-custom hover:border-red-500/30 rounded-lg text-text3 hover:text-red-400 hover:bg-red-500/5 transition-colors cursor-pointer"
+                              >
+                                <Trash className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+
+                          <button
+                            onClick={handleSaveLinks}
+                            disabled={saveLaunchLinksMutation.isPending}
+                            className="w-full py-2 bg-purple-custom text-white hover:opacity-90 disabled:opacity-50 rounded-lg text-[10px] font-bold cursor-pointer transition-colors shadow-sm"
+                          >
+                            {saveLaunchLinksMutation.isPending ? 'Salvando...' : 'Salvar Links'}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
@@ -769,6 +1035,7 @@ export default function LancamentosModule() {
                   provisionamento={activeLaunchData.provisionamento}
                   verba={activeLaunchData.cronograma.verba_total}
                   template={activeLaunchData.launch.template}
+                  briefingTicket={activeLaunchData.briefing.oferta?.ticket || 997}
                   onSave={(data) => {
                     saveLaunchPartMutation.mutate({
                       table: 'lancamentos_provisionamento',
@@ -783,6 +1050,8 @@ export default function LancamentosModule() {
                 <RealizadoTab
                   real={activeLaunchData.realizado.dados}
                   verba={activeLaunchData.cronograma.verba_total}
+                  provisionamento={activeLaunchData.provisionamento}
+                  template={activeLaunchData.launch.template}
                   onSave={(data) => {
                     saveLaunchPartMutation.mutate({
                       table: 'lancamentos_realizado',
@@ -797,6 +1066,7 @@ export default function LancamentosModule() {
                 <InvestimentosTab
                   investimentos={activeLaunchData.investimentos.dados}
                   faturamentoReal={(Number(activeLaunchData.realizado.dados.vendas) || 0) * (Number(activeLaunchData.realizado.dados.valor_produto) || 997)}
+                  briefingTicket={activeLaunchData.briefing.oferta?.ticket || 997}
                   onSave={(data) => {
                     saveLaunchPartMutation.mutate({
                       table: 'lancamentos_investimentos',
@@ -876,7 +1146,7 @@ export default function LancamentosModule() {
                     dataAncora: newLaunchAnchorDate,
                   })
                 }}
-                className="px-4 py-2 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer"
+                className="px-4 py-2 bg-purple-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer shadow-sm"
               >
                 Criar
               </button>
@@ -894,19 +1164,23 @@ export default function LancamentosModule() {
 
 interface BriefingTabProps {
   briefing: BriefingData
-  onSave: (data: { mote: string; publico_alvo: string; oferta: any }) => void
+  onSave: (data: { mote: string; publico_alvo: string; dores_principais?: string; tag?: string; oferta: any }) => void
 }
 
 function BriefingTab({ briefing, onSave }: BriefingTabProps) {
   const [bMote, setBMote] = useState(briefing.mote || '')
   const [bPublico, setBPublico] = useState(briefing.publico_alvo || '')
+  const [bDores, setBDores] = useState(briefing.dores_principais || '')
   const [bOfertaNome, setBOfertaNome] = useState(briefing.oferta?.nome || '')
   const [bOfertaTicket, setBOfertaTicket] = useState(briefing.oferta?.ticket || 997)
+  const [bTag, setBTag] = useState(briefing.tag || '')
 
   const handleSaveBriefing = () => {
     onSave({
       mote: bMote,
       publico_alvo: bPublico,
+      dores_principais: bDores,
+      tag: bTag,
       oferta: { nome: bOfertaNome, ticket: Number(bOfertaTicket), formato: 'Curso Online' }
     })
   }
@@ -918,22 +1192,45 @@ function BriefingTab({ briefing, onSave }: BriefingTabProps) {
       </h4>
 
       <div className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="sm:col-span-2 flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-text2 uppercase block">Mote / Tema Central</label>
+            <input
+              type="text"
+              className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs"
+              value={bMote}
+              onChange={(e) => setBMote(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-bold text-text2 uppercase block">Tag do Lançamento</label>
+            <input
+              type="text"
+              placeholder="ex: semente-v2"
+              className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs font-mono"
+              value={bTag}
+              onChange={(e) => setBTag(e.target.value)}
+            />
+          </div>
+        </div>
+
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-text2 uppercase block">Mote / Tema Central</label>
-          <input
-            type="text"
-            className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none"
-            value={bMote}
-            onChange={(e) => setBMote(e.target.value)}
+          <label className="text-[10px] font-bold text-text2 uppercase block">Público-Alvo</label>
+          <textarea
+            rows={4}
+            className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none h-32 text-xs resize-y"
+            value={bPublico}
+            onChange={(e) => setBPublico(e.target.value)}
           />
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-[10px] font-bold text-text2 uppercase block">Público-Alvo e Dores Principais</label>
+          <label className="text-[10px] font-bold text-text2 uppercase block">Dores Principais</label>
           <textarea
-            className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none h-20"
-            value={bPublico}
-            onChange={(e) => setBPublico(e.target.value)}
+            rows={4}
+            className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none h-32 text-xs resize-y"
+            value={bDores}
+            onChange={(e) => setBDores(e.target.value)}
           />
         </div>
 
@@ -942,7 +1239,7 @@ function BriefingTab({ briefing, onSave }: BriefingTabProps) {
             <label className="text-[10px] font-bold text-text2 uppercase block">Nome da Oferta Principal</label>
             <input
               type="text"
-              className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none"
+              className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs"
               value={bOfertaNome}
               onChange={(e) => setBOfertaNome(e.target.value)}
             />
@@ -951,7 +1248,7 @@ function BriefingTab({ briefing, onSave }: BriefingTabProps) {
             <label className="text-[10px] font-bold text-text2 uppercase block">Ticket da Oferta (R$)</label>
             <input
               type="number"
-              className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none"
+              className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs font-bold"
               value={bOfertaTicket}
               onChange={(e) => setBOfertaTicket(Number(e.target.value))}
             />
@@ -960,7 +1257,7 @@ function BriefingTab({ briefing, onSave }: BriefingTabProps) {
 
         <button
           onClick={handleSaveBriefing}
-          className="px-4 py-2 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+          className="w-full py-2 bg-purple-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-sm"
         >
           Salvar Briefing
         </button>
@@ -1019,7 +1316,7 @@ function CronogramaTab({ crono, onSave }: CronogramaTabProps) {
 
           <button
             onClick={() => onSave({ verba_total: verba, data_ancora: anchor, qtd_cpls: cpls })}
-            className="px-4 py-2 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+            className="px-4 py-2 bg-purple-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-sm"
           >
             Calcular Prazos e Etapas
           </button>
@@ -1075,16 +1372,19 @@ function CronogramaTab({ crono, onSave }: CronogramaTabProps) {
 interface RealizadoTabProps {
   real: RealizadoData['dados']
   verba: number
-  onSave: (data: RealizadoData['dados']) => void
+  provisionamento: ProvisionamentoData
+  template: string
+  onSave: (data: any) => void
 }
 
-function RealizadoTab({ real, verba, onSave }: RealizadoTabProps) {
+function RealizadoTab({ real, verba, provisionamento, template, onSave }: RealizadoTabProps) {
   const [vendas, setVendas] = useState(real.vendas || 0)
   const [leadsPagos, setLeadsPagos] = useState(real.leads_pagos || 0)
   const [leadsOrg, setLeadsOrg] = useState(real.leads_organicos || 0)
   const [valProd, setValProd] = useState(real.valor_produto || 997)
   
   const [notes, setNotes] = useState(real.anotacoes || '')
+  const [clientPerception, setClientPerception] = useState(real.percepcao_cliente || '')
   const [better, setBetter] = useState(real.melhorias || '')
   const [missing, setMissing] = useState(real.faltou || '')
 
@@ -1095,124 +1395,236 @@ function RealizadoTab({ real, verba, onSave }: RealizadoTabProps) {
       leads_organicos: Number(leadsOrg),
       valor_produto: Number(valProd),
       anotacoes: notes,
+      percepcao_cliente: clientPerception,
       melhorias: better,
       faltou: missing,
     })
   }
 
-  // Calculations
+  // Realized calculations
   const totalLeads = Number(leadsPagos) + Number(leadsOrg)
   const faturamento = Number(vendas) * Number(valProd)
   const cpl = Number(leadsPagos) > 0 ? verba / Number(leadsPagos) : 0
   const conv = totalLeads > 0 ? (Number(vendas) / totalLeads) * 100 : 0
   const roas = verba > 0 ? faturamento / verba : 0
 
+  // Provisioned calculations based on active scenario
+  const activeCenarioNome = provisionamento.cenario_ativo || 'Médio'
+  let provFaturamento = 0
+  let provRoas = 0
+
+  if (template !== 'evento_pago') {
+    const scenarios = provisionamento.dados.scenarios || []
+    const activeScenario = scenarios.find(s => s.nome === activeCenarioNome) || scenarios[1] || scenarios[0]
+    if (activeScenario) {
+      const leadsTrafego = activeScenario.custo_lead > 0 ? verba / activeScenario.custo_lead : 0
+      const totalLeadsProv = leadsTrafego + (activeScenario.leads_organicos || 0)
+      const compradores = totalLeadsProv * (activeScenario.conversao_pct / 100)
+      provFaturamento = compradores * activeScenario.valor_produto
+      provRoas = verba > 0 ? provFaturamento / verba : 0
+    }
+  } else {
+    const ev = provisionamento.dados.eventoPago || {
+      faturamento_desejado: 20000,
+      ticket_ingresso: 197,
+      conversao_ingresso_pct: 5,
+      investimento_desejado: 10000,
+      ticket_mentoria: 2000,
+      comparecimento_pct: 50,
+      conversao_mentoria_pct: 10,
+    }
+    const ingressosVendas = ev.ticket_ingresso > 0 ? ev.faturamento_desejado / ev.ticket_ingresso : 0
+    const mentoriaLeads = ingressosVendas * (ev.comparecimento_pct / 100)
+    const mentoriaVendas = mentoriaLeads * (ev.conversao_mentoria_pct / 100)
+    const faturamentoMentoria = mentoriaVendas * ev.ticket_mentoria
+
+    provFaturamento = ev.faturamento_desejado + faturamentoMentoria
+    provRoas = ev.investimento_desejado > 0 ? provFaturamento / ev.investimento_desejado : 0
+  }
+
+  // Banner status
+  let bannerText = ""
+  let bannerColor = ""
+  if (faturamento > provFaturamento) {
+    bannerText = "Superou o provisionado"
+    bannerColor = "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+  } else if (faturamento === provFaturamento && faturamento > 0) {
+    bannerText = "Bateu exatamente o provisionado"
+    bannerColor = "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+  } else {
+    bannerText = "Ficou abaixo do provisionado"
+    bannerColor = "bg-red-500/10 text-red-400 border border-red-500/20"
+  }
+
+  const formatDiff = (realVal: number, provVal: number, isPercent = false, isCurrency = false) => {
+    const diff = realVal - provVal
+    const sign = diff > 0 ? '+' : ''
+    const color = diff > 0 ? 'text-emerald-400' : diff < 0 ? 'text-red-t font-extrabold' : 'text-text3'
+    
+    if (isCurrency) {
+      return (
+        <span className={`font-bold ${color}`}>
+          {sign} R$ {diff.toLocaleString('pt-BR')}
+        </span>
+      )
+    }
+    if (isPercent) {
+      return (
+        <span className={`font-bold ${color}`}>
+          {sign} {diff.toFixed(1)}%
+        </span>
+      )
+    }
+    return (
+      <span className={`font-bold ${color}`}>
+        {sign} {diff.toFixed(2)}x
+      </span>
+    )
+  }
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs animate-[fadeUp_0.15s_ease_both]">
-      <div className="lg:col-span-2 bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
-        <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
-          Registro de Métricas Alcançadas
-        </h4>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[9px] text-text3 uppercase font-bold">N° de Vendas</span>
-            <input
-              type="number"
-              className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-              value={vendas === 0 ? '' : vendas}
-              onChange={(e) => setVendas(Number(e.target.value))}
-            />
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[9px] text-text3 uppercase font-bold">Leads Pagos</span>
-            <input
-              type="number"
-              className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-              value={leadsPagos === 0 ? '' : leadsPagos}
-              onChange={(e) => setLeadsPagos(Number(e.target.value))}
-            />
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[9px] text-text3 uppercase font-bold">Leads Orgânicos</span>
-            <input
-              type="number"
-              className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-              value={leadsOrg === 0 ? '' : leadsOrg}
-              onChange={(e) => setLeadsOrg(Number(e.target.value))}
-            />
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-[9px] text-text3 uppercase font-bold">Ticket Médio (R$)</span>
-            <input
-              type="number"
-              className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-              value={valProd === 0 ? '' : valProd}
-              onChange={(e) => setValProd(Number(e.target.value))}
-            />
-          </div>
-        </div>
-
-        {/* Text debriefing inputs */}
-        <div className="space-y-3 pt-3 border-t border-border-custom">
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-text2 uppercase block">Percepção Geral</label>
-            <textarea
-              className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none h-14"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-text2 uppercase block">O que melhorar no próximo?</label>
-            <textarea
-              className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none h-14"
-              value={better}
-              onChange={(e) => setBetter(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-[10px] font-bold text-text2 uppercase block">O que faltou executar?</label>
-            <textarea
-              className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none h-14"
-              value={missing}
-              onChange={(e) => setMissing(e.target.value)}
-            />
-          </div>
-        </div>
-
-        <button
-          onClick={handleSaveRealizado}
-          className="px-4 py-2 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
-        >
-          Salvar Realizado
-        </button>
+    <div className="space-y-4 animate-[fadeUp_0.15s_ease_both]">
+      {/* Auto-calculated status banner */}
+      <div className={`p-4 rounded-xl flex items-center justify-between font-bold text-xs ${bannerColor}`}>
+        <span className="uppercase tracking-wider">Status do Lançamento:</span>
+        <span className="text-sm font-extrabold">{bannerText}</span>
       </div>
 
-      {/* Side panel comparison */}
-      <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
-        <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
-          Comparativo de Resultados
-        </h4>
-        <div className="space-y-3 text-[11px] text-text3">
-          <div className="flex justify-between py-1 border-b border-border-custom">
-            <span>Total Leads:</span>
-            <span className="font-bold text-text-custom">{Math.round(totalLeads)}</span>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs">
+        <div className="lg:col-span-2 bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+          <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
+            Registro de Métricas Alcançadas
+          </h4>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[9px] text-text3 uppercase font-bold">N° de Vendas</span>
+              <input
+                type="number"
+                className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                value={vendas === 0 ? '' : vendas}
+                onChange={(e) => setVendas(Number(e.target.value))}
+              />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[9px] text-text3 uppercase font-bold">Leads Pagos</span>
+              <input
+                type="number"
+                className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                value={leadsPagos === 0 ? '' : leadsPagos}
+                onChange={(e) => setLeadsPagos(Number(e.target.value))}
+              />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[9px] text-text3 uppercase font-bold">Leads Orgânicos</span>
+              <input
+                type="number"
+                className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                value={leadsOrg === 0 ? '' : leadsOrg}
+                onChange={(e) => setLeadsOrg(Number(e.target.value))}
+              />
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[9px] text-text3 uppercase font-bold">Ticket Médio (R$)</span>
+              <input
+                type="number"
+                className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                value={valProd === 0 ? '' : valProd}
+                onChange={(e) => setValProd(Number(e.target.value))}
+              />
+            </div>
           </div>
-          <div className="flex justify-between py-1 border-b border-border-custom">
-            <span>CPL Real:</span>
-            <span className="font-bold text-text-custom">R$ {cpl.toFixed(2)}</span>
+
+          {/* Text debriefing inputs */}
+          <div className="space-y-3 pt-3 border-t border-border-custom">
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-text2 uppercase block">Percepção Geral</label>
+              <textarea
+                className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none h-14"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-text2 uppercase block">Percepção do Cliente</label>
+              <textarea
+                className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none h-14"
+                value={clientPerception}
+                onChange={(e) => setClientPerception(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-text2 uppercase block">O que melhorar no próximo?</label>
+              <textarea
+                className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none h-14"
+                value={better}
+                onChange={(e) => setBetter(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-text2 uppercase block">O que faltou executar?</label>
+              <textarea
+                className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none h-14"
+                value={missing}
+                onChange={(e) => setMissing(e.target.value)}
+              />
+            </div>
           </div>
-          <div className="flex justify-between py-1 border-b border-border-custom">
-            <span>Faturamento Real:</span>
-            <span className="font-bold text-emerald-400">R$ {faturamento.toLocaleString('pt-BR')}</span>
+
+          <button
+            onClick={handleSaveRealizado}
+            className="w-full py-2 bg-purple-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-sm"
+          >
+            Salvar Realizado
+          </button>
+        </div>
+
+        {/* Side panel comparison */}
+        <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+          <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
+            Comparativo de Resultados
+          </h4>
+          
+          {/* Comparative Table */}
+          <div className="overflow-x-auto pt-1">
+            <table className="w-full text-left border-collapse text-[10px]">
+              <thead>
+                <tr className="border-b border-border-custom text-text3 font-bold uppercase">
+                  <th className="py-2">Métrica</th>
+                  <th className="py-2">Prov. ({activeCenarioNome})</th>
+                  <th className="py-2 font-bold text-text2">Realizado</th>
+                  <th className="py-2 text-right">Desvio</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-custom/50">
+                <tr>
+                  <td className="py-2.5 font-bold text-text-custom">Faturamento</td>
+                  <td className="py-2.5 text-text2">R$ {provFaturamento.toLocaleString('pt-BR')}</td>
+                  <td className="py-2.5 font-bold text-text-custom">R$ {faturamento.toLocaleString('pt-BR')}</td>
+                  <td className="py-2.5 text-right">{formatDiff(faturamento, provFaturamento, false, true)}</td>
+                </tr>
+                <tr>
+                  <td className="py-2.5 font-bold text-text-custom">ROAS</td>
+                  <td className="py-2.5 text-text2">{provRoas.toFixed(2)}x</td>
+                  <td className="py-2.5 font-bold text-text-custom">{roas.toFixed(2)}x</td>
+                  <td className="py-2.5 text-right">{formatDiff(roas, provRoas, false, false)}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <div className="flex justify-between py-1 border-b border-border-custom">
-            <span>ROAS Real:</span>
-            <span className="font-bold text-purple-custom">{roas.toFixed(2)}x</span>
-          </div>
-          <div className="flex justify-between py-1">
-            <span>Conversão Real:</span>
-            <span className="font-bold text-text-custom">{conv.toFixed(1)}%</span>
+
+          <div className="space-y-3 text-[11px] text-text3 pt-4 border-t border-border-custom">
+            <div className="flex justify-between py-1 border-b border-border-custom">
+              <span>Total Leads:</span>
+              <span className="font-bold text-text-custom">{Math.round(totalLeads)}</span>
+            </div>
+            <div className="flex justify-between py-1 border-b border-border-custom">
+              <span>CPL Real:</span>
+              <span className="font-bold text-text-custom">R$ {cpl.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between py-1">
+              <span>Conversão Real:</span>
+              <span className="font-bold text-text-custom">{conv.toFixed(1)}%</span>
+            </div>
           </div>
         </div>
       </div>
@@ -1224,21 +1636,29 @@ interface ProvisionamentoTabProps {
   provisionamento: ProvisionamentoData
   verba: number
   template: string
+  briefingTicket: number
   onSave: (data: any) => void
 }
 
-function ProvisionamentoTab({ provisionamento, verba, template, onSave }: ProvisionamentoTabProps) {
+function ProvisionamentoTab({ provisionamento, verba, template, briefingTicket, onSave }: ProvisionamentoTabProps) {
   const [cenarioAtivo, setCenarioAtivo] = useState(provisionamento.cenario_ativo || 'Médio')
   const [scenarios, setScenarios] = useState<Scenario[]>(provisionamento.dados.scenarios || [])
   const [ev, setEv] = useState<EventoPagoFunnel>(provisionamento.dados.eventoPago || {
     faturamento_desejado: 20000,
-    ticket_ingresso: 197,
+    ticket_ingresso: briefingTicket || 197,
     conversao_ingresso_pct: 5,
     investimento_desejado: 10000,
     ticket_mentoria: 2000,
     comparecimento_pct: 50,
     conversao_mentoria_pct: 10,
   })
+
+  // Synchronize with briefingTicket when it changes
+  useEffect(() => {
+    if (briefingTicket) {
+      setEv(prev => ({ ...prev, ticket_ingresso: briefingTicket }))
+    }
+  }, [briefingTicket])
 
   const handleScenarioChange = (idx: number, field: keyof Scenario, val: any) => {
     const copy = [...scenarios]
@@ -1254,8 +1674,8 @@ function ProvisionamentoTab({ provisionamento, verba, template, onSave }: Provis
     onSave({
       cenario_ativo: cenarioAtivo,
       dados: {
-        scenarios,
-        eventoPago: ev
+        scenarios: scenarios.map(sc => ({ ...sc, valor_produto: briefingTicket })),
+        eventoPago: { ...ev, ticket_ingresso: briefingTicket }
       }
     })
   }
@@ -1274,7 +1694,7 @@ function ProvisionamentoTab({ provisionamento, verba, template, onSave }: Provis
               const leadsTrafego = sc.custo_lead > 0 ? verba / sc.custo_lead : 0
               const totalLeads = leadsTrafego + sc.leads_organicos
               const compradores = totalLeads * (sc.conversao_pct / 100)
-              const faturamento = compradores * sc.valor_produto
+              const faturamento = compradores * briefingTicket
               const roas = verba > 0 ? faturamento / verba : 0
 
               return (
@@ -1315,9 +1735,9 @@ function ProvisionamentoTab({ provisionamento, verba, template, onSave }: Provis
                       <span className="text-[9px] text-text3 uppercase font-bold">Valor do Curso (R$)</span>
                       <input
                         type="number"
-                        className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                        value={sc.valor_produto}
-                        onChange={(e) => handleScenarioChange(idx, 'valor_produto', e.target.value)}
+                        className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none opacity-60 cursor-not-allowed font-bold"
+                        value={briefingTicket}
+                        disabled
                       />
                     </div>
                     <div className="flex flex-col gap-0.5">
@@ -1344,7 +1764,7 @@ function ProvisionamentoTab({ provisionamento, verba, template, onSave }: Provis
 
             <button
               onClick={handleSave}
-              className="w-full py-2 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors mt-2"
+              className="w-full py-2 bg-purple-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors mt-2 shadow-sm"
             >
               Salvar Simulações
             </button>
@@ -1366,7 +1786,7 @@ function ProvisionamentoTab({ provisionamento, verba, template, onSave }: Provis
   }
 
   // Calculations for Evento Pago
-  const ingressosVendas = ev.ticket_ingresso > 0 ? ev.faturamento_desejado / ev.ticket_ingresso : 0
+  const ingressosVendas = briefingTicket > 0 ? ev.faturamento_desejado / briefingTicket : 0
   const ingressosLeads = ev.conversao_ingresso_pct > 0 ? ingressosVendas / (ev.conversao_ingresso_pct / 100) : 0
   const cplResultante = ingressosLeads > 0 ? ev.investimento_desejado / ingressosLeads : 0
 
@@ -1396,9 +1816,9 @@ function ProvisionamentoTab({ provisionamento, verba, template, onSave }: Provis
               <span className="text-[10px] text-text3 font-bold uppercase">Ticket do Ingresso (R$)</span>
               <input
                 type="number"
-                className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                value={ev.ticket_ingresso}
-                onChange={(e) => handleEvChange('ticket_ingresso', e.target.value)}
+                className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none opacity-60 cursor-not-allowed font-bold"
+                value={briefingTicket}
+                disabled
               />
             </div>
             <div className="flex flex-col gap-0.5">
@@ -1473,7 +1893,7 @@ function ProvisionamentoTab({ provisionamento, verba, template, onSave }: Provis
 
       <button
         onClick={handleSave}
-        className="w-full py-2 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
+        className="w-full py-2 bg-purple-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-sm"
       >
         Salvar Simulações
       </button>
@@ -1481,14 +1901,14 @@ function ProvisionamentoTab({ provisionamento, verba, template, onSave }: Provis
   )
 }
 
-
 interface InvestimentosTabProps {
   investimentos: InvestimentosData['dados']
   faturamentoReal: number
+  briefingTicket: number
   onSave: (data: InvestimentosData['dados']) => void
 }
 
-function InvestimentosTab({ investimentos, faturamentoReal, onSave }: InvestimentosTabProps) {
+function InvestimentosTab({ investimentos, faturamentoReal, briefingTicket, onSave }: InvestimentosTabProps) {
   const [custos, setCustos] = useState<CostItem[]>(investimentos.custos || [])
   const [ofertas, setOfertas] = useState<OfferItem[]>(investimentos.ofertas || [])
   const [socios, setSocios] = useState<PartnerCommission[]>(investimentos.socios || [])
@@ -1538,9 +1958,12 @@ function InvestimentosTab({ investimentos, faturamentoReal, onSave }: Investimen
   }
 
   const handleSave = () => {
+    const updatedOfertas = ofertas.map((o, idx) => 
+      idx === 0 ? { ...o, ticket: briefingTicket } : o
+    )
     onSave({
       custos,
-      ofertas,
+      ofertas: updatedOfertas,
       socios,
       imposto_pct: impostoPct,
       fundo_reserva_pct: fundoPct
@@ -1550,9 +1973,13 @@ function InvestimentosTab({ investimentos, faturamentoReal, onSave }: Investimen
   // Math P&L calculations
   const totalCustos = custos.reduce((acc, c) => acc + c.valor, 0)
   
-  const totalOffersGross = ofertas.reduce((acc, o) => acc + (o.ticket * o.vendas), 0)
-  const totalOffersNet = ofertas.reduce((acc, o) => {
-    const gross = o.ticket * o.vendas
+  const totalOffersGross = ofertas.reduce((acc, o, idx) => {
+    const t = idx === 0 ? briefingTicket : o.ticket
+    return acc + (t * o.vendas)
+  }, 0)
+  const totalOffersNet = ofertas.reduce((acc, o, idx) => {
+    const t = idx === 0 ? briefingTicket : o.ticket
+    const gross = t * o.vendas
     return acc + (gross - (gross * (o.comissao_pct / 100)))
   }, 0)
 
@@ -1640,12 +2067,21 @@ function InvestimentosTab({ investimentos, faturamentoReal, onSave }: Investimen
                 <div className="grid grid-cols-3 gap-2">
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[9px] text-text3 font-bold uppercase">Ticket (R$)</span>
-                    <input
-                      type="number"
-                      className="px-2 py-1 border border-border2 rounded bg-surface text-text-custom outline-none"
-                      value={o.ticket}
-                      onChange={(e) => handleOfferChange(idx, 'ticket', e.target.value)}
-                    />
+                    {idx === 0 ? (
+                      <input
+                        type="number"
+                        className="px-2 py-1 border border-border2 rounded bg-surface text-text-custom outline-none opacity-60 cursor-not-allowed font-bold"
+                        value={briefingTicket}
+                        disabled
+                      />
+                    ) : (
+                      <input
+                        type="number"
+                        className="px-2 py-1 border border-border2 rounded bg-surface text-text-custom outline-none"
+                        value={o.ticket}
+                        onChange={(e) => handleOfferChange(idx, 'ticket', e.target.value)}
+                      />
+                    )}
                   </div>
                   <div className="flex flex-col gap-0.5">
                     <span className="text-[9px] text-text3 font-bold uppercase">N° Vendas</span>
@@ -1774,7 +2210,7 @@ function InvestimentosTab({ investimentos, faturamentoReal, onSave }: Investimen
 
       <button
         onClick={handleSave}
-        className="w-full py-2.5 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-sm"
+        className="w-full py-2.5 bg-purple-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-sm"
       >
         Salvar Investimentos
       </button>

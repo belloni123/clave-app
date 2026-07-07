@@ -668,7 +668,7 @@ export default function UrlBuilderModule() {
                 </div>
                 <button
                   onClick={handleAddCustomChannel}
-                  className="px-3.5 py-1.5 bg-text-custom text-white hover:opacity-90 rounded font-semibold text-xs transition-colors cursor-pointer"
+                  className="px-3.5 py-1.5 bg-purple-custom text-white hover:opacity-90 rounded font-semibold text-xs transition-colors cursor-pointer shadow-sm"
                 >
                   Adicionar
                 </button>
@@ -803,7 +803,7 @@ export default function UrlBuilderModule() {
                     </div>
                     <button
                       onClick={() => downloadQrCode(qrLink.trim(), 'qrcode-generic-clave.png')}
-                      className="px-4 py-2 bg-text-custom text-surface hover:opacity-90 rounded text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors"
+                      className="px-4 py-2 bg-purple-custom text-white hover:opacity-90 rounded text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors shadow-sm"
                     >
                       <Download className="w-4 h-4" />
                       <span>Baixar QR Code PNG</span>
@@ -829,7 +829,7 @@ export default function UrlBuilderModule() {
               <div className="flex gap-2 flex-wrap">
                 <button
                   onClick={() => handleCopy(generatedUrl)}
-                  className="px-4 py-2 bg-text-custom text-surface hover:opacity-90 rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                  className="px-4 py-2 bg-purple-custom text-white hover:opacity-90 rounded text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors shadow-sm"
                 >
                   {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                   <span>{copied ? 'Copiado!' : 'Copiar Link'}</span>
@@ -874,7 +874,7 @@ export default function UrlBuilderModule() {
                     </p>
                     <button
                       onClick={() => downloadQrCode(generatedUrl, `qrcode-${activeTab}-clave.png`)}
-                      className="px-3.5 py-1.5 bg-text-custom text-surface hover:opacity-90 rounded text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer transition-colors mx-auto sm:mx-0"
+                      className="px-3.5 py-1.5 bg-purple-custom text-white hover:opacity-90 rounded text-[11px] font-semibold flex items-center gap-1.5 cursor-pointer transition-colors mx-auto sm:mx-0 shadow-sm"
                     >
                       <Download className="w-3.5 h-3.5" />
                       <span>Baixar Imagem</span>
