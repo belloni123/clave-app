@@ -264,8 +264,8 @@ export default function AcessoModule() {
       showToast(editColabId ? 'Colaborador atualizado' : 'Colaborador adicionado')
       closeColabModal()
     },
-    onError: () => {
-      showToast('Erro ao salvar colaborador', 'err')
+    onError: (err: any) => {
+      showToast('Erro ao salvar colaborador: ' + (err.message || 'Erro desconhecido'), 'err')
     },
   })
 
@@ -364,8 +364,8 @@ export default function AcessoModule() {
       showToast(editClientId ? 'Cliente atualizado' : 'Cliente adicionado')
       closeClientModal()
     },
-    onError: () => {
-      showToast('Erro ao salvar cliente', 'err')
+    onError: (err: any) => {
+      showToast('Erro ao salvar cliente: ' + (err.message || 'Erro desconhecido'), 'err')
     },
   })
 
