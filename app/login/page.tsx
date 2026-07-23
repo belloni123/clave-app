@@ -250,7 +250,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-2 bg-text-custom text-white rounded-md text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-55"
+                  className="w-full py-2 bg-purple-custom text-white rounded-md text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-55 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Entrando...' : 'Entrar'}
                 </button>
@@ -319,7 +319,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2 bg-text-custom text-white rounded-md text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-55"
+                className="w-full py-2 bg-purple-custom text-white rounded-md text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-55 disabled:cursor-not-allowed"
               >
                 {loading ? 'Enviando...' : 'Enviar link'}
               </button>
@@ -411,7 +411,7 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2 bg-text-custom text-white rounded-md text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-55"
+                className="w-full py-2 bg-purple-custom text-white rounded-md text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-55 disabled:cursor-not-allowed"
               >
                 {loading ? 'Ativando...' : 'Ativar conta'}
               </button>
@@ -485,7 +485,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setState('ativar')}
-                className="w-full py-2 bg-text-custom text-white rounded-md text-xs font-semibold hover:opacity-90 transition-opacity"
+                className="w-full py-2 bg-purple-custom text-white rounded-md text-xs font-semibold hover:opacity-90 transition-opacity"
               >
                 Quero ativar minha conta
               </button>

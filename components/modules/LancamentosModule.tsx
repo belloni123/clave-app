@@ -4,6 +4,8 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
+import BiSyncPanel from '@/components/launches/BiSyncPanel'
+import type { LaunchBiSyncResponse } from '@/types/launch-bi'
 import { 
   ChevronLeft, Plus, Calendar, DollarSign, Target, Award, BarChart3, 
   Settings, User, Clock, Trash, AlertTriangle, ArrowRight, Save, CheckCircle, Rocket
@@ -265,6 +267,26 @@ export default function LancamentosModule() {
     enabled: !!selectedLaunchId,
   })
 
+  const {
+    data: biIntegrationResponse,
+    isLoading: loadingBiIntegration,
+  } = useQuery<LaunchBiSyncResponse>({
+    queryKey: ['launch_bi_integration', selectedLaunchId],
+    queryFn: async () => {
+      if (!selectedLaunchId) return { integration: null, canManage: false }
+      const response = await fetch(`/api/lancamentos/${selectedLaunchId}/bi-sync`, {
+        cache: 'no-store',
+      })
+      if (!response.ok) throw new Error('Não foi possível carregar a integração do BI.')
+      return response.json()
+    },
+    enabled: !!selectedLaunchId,
+    retry: false,
+  })
+
+  const biIntegration = biIntegrationResponse?.integration
+  const biMetrics = biIntegration?.last_snapshot
+
   // Sync links when activeLaunchData changes
   useEffect(() => {
     if (activeLaunchData?.launch) {
@@ -485,6 +507,37 @@ export default function LancamentosModule() {
     }
   })
 
+  const syncBiMutation = useMutation({
+    mutationFn: async (config: {
+      dashboardUrl: string
+      externalLaunchCode: '0726'
+      periodStart: string
+      periodEnd: null
+    }) => {
+      if (!selectedLaunchId) throw new Error('Selecione um lançamento antes de sincronizar.')
+      const response = await fetch(`/api/lancamentos/${selectedLaunchId}/bi-sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Não foi possível sincronizar o BI.')
+      return payload as LaunchBiSyncResponse
+    },
+    onSuccess: (payload) => {
+      queryClient.setQueryData<LaunchBiSyncResponse>(
+        ['launch_bi_integration', selectedLaunchId],
+        payload
+      )
+      queryClient.invalidateQueries({ queryKey: ['launch_detail', selectedLaunchId] })
+      showToast('Dados do BI atualizados com sucesso!')
+    },
+    onError: (error) => {
+      queryClient.invalidateQueries({ queryKey: ['launch_bi_integration', selectedLaunchId] })
+      showToast(error instanceof Error ? error.message : 'Erro ao sincronizar o BI.', 'err')
+    },
+  })
+
   const deleteLaunchMutation = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
@@ -594,12 +647,16 @@ export default function LancamentosModule() {
     const real = activeLaunchData.realizado.dados
     const prov = activeLaunchData.provisionamento.dados
     const template = activeLaunchData.launch.template
+    const syncedSales = biMetrics?.sales.count
+    const syncedRevenue = biMetrics?.sales.grossRevenue
 
-    if (!real.vendas || real.vendas <= 0) return 'Vermelho'
+    const actualSales = syncedSales ?? (Number(real.vendas) || 0)
+    if (actualSales <= 0) return 'Vermelho'
 
     // Calculate ROAS
-    const verba = activeLaunchData.cronograma.verba_total
-    const realFaturamento = (Number(real.vendas) || 0) * (Number(real.valor_produto) || 997)
+    const verba = biMetrics?.investment.total ?? activeLaunchData.cronograma.verba_total
+    const realFaturamento = syncedRevenue
+      ?? actualSales * (Number(real.valor_produto) || 997)
     const realRoas = verba > 0 ? realFaturamento / verba : 0
 
     if (template === 'evento_pago') {
@@ -621,7 +678,7 @@ export default function LancamentosModule() {
       if (realRoas >= roasBaixo) return 'Amarelo'
       return 'Vermelho'
     }
-  }, [activeLaunchData])
+  }, [activeLaunchData, biMetrics])
 
   const nextAndHistoryLaunches = useMemo(() => {
     const next: Launch[] = []
@@ -758,11 +815,12 @@ export default function LancamentosModule() {
 
               {/* TAB 1: RESUMO */}
               {activeSubTab === 'resumo' && (() => {
-                const verba = activeLaunchData.cronograma.verba_total
+                const verbaProvisionada = activeLaunchData.cronograma.verba_total
+                const verba = biMetrics?.investment.total ?? verbaProvisionada
                 const realizadoVal = activeLaunchData.realizado.dados
-                const totalVendas = Number(realizadoVal.vendas) || 0
+                const totalVendas = biMetrics?.sales.count ?? (Number(realizadoVal.vendas) || 0)
                 const valorProd = Number(realizadoVal.valor_produto) || 997
-                const faturamentoReal = totalVendas * valorProd
+                const faturamentoReal = biMetrics?.sales.grossRevenue ?? totalVendas * valorProd
                 
                 const totalCustos = (activeLaunchData.investimentos.dados.custos || []).reduce((acc, c) => acc + c.valor, 0)
                 const impostoPct = activeLaunchData.investimentos.dados.imposto_pct || 6
@@ -851,6 +909,10 @@ export default function LancamentosModule() {
                   }
                 }
 
+                const defaultDashboardUrl = activeLaunchData.launch.links?.find((link) =>
+                  link.url.includes('suporteb16-collab.github.io/dashboard-b16-cnp0426')
+                )?.url || 'https://suporteb16-collab.github.io/dashboard-b16-cnp0426/'
+
                 return (
                   <div className="space-y-6 animate-[fadeUp_0.15s_ease_both]">
                     {/* Header summary KPIs */}
@@ -880,13 +942,15 @@ export default function LancamentosModule() {
                         </span>
                       </div>
                       <div className="bg-surface border border-border-custom rounded-xl p-3 flex flex-col justify-between shadow-sm">
-                        <span className="text-[8px] font-bold text-text3 uppercase tracking-wider">Verba Investida</span>
+                        <span className="text-[8px] font-bold text-text3 uppercase tracking-wider">
+                          Verba Investida{biMetrics ? ' · BI' : ''}
+                        </span>
                         <span className="text-[13px] font-bold text-text-custom mt-2 truncate">
                           R$ {verba.toLocaleString('pt-BR')}
                         </span>
                       </div>
                       <div className="bg-surface border border-border-custom rounded-xl p-3 flex flex-col justify-between shadow-sm">
-                        <span className="text-[8px] font-bold text-text3 uppercase tracking-wider">Verba Provisionada</span>
+                        <span className="text-[8px] font-bold text-text3 uppercase tracking-wider">Verba planejada · Clave</span>
                         <span className="text-[13px] font-bold text-text-custom mt-2 truncate">
                           R$ {verbaInvestidaProvisionada.toLocaleString('pt-BR')}
                         </span>
@@ -900,6 +964,16 @@ export default function LancamentosModule() {
                         <span className="text-[13px] font-bold text-purple-custom mt-2">{roasPrevisto.toFixed(2)}x</span>
                       </div>
                     </div>
+
+                    <BiSyncPanel
+                      key={`${selectedLaunchId}-${biIntegration?.atualizado_em || 'new'}`}
+                      integration={biIntegration}
+                      defaultDashboardUrl={defaultDashboardUrl}
+                      isLoading={loadingBiIntegration}
+                      isSyncing={syncBiMutation.isPending}
+                      canManage={biIntegrationResponse?.canManage ?? false}
+                      onSync={(config) => syncBiMutation.mutate(config)}
+                    />
 
                     {/* Timeline representation */}
                     <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
@@ -1049,7 +1123,7 @@ export default function LancamentosModule() {
               {activeSubTab === 'real' && (
                 <RealizadoTab
                   real={activeLaunchData.realizado.dados}
-                  verba={activeLaunchData.cronograma.verba_total}
+                  verba={biMetrics?.investment.total ?? activeLaunchData.cronograma.verba_total}
                   provisionamento={activeLaunchData.provisionamento}
                   template={activeLaunchData.launch.template}
                   onSave={(data) => {
@@ -1065,7 +1139,9 @@ export default function LancamentosModule() {
               {activeSubTab === 'inv' && (
                 <InvestimentosTab
                   investimentos={activeLaunchData.investimentos.dados}
-                  faturamentoReal={(Number(activeLaunchData.realizado.dados.vendas) || 0) * (Number(activeLaunchData.realizado.dados.valor_produto) || 997)}
+                  faturamentoReal={biMetrics?.sales.grossRevenue
+                    ?? (Number(activeLaunchData.realizado.dados.vendas) || 0)
+                      * (Number(activeLaunchData.realizado.dados.valor_produto) || 997)}
                   briefingTicket={activeLaunchData.briefing.oferta?.ticket || 997}
                   onSave={(data) => {
                     saveLaunchPartMutation.mutate({

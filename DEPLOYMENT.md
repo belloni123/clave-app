@@ -1,80 +1,122 @@
-# Clave App - Manual de Implantação e Deploy
+# Clave App - Implantação e Redeploy
 
-Esta documentação fornece orientações passo a passo para implantar a plataforma **Clave** em ambientes locais e de produção (Vercel, Docker Standalone e Coolify).
+Este guia descreve o processo de implantação do Clave com Next.js standalone,
+Supabase e Docker/Coolify. O banco e a aplicação têm ciclos separados: publicar
+uma imagem não aplica migrações no Supabase.
 
----
+## 1. Variáveis de Ambiente
 
-## 1. Variáveis de Ambiente Necessárias
+| Variável | Obrigatória | Escopo | Descrição |
+| :--- | :---: | :--- | :--- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Sim | Frontend e backend | URL pública da API do projeto Supabase. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Sim | Frontend e backend | Chave anônima pública; a autorização real é feita por Auth + RLS. |
+| `GEMINI_API_KEY` | Produção | Somente backend | Chave da API Gemini usada pela rota de IA. |
 
-Para o funcionamento correto da plataforma, as seguintes variáveis de ambiente devem ser configuradas nos serviços de hospedagem ou no arquivo local `.env.local`:
+O runtime não usa `SUPABASE_SERVICE_ROLE_KEY`. Não configure essa chave no
+Coolify. Scripts administrativos locais podem pedi-la explicitamente, mas ela
+deve permanecer em um arquivo ignorado e nunca ser exposta ao navegador.
 
-| Variável | Escopo | Descrição |
-| :--- | :--- | :--- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Frontend & Backend | URL de API do seu projeto Supabase. |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Frontend & Backend | Chave pública anônima do Supabase para requisições de cliente. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Backend (Secreto) | Chave administrativa do Supabase (Service Role). **Nunca expor ao cliente.** |
-| `GEMINI_API_KEY` | Backend (Secreto) | Chave de API da Google AI Studio para o modelo Gemini. **Nunca expor ao cliente.** |
+## 2. Ordem Das Migrações
 
----
+As migrações da integração de BI devem existir no Supabase nesta ordem:
 
-## 2. Deploy na Vercel (Serverless)
+1. `20260723000000_launch_bi_integrations.sql`
+2. `20260723010000_launch_bi_management_permissions.sql`
+3. `20260723020000_launch_bi_scope_integrity.sql`
 
-A Vercel é a opção mais direta para hospedagem do frontend:
-1. Conecte sua conta do GitHub à Vercel.
-2. Adicione um novo projeto selecionando o repositório `clave-app`.
-3. Configure as variáveis de ambiente descritas acima na seção **Environment Variables**.
-4. Clique em **Deploy**. A compilação e otimização Next.js ocorrerão automaticamente.
+A terceira migração valida os registros existentes antes de criar constraints
+compostas. Se ela acusar referências inconsistentes, não faça o redeploy: corrija
+os registros indicados e execute a migração novamente. Uma execução bem-sucedida
+no SQL Editor mostra `Success. No rows returned`.
 
----
+## 3. Checklist Antes Do Redeploy
 
-## 3. Deploy com Docker (Modo Standalone)
+Execute em uma cópia limpa da branch que será publicada:
 
-O projeto possui um arquivo `Dockerfile` otimizado para gerar builds leves usando o recurso de output standalone do Next.js. Ele reduz drasticamente o consumo de disco e RAM ao copiar apenas os arquivos estritamente necessários para a execução em servidor Node.
-
-### O Dockerfile é dividido em 3 estágios:
-1.  **Estágio 1 (deps)**: Instala as dependências de produção limpas usando `npm ci`.
-2.  **Estágio 2 (builder)**: Copia o código-fonte e compila a aplicação (`npm run build`). Gera o pacote compilado em `.next/standalone`.
-3.  **Estágio 3 (runner)**: Prepara uma imagem Alpine Node leve, ajusta permissões de segurança de usuário e expõe a porta `3000`.
-
-### Executando localmente com Docker:
 ```bash
-# Compilar a imagem Docker
-docker build -t clave-app:main .
+npm ci
+npm run audit:prod
+npm run typecheck
+npm run build
+```
 
-# Rodar o container localmente passando as variáveis de ambiente
-docker run -p 3000:3000 \
+Como o Next.js incorpora variáveis `NEXT_PUBLIC_*` no bundle, passe a URL e a
+chave anônima também como argumentos públicos durante o build da imagem:
+
+```bash
+docker build \
+  --build-arg NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
+  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="$NEXT_PUBLIC_SUPABASE_ANON_KEY" \
+  -t clave-app:release .
+```
+
+Critérios para avançar:
+
+- `npm audit` sem vulnerabilidades de produção;
+- TypeScript e build Next.js concluídos;
+- imagem Docker construída com sucesso;
+- migrações do Supabase aplicadas na ordem acima;
+- pull request revisado e checks do GitHub verdes;
+- nenhuma chave ou arquivo `.env` presente no commit.
+
+## 4. Docker Standalone
+
+O `Dockerfile` usa três estágios: dependências com `npm ci`, build standalone e
+runtime mínimo. O processo final roda como usuário sem privilégios e possui
+healthcheck em `/api/health`.
+
+```bash
+docker run --rm -p 3000:3000 \
   -e NEXT_PUBLIC_SUPABASE_URL="https://seu-projeto.supabase.co" \
   -e NEXT_PUBLIC_SUPABASE_ANON_KEY="sua-anon-key" \
   -e GEMINI_API_KEY="sua-gemini-key" \
-  clave-app:main
+  clave-app:release
 ```
 
----
+Validação local:
 
-## 4. Deploy no Coolify (Sua VPS Própria)
-
-O Coolify é uma alternativa open-source excelente para gerenciar seu próprio servidor (VPS). Ele monitora o GitHub e reconstrói as imagens usando o Docker.
-
-### Passos para Configuração no Coolify:
-1.  Acesse o painel do Coolify.
-2.  Crie um novo **Application** e selecione a fonte como **GitHub Repository**.
-3.  Escolha o repositório `belloni123/clave-app` e a branch `main`.
-4.  No tipo de build, selecione **Dockerfile** (o Coolify detectará automaticamente o arquivo na raiz do projeto).
-5.  Adicione as seguintes variáveis de ambiente na aba **Environment Variables** do Coolify:
-    - `NEXT_PUBLIC_SUPABASE_URL`
-    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-    - `SUPABASE_SERVICE_ROLE_KEY`
-    - `GEMINI_API_KEY`
-6.  Defina a porta de destino como `3000`.
-7.  Clique em **Deploy**. O Coolify baixará o código, rodará o multi-stage build do Docker e subirá a aplicação em seu domínio personalizado (ex: `https://clave.agenciab16.com.br`).
-
----
-
-## 5. Script Útil: Promover Usuário a Administrador (Admin)
-
-Para promover qualquer usuário cadastrado à conta administrativa master, use o script local seguro criado na raiz:
 ```bash
-# Na pasta clave-app, execute:
-node scratch_make_admin.js seu-email@dominio.com
+curl --fail http://127.0.0.1:3000/api/health
 ```
-*(Nota: Certifique-se de que a variável `SUPABASE_SERVICE_ROLE_KEY` está devidamente configurada no `.env.local` antes de rodar o comando).*
+
+Resposta esperada: `{"status":"ok"}`.
+
+## 5. Redeploy No Coolify
+
+1. Confirme que o repositório é `belloni123/clave-app` e que a branch de
+   produção é `main`.
+2. Faça merge do pull request somente depois dos checks verdes.
+3. Confirme as três variáveis de ambiente da seção 1. Não adicione service role.
+4. Marque `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` como
+   disponíveis durante o build e durante o runtime.
+5. Use o `Dockerfile` da raiz e porta `3000`.
+6. Dispare o redeploy manual no Coolify.
+7. Aguarde o healthcheck ficar saudável antes de encerrar a versão anterior.
+
+Este repositório não executa ações no Coolify automaticamente. O redeploy é uma
+operação manual do responsável pelo ambiente.
+
+## 6. Validação Pós-Deploy
+
+1. Abra `/api/health` e confirme HTTP 200.
+2. Faça login nos temas claro e escuro.
+3. Abra Lançamentos > `CNP 2 - 2026`.
+4. Confirme que o painel mantém os últimos dados sincronizados.
+5. Clique em `Atualizar dados` com um usuário gestor e confirme o novo horário.
+6. Confirme que um usuário viewer consegue ler, mas não sincronizar.
+7. Verifique os logs do container para erros `5xx` ou falhas de healthcheck.
+
+## 7. Rollback
+
+Se a aplicação falhar, restaure no Coolify a imagem ou commit anterior. As
+constraints da terceira migração são compatíveis com a versão anterior e não
+precisam ser removidas durante um rollback da aplicação.
+
+Não reverta migrações apagando tabelas ou snapshots. Caso seja necessário
+alterar o banco, faça uma nova migração revisada e preserve o histórico.
+
+## 8. Vercel
+
+Na Vercel, conecte o mesmo repositório, configure as variáveis da seção 1 e use
+o fluxo padrão de build do Next.js. As migrações do Supabase continuam sendo um
+passo separado e obrigatório antes da promoção para produção.
