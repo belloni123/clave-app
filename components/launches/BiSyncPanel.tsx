@@ -76,6 +76,17 @@ function isB16DashboardUrl(value: string) {
   }
 }
 
+function isFarolEForjaDashboardUrl(value: string) {
+  try {
+    const url = new URL(value)
+    return isHttpsDashboardUrl(value)
+      && url.hostname === 'suporteb16-collab.github.io'
+      && (url.pathname === '/farol-e-forja' || url.pathname.startsWith('/farol-e-forja/'))
+  } catch {
+    return false
+  }
+}
+
 export default function BiSyncPanel({
   integration,
   defaultDashboardUrl,
@@ -96,8 +107,12 @@ export default function BiSyncPanel({
   const hasValidDashboardUrl = isHttpsDashboardUrl(dashboardUrl)
   const canSync = canManage && !isLoading && hasValidDashboardUrl && !isSyncing
   const isB16Dashboard = isB16DashboardUrl(dashboardUrl)
-  const isExternalDashboard = integration?.provider === 'external_dashboard'
-    || (dashboardUrl.trim().length > 0 && !isB16Dashboard)
+  const isFarolEForjaDashboard = isFarolEForjaDashboardUrl(dashboardUrl)
+  const supportsAutomaticSync = isB16Dashboard || isFarolEForjaDashboard
+  const isExternalDashboard = dashboardUrl.trim().length > 0 && !supportsAutomaticSync
+  const connectorLabel = isB16Dashboard
+    ? 'CNP 2 - 2026 · 0726'
+    : isFarolEForjaDashboard ? 'Farol e a Forja · automático' : 'Link externo por lançamento'
 
   return (
     <section className="bg-surface border border-border-custom rounded-xl shadow-sm overflow-hidden">
@@ -131,7 +146,7 @@ export default function BiSyncPanel({
               )}
             </div>
             <p className="text-[10px] text-text3 truncate">
-              {isExternalDashboard ? 'Dashboard externo deste lançamento' : 'CNP 2 - 2026'} · {isLoading
+              {isExternalDashboard ? 'Dashboard externo deste lançamento' : connectorLabel} · {isLoading
                 ? 'Carregando integração...'
                 : isExternalDashboard ? (integration ? 'Link salvo' : 'Aguardando salvar') : formatSyncDate(integration?.last_synced_at ?? null)}
             </p>
@@ -150,7 +165,7 @@ export default function BiSyncPanel({
           className="h-8 px-3 inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-custom text-white text-[10px] font-bold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-          {isSyncing ? 'Salvando...' : isB16Dashboard ? (integration ? 'Atualizar dados' : 'Conectar e atualizar') : 'Salvar dashboard'}
+          {isSyncing ? 'Atualizando...' : supportsAutomaticSync ? (integration ? 'Atualizar dados' : 'Conectar e atualizar') : 'Salvar dashboard'}
         </button>
       </div>
 
@@ -196,7 +211,7 @@ export default function BiSyncPanel({
           <div>
             <span className="text-[9px] text-text3 uppercase font-bold block mb-1">Integração</span>
             <div className="h-9 px-3 border border-border-custom rounded-lg bg-surface2/60 flex items-center text-[11px] font-bold text-text2">
-              {isB16Dashboard ? 'CNP 2 - 2026 · 0726' : 'Link externo por lançamento'}
+              {connectorLabel}
             </div>
           </div>
         </div>
@@ -240,10 +255,13 @@ export default function BiSyncPanel({
             <div className="grid grid-cols-2 border-y border-border-custom md:grid-cols-3 lg:grid-cols-6">
               {[
                 ['Investimento real', formatCurrency(metrics.investment.total)],
-                ['Leads totais', metrics.leads.total.toLocaleString('pt-BR')],
+                [metrics.provider === 'farol_e_forja_dashboard' ? 'CAC' : 'Leads totais', metrics.provider === 'farol_e_forja_dashboard'
+                  ? formatCurrency(metrics.sales.count > 0 ? metrics.investment.total / metrics.sales.count : 0)
+                  : metrics.leads.total.toLocaleString('pt-BR')],
                 ['Vendas', metrics.sales.count.toLocaleString('pt-BR')],
                 ['Faturamento', formatCurrency(metrics.sales.grossRevenue)],
-                ['CPL', formatCurrency(metrics.cpl)],
+                [metrics.provider === 'farol_e_forja_dashboard' ? 'Fonte de vendas' : 'CPL', metrics.provider === 'farol_e_forja_dashboard'
+                  ? 'Tamborete Silver' : formatCurrency(metrics.cpl)],
                 ['ROAS', `${metrics.roas.toFixed(2)}x`],
               ].map(([label, value], index) => (
                 <div

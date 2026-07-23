@@ -24,14 +24,16 @@ As migrações da integração de BI devem existir no Supabase nesta ordem:
 2. `20260723010000_launch_bi_management_permissions.sql`
 3. `20260723020000_launch_bi_scope_integrity.sql`
 4. `20260723030000_external_dashboard_links.sql`
+5. `20260723110000_farol_e_forja_dashboard.sql`
 
 A terceira migração valida os registros existentes antes de criar constraints
 compostas. Se ela acusar referências inconsistentes, não faça o redeploy: corrija
 os registros indicados e execute a migração novamente. Uma execução bem-sucedida
 no SQL Editor mostra `Success. No rows returned`.
 
-A quarta migração permite cadastrar uma URL externa por lançamento. Ela apenas
-libera o vínculo do link; não altera dados, snapshots ou permissões existentes.
+A quarta migração permite cadastrar uma URL externa por lançamento. A quinta
+habilita o conector automático do dashboard Farol e a Forja. Ambas preservam
+dados, snapshots e permissões existentes.
 
 ## 3. Checklist Antes Do Redeploy
 
