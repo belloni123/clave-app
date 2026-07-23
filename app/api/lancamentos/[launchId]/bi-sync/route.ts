@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { syncB16Dashboard } from '@/utils/b16-dashboard'
+import { syncFarolEForjaDashboard } from '@/utils/farol-e-forja-dashboard'
 
 interface SyncRequestBody {
   dashboardUrl?: string
@@ -12,6 +13,7 @@ interface SyncRequestBody {
 
 const B16_DASHBOARD_HOST = 'suporteb16-collab.github.io'
 const B16_DASHBOARD_PATH = '/dashboard-b16-cnp0426'
+const FAROL_E_FORJA_DASHBOARD_PATH = '/farol-e-forja'
 const SUPPORTED_LAUNCH_CODE = '0726'
 const EXTERNAL_DASHBOARD_CODE = 'external'
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
@@ -35,11 +37,17 @@ function normalizeDashboardUrl(value: string) {
   url.hash = ''
   const isB16Dashboard = url.hostname === B16_DASHBOARD_HOST
     && (url.pathname === B16_DASHBOARD_PATH || url.pathname.startsWith(`${B16_DASHBOARD_PATH}/`))
+  const isFarolEForjaDashboard = url.hostname === B16_DASHBOARD_HOST
+    && (url.pathname === FAROL_E_FORJA_DASHBOARD_PATH || url.pathname.startsWith(`${FAROL_E_FORJA_DASHBOARD_PATH}/`))
 
   return {
     dashboardUrl: url.toString(),
-    provider: isB16Dashboard ? 'b16_dashboard' as const : 'external_dashboard' as const,
-    externalLaunchCode: isB16Dashboard ? SUPPORTED_LAUNCH_CODE : EXTERNAL_DASHBOARD_CODE,
+    provider: isB16Dashboard
+      ? 'b16_dashboard' as const
+      : isFarolEForjaDashboard ? 'farol_e_forja_dashboard' as const : 'external_dashboard' as const,
+    externalLaunchCode: isB16Dashboard
+      ? SUPPORTED_LAUNCH_CODE
+      : isFarolEForjaDashboard ? 'farol-e-forja' : EXTERNAL_DASHBOARD_CODE,
   }
 }
 
@@ -240,11 +248,9 @@ export async function POST(
   }
 
   try {
-    const metrics = await syncB16Dashboard({
-      externalLaunchCode: dashboardConfig.externalLaunchCode,
-      periodStart,
-      periodEnd,
-    })
+    const metrics = dashboardConfig.provider === 'b16_dashboard'
+      ? await syncB16Dashboard({ externalLaunchCode: dashboardConfig.externalLaunchCode, periodStart, periodEnd })
+      : await syncFarolEForjaDashboard({ periodStart, periodEnd })
 
     const { data: existingRealized, error: realizedReadError } = await supabase
       .from('lancamentos_realizado')

@@ -7,7 +7,7 @@ export interface LaunchBiStageMetric {
 }
 
 export interface LaunchBiMetrics {
-  provider: 'b16_dashboard'
+  provider: 'b16_dashboard' | 'farol_e_forja_dashboard'
   externalLaunchCode: string
   periodStart: string
   periodEnd: string
@@ -50,7 +50,7 @@ export interface LaunchBiIntegration {
   id: string
   lancamento_id: string
   project_id: string
-  provider: 'b16_dashboard' | 'external_dashboard'
+  provider: 'b16_dashboard' | 'farol_e_forja_dashboard' | 'external_dashboard'
   dashboard_url: string
   external_launch_code: string
   period_start: string
