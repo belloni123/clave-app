@@ -88,8 +88,11 @@ do BI.
 
 ### Fluxo da sincronização
 
-1. O frontend carrega `/api/lancamentos/[launchId]/bi-sync` com a sessão atual.
-2. A rota valida o usuário no Supabase, resolve o lançamento por RLS e calcula
+1. O frontend carrega `/api/lancamentos/[launchId]/bi-sync` com a sessão atual
+   e o identificador do projeto ativo. Uma seleção só é válida quando pertence
+   ao projeto exibido na navegação.
+2. A rota valida o usuário no Supabase, resolve o lançamento por RLS, confirma
+   que ele pertence ao projeto ativo e calcula
    se o perfil pode gerenciar o projeto. O estado visual `canManage` nunca é
    tratado como autorização.
 3. A URL cadastrada é validada contra o host e caminho permitidos. O destino
@@ -108,6 +111,9 @@ fontes são renderizados como texto pelo React, e o backend limita tempo e
 tamanho das respostas. No banco, RLS decide quem pode ler ou escrever e
 constraints compostas garantem que projeto, lançamento e integração sempre
 representem a mesma relação, inclusive em chamadas diretas à API do Supabase.
+
+Uma integração pertence a um único lançamento. Lançamentos sem integração não
+recebem URL nem snapshot de outro lançamento como valor padrão.
 
 ## 5. UI Shell e Responsividade
 

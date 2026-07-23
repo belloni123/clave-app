@@ -7,6 +7,7 @@ interface SyncRequestBody {
   externalLaunchCode?: string
   periodStart?: string
   periodEnd?: string | null
+  projectId?: string
 }
 
 const ALLOWED_DASHBOARD_HOST = 'suporteb16-collab.github.io'
@@ -46,7 +47,7 @@ function validateDate(value: string | null | undefined, label: string, optional 
   return value
 }
 
-async function getAuthorizedLaunch(launchId: string) {
+async function getAuthorizedLaunch(launchId: string, expectedProjectId?: string | null) {
   const supabase = await createClient()
   const {
     data: { user },
@@ -63,6 +64,9 @@ async function getAuthorizedLaunch(launchId: string) {
 
   if (launchError) return { error: errorResponse('Não foi possível validar o lançamento.', 500) }
   if (!launch) return { error: errorResponse('Lançamento não encontrado ou sem acesso.', 404) }
+  if (expectedProjectId && launch.project_id !== expectedProjectId) {
+    return { error: errorResponse('Este lançamento não pertence ao projeto ativo.', 404) }
+  }
 
   const [profileResult, projectResult, projectAccessResult] = await Promise.all([
     supabase
@@ -107,17 +111,21 @@ async function getAuthorizedLaunch(launchId: string) {
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ launchId: string }> }
 ) {
   const { launchId } = await params
-  const context = await getAuthorizedLaunch(launchId)
+  const context = await getAuthorizedLaunch(
+    launchId,
+    request.nextUrl.searchParams.get('projectId')
+  )
   if ('error' in context) return context.error
 
   const { data, error } = await context.supabase
     .from('launch_bi_integrations')
     .select('*')
     .eq('lancamento_id', launchId)
+    .eq('project_id', context.launch.project_id)
     .maybeSingle()
 
   if (error) return errorResponse('Não foi possível carregar a integração do BI.', 500)
@@ -129,17 +137,17 @@ export async function POST(
   { params }: { params: Promise<{ launchId: string }> }
 ) {
   const { launchId } = await params
-  const context = await getAuthorizedLaunch(launchId)
-  if ('error' in context) return context.error
-  if (!context.canManage) {
-    return errorResponse('Seu acesso a este projeto é somente para visualização.', 403)
-  }
-
   let body: SyncRequestBody
   try {
     body = await request.json()
   } catch {
     return errorResponse('Corpo da requisição inválido.', 400)
+  }
+
+  const context = await getAuthorizedLaunch(launchId, body.projectId?.trim())
+  if ('error' in context) return context.error
+  if (!context.canManage) {
+    return errorResponse('Seu acesso a este projeto é somente para visualização.', 403)
   }
 
   let dashboardUrl: string
@@ -166,6 +174,7 @@ export async function POST(
     .from('launch_bi_integrations')
     .select('id')
     .eq('lancamento_id', launchId)
+    .eq('project_id', launch.project_id)
     .maybeSingle()
 
   if (existingError) return errorResponse('Não foi possível preparar a integração do BI.', 500)
