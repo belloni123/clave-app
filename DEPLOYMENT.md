@@ -35,27 +35,50 @@ no SQL Editor mostra `Success. No rows returned`.
 
 A quarta migração permite cadastrar uma URL externa por lançamento. A quinta
 habilita o conector do dashboard Farol e a Forja. A sexta substitui o cadastro
-individual por detecção automática para dashboards que usam o mesmo contrato
-Meta Ads + Tamborete Silver. A sétima torna a URL do dashboard única por
+individual por detecção automática para dashboards B16. O padrão recomendado é
+o contrato completo do Cromador Pro; o contrato simples Meta Ads + Tamborete
+Silver permanece como fallback para dashboards antigos ou parciais. A sétima torna a URL do dashboard única por
 lançamento e valida o contrato de provider/URL/código para impedir reutilização
 acidental de dashboards entre projetos. Todas preservam dados, snapshots e
 permissões.
 
 ### Contrato Para Novos Dashboards
 
-Para um novo dashboard funcionar apenas colando sua URL no Clave, o HTML público
-deve declarar estas constantes JavaScript:
+Para um novo dashboard funcionar completo, no mesmo padrão do Cromador Pro, o
+HTML público deve declarar estas constantes JavaScript:
 
 ```js
 const WORKER_URL = 'https://nome-do-worker.workers.dev';
 const SHEET_META = 'nome_da_aba_meta';
-const SHEET_TAMB = 'nome_da_aba_vendas';
+const SHEET_GOOGLE = 'nome_da_aba_google_ads';
+const SHEET_WP = 'nome_da_aba_leads_elementor';
+const SHEET_PLAN = 'nome_da_aba_planejamento';
+const SHEET_KIWIFY = 'nome_da_aba_vendas';
+const LANCAMENTO_ATIVO = 'codigo-do-lancamento';
+const PRODUTO_EXATO = 'Nome exato do produto principal';
+const TICKET = 797;
+const CNP_TAG = '[TAG]';
 ```
 
-O CSV de Meta deve conter `Date` e `Spend (Cost, Amount Spent)`. O CSV de vendas
-deve conter `id_transacao`, `status_transacao`, `data_transacao` e
-`valor_transacao`. Vendas com status `APPROVED` ou `COMPLETE` entram no resumo.
-O Worker precisa aceitar o nome da aba no parâmetro `sheet`.
+O Worker precisa aceitar o nome da aba no parâmetro `sheet` e o código do
+lançamento no parâmetro `lancamento`. O CSV de Meta deve conter `Date`,
+`Campaign Name` e `Spend (Cost, Amount Spent)`. O CSV de Google deve conter
+`Date (Segment)` ou `Date` e `Cost (Spend, Amount Spent)` ou `Cost`. O CSV de
+leads deve conter `Nome*`, `Created At`, `utm_source`, `utm_medium` e
+`atualizado_em`. O CSV de planejamento deve conter `Fase`, `TAG CAMPANHA` e
+`Meta`. O CSV de vendas deve conter `Data Criacao`, `Product_product_name`,
+`order_ref`, `order_status` e `Faturamento`.
+
+Como fallback, dashboards simples ainda podem declarar apenas:
+
+```js
+const WORKER_URL = 'https://nome-do-worker.workers.dev';
+const SHEET_META = 'nome_da_aba_meta';
+const SHEET_TAMB = 'nome_da_aba_vendas_tamborete';
+```
+
+Nesse modo simples, o Clave exibe investimento, vendas, faturamento, CAC e ROAS,
+mas não exibe leads, CPL real nem planejamento por etapa.
 
 Com esse contrato, não há cadastro de cliente no código: cada URL informa sua
 própria fonte, e o Clave valida e descobre a integração no primeiro clique.
@@ -64,8 +87,8 @@ própria fonte, e o Clave valida e descobre a integração no primeiro clique.
 
 - Cada lançamento possui no máximo uma integração de BI ativa.
 - Cada URL de dashboard de BI pode pertencer a apenas um lançamento.
-- Dashboards em `suporteb16-collab.github.io` que seguem o contrato acima usam
-  `auto_dashboard` e sincronizam automaticamente.
+- Dashboards em `suporteb16-collab.github.io` que seguem o contrato completo
+  usam `auto_dashboard` e sincronizam automaticamente com leads, CPL e etapas.
 - URLs HTTPS fora do contrato ficam como `external_dashboard`: são salvas por
   lançamento, mas não exibem métricas automáticas.
 - O dashboard legado `dashboard-b16-cnp0426` é exclusivo do lançamento

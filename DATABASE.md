@@ -51,8 +51,8 @@ Mantém uma configuração de BI por lançamento.
     lançamentos.
 *   O provider precisa respeitar seu contrato: `b16_dashboard` é reservado ao
     CNP 2 - 2026 (`0726`), `auto_dashboard` usa dashboards públicos B16 com
-    descoberta automática, e `external_dashboard` é apenas link salvo sem
-    snapshot automático.
+    descoberta automática completa quando o HTML expõe o contrato do Cromador
+    Pro, e `external_dashboard` é apenas link salvo sem snapshot automático.
 *   Uma ausência de linha nesta tabela significa que o lançamento ainda não
     possui dashboard conectado; não há configuração padrão compartilhada entre
     lançamentos.
