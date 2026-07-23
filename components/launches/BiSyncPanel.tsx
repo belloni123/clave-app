@@ -76,12 +76,11 @@ function isB16DashboardUrl(value: string) {
   }
 }
 
-function isFarolEForjaDashboardUrl(value: string) {
+function supportsAutomaticDiscovery(value: string) {
   try {
     const url = new URL(value)
     return isHttpsDashboardUrl(value)
       && url.hostname === 'suporteb16-collab.github.io'
-      && (url.pathname === '/farol-e-forja' || url.pathname.startsWith('/farol-e-forja/'))
   } catch {
     return false
   }
@@ -107,12 +106,11 @@ export default function BiSyncPanel({
   const hasValidDashboardUrl = isHttpsDashboardUrl(dashboardUrl)
   const canSync = canManage && !isLoading && hasValidDashboardUrl && !isSyncing
   const isB16Dashboard = isB16DashboardUrl(dashboardUrl)
-  const isFarolEForjaDashboard = isFarolEForjaDashboardUrl(dashboardUrl)
-  const supportsAutomaticSync = isB16Dashboard || isFarolEForjaDashboard
+  const supportsAutomaticSync = supportsAutomaticDiscovery(dashboardUrl)
   const isExternalDashboard = dashboardUrl.trim().length > 0 && !supportsAutomaticSync
   const connectorLabel = isB16Dashboard
     ? 'CNP 2 - 2026 · 0726'
-    : isFarolEForjaDashboard ? 'Farol e a Forja · automático' : 'Link externo por lançamento'
+    : supportsAutomaticSync ? 'Detecção automática do BI' : 'Link externo por lançamento'
 
   return (
     <section className="bg-surface border border-border-custom rounded-xl shadow-sm overflow-hidden">
@@ -255,12 +253,12 @@ export default function BiSyncPanel({
             <div className="grid grid-cols-2 border-y border-border-custom md:grid-cols-3 lg:grid-cols-6">
               {[
                 ['Investimento real', formatCurrency(metrics.investment.total)],
-                [metrics.provider === 'farol_e_forja_dashboard' ? 'CAC' : 'Leads totais', metrics.provider === 'farol_e_forja_dashboard'
+                [metrics.provider !== 'b16_dashboard' ? 'CAC' : 'Leads totais', metrics.provider !== 'b16_dashboard'
                   ? formatCurrency(metrics.sales.count > 0 ? metrics.investment.total / metrics.sales.count : 0)
                   : metrics.leads.total.toLocaleString('pt-BR')],
                 ['Vendas', metrics.sales.count.toLocaleString('pt-BR')],
                 ['Faturamento', formatCurrency(metrics.sales.grossRevenue)],
-                [metrics.provider === 'farol_e_forja_dashboard' ? 'Fonte de vendas' : 'CPL', metrics.provider === 'farol_e_forja_dashboard'
+                [metrics.provider !== 'b16_dashboard' ? 'Fonte de vendas' : 'CPL', metrics.provider !== 'b16_dashboard'
                   ? 'Tamborete Silver' : formatCurrency(metrics.cpl)],
                 ['ROAS', `${metrics.roas.toFixed(2)}x`],
               ].map(([label, value], index) => (

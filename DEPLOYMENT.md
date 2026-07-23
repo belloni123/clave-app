@@ -25,6 +25,7 @@ As migrações da integração de BI devem existir no Supabase nesta ordem:
 3. `20260723020000_launch_bi_scope_integrity.sql`
 4. `20260723030000_external_dashboard_links.sql`
 5. `20260723110000_farol_e_forja_dashboard.sql`
+6. `20260723120000_auto_dashboard_discovery.sql`
 
 A terceira migração valida os registros existentes antes de criar constraints
 compostas. Se ela acusar referências inconsistentes, não faça o redeploy: corrija
@@ -32,8 +33,28 @@ os registros indicados e execute a migração novamente. Uma execução bem-suce
 no SQL Editor mostra `Success. No rows returned`.
 
 A quarta migração permite cadastrar uma URL externa por lançamento. A quinta
-habilita o conector automático do dashboard Farol e a Forja. Ambas preservam
-dados, snapshots e permissões existentes.
+habilita o conector do dashboard Farol e a Forja. A sexta substitui o cadastro
+individual por detecção automática para dashboards que usam o mesmo contrato
+Meta Ads + Tamborete Silver. Todas preservam dados, snapshots e permissões.
+
+### Contrato Para Novos Dashboards
+
+Para um novo dashboard funcionar apenas colando sua URL no Clave, o HTML público
+deve declarar estas constantes JavaScript:
+
+```js
+const WORKER_URL = 'https://nome-do-worker.workers.dev';
+const SHEET_META = 'nome_da_aba_meta';
+const SHEET_TAMB = 'nome_da_aba_vendas';
+```
+
+O CSV de Meta deve conter `Date` e `Spend (Cost, Amount Spent)`. O CSV de vendas
+deve conter `id_transacao`, `status_transacao`, `data_transacao` e
+`valor_transacao`. Vendas com status `APPROVED` ou `COMPLETE` entram no resumo.
+O Worker precisa aceitar o nome da aba no parâmetro `sheet`.
+
+Com esse contrato, não há cadastro de cliente no código: cada URL informa sua
+própria fonte, e o Clave valida e descobre a integração no primeiro clique.
 
 ## 3. Checklist Antes Do Redeploy
 
