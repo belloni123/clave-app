@@ -10,6 +10,7 @@ interface SyncB16DashboardOptions {
 
 const WORKER_URL = 'https://noisy-brook-b3b8.henrscard.workers.dev'
 const REQUEST_TIMEOUT_MS = 20_000
+const MAX_SHEET_RESPONSE_BYTES = 8 * 1024 * 1024
 
 const LAUNCH_CONFIG: Record<string, { productName: string; ticket: number }> = {
   '0726': {
@@ -107,6 +108,41 @@ function currentDateInSaoPaulo() {
   return `${part('year')}-${part('month')}-${part('day')}`
 }
 
+async function readBoundedResponse(response: Response, sheet: string) {
+  const declaredLength = Number(response.headers.get('content-length'))
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_SHEET_RESPONSE_BYTES) {
+    throw new Error(`A fonte "${sheet}" excedeu o limite de segurança de 8 MB.`)
+  }
+
+  if (!response.body) return ''
+
+  const reader = response.body.getReader()
+  const chunks: Uint8Array[] = []
+  let totalBytes = 0
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (!value) continue
+
+    totalBytes += value.byteLength
+    if (totalBytes > MAX_SHEET_RESPONSE_BYTES) {
+      await reader.cancel()
+      throw new Error(`A fonte "${sheet}" excedeu o limite de segurança de 8 MB.`)
+    }
+    chunks.push(value)
+  }
+
+  const body = new Uint8Array(totalBytes)
+  let offset = 0
+  for (const chunk of chunks) {
+    body.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+
+  return new TextDecoder().decode(body)
+}
+
 async function fetchSheet(sheet: string, externalLaunchCode: string) {
   const url = new URL(WORKER_URL)
   url.searchParams.set('sheet', sheet)
@@ -126,7 +162,7 @@ async function fetchSheet(sheet: string, externalLaunchCode: string) {
     throw new Error(`O BI respondeu com HTTP ${response.status} na fonte "${sheet}".`)
   }
 
-  const csv = await response.text()
+  const csv = await readBoundedResponse(response, sheet)
   if (!csv.trim()) throw new Error(`A fonte "${sheet}" retornou vazia.`)
   return parseCsv(csv)
 }

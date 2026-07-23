@@ -80,7 +80,36 @@ As chamadas para Inteligência Artificial utilizam a API oficial do Gemini de fo
 
 ---
 
-## 4. UI Shell e Responsividade
+## 4. Sincronização de BI dos Lançamentos
+
+O módulo de Lançamentos possui um conector server-side dedicado para trazer
+dados do dashboard B16 para o Supabase sem depender de acesso direto ao banco
+do BI.
+
+### Fluxo da sincronização
+
+1. O frontend carrega `/api/lancamentos/[launchId]/bi-sync` com a sessão atual.
+2. A rota valida o usuário no Supabase, resolve o lançamento por RLS e calcula
+   se o perfil pode gerenciar o projeto. O estado visual `canManage` nunca é
+   tratado como autorização.
+3. A URL cadastrada é validada contra o host e caminho permitidos. O destino
+   consultado pelo servidor é fixo no conector B16, impedindo SSRF por uma URL
+   enviada pelo navegador.
+4. Cinco planilhas CSV são consultadas com timeout, sem cache e com limite de
+   8 MB por resposta. O parser calcula métricas apenas para o código `0726` e
+   para o período solicitado.
+5. O Supabase grava a configuração em `launch_bi_integrations`, o histórico em
+   `launch_bi_snapshots` e os campos compatíveis em `lancamentos_realizado`.
+
+### Limites de confiança
+
+O dashboard e o Worker B16 são dependências externas. Textos vindos dessas
+fontes são renderizados como texto pelo React, e o backend limita tempo e
+tamanho das respostas. No banco, RLS decide quem pode ler ou escrever e
+constraints compostas garantem que projeto, lançamento e integração sempre
+representem a mesma relação, inclusive em chamadas diretas à API do Supabase.
+
+## 5. UI Shell e Responsividade
 
 Para atender aos padrões modernos de design e acessibilidade, a plataforma utiliza o padrão de **App Shell** responsivo:
 
