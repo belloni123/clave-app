@@ -108,6 +108,7 @@ export default function BiSyncPanel({
   const isB16Dashboard = isB16DashboardUrl(dashboardUrl)
   const supportsAutomaticSync = supportsAutomaticDiscovery(dashboardUrl)
   const isExternalDashboard = dashboardUrl.trim().length > 0 && !supportsAutomaticSync
+  const hasLeadMetrics = Boolean(metrics && (metrics.provider === 'b16_dashboard' || metrics.leads.total > 0))
   const connectorLabel = isB16Dashboard
     ? 'CNP 2 - 2026 · 0726'
     : supportsAutomaticSync ? 'Detecção automática do BI' : 'Link externo por lançamento'
@@ -253,13 +254,13 @@ export default function BiSyncPanel({
             <div className="grid grid-cols-2 border-y border-border-custom md:grid-cols-3 lg:grid-cols-6">
               {[
                 ['Investimento real', formatCurrency(metrics.investment.total)],
-                [metrics.provider !== 'b16_dashboard' ? 'CAC' : 'Leads totais', metrics.provider !== 'b16_dashboard'
-                  ? formatCurrency(metrics.sales.count > 0 ? metrics.investment.total / metrics.sales.count : 0)
-                  : metrics.leads.total.toLocaleString('pt-BR')],
+                [hasLeadMetrics ? 'Leads totais' : 'CAC', hasLeadMetrics
+                  ? metrics.leads.total.toLocaleString('pt-BR')
+                  : formatCurrency(metrics.sales.count > 0 ? metrics.investment.total / metrics.sales.count : 0)],
                 ['Vendas', metrics.sales.count.toLocaleString('pt-BR')],
                 ['Faturamento', formatCurrency(metrics.sales.grossRevenue)],
-                [metrics.provider !== 'b16_dashboard' ? 'Fonte de vendas' : 'CPL', metrics.provider !== 'b16_dashboard'
-                  ? 'Tamborete Silver' : formatCurrency(metrics.cpl)],
+                [hasLeadMetrics ? 'CPL' : 'Fonte de vendas', hasLeadMetrics
+                  ? formatCurrency(metrics.cpl) : 'Tamborete Silver'],
                 ['ROAS', `${metrics.roas.toFixed(2)}x`],
               ].map(([label, value], index) => (
                 <div
