@@ -29,7 +29,7 @@ interface BiSyncPanelProps {
   onSync: (config: BiSyncConfig) => void
 }
 
-const DEFAULT_PERIOD_START = '2026-07-01'
+const DEFAULT_PERIOD_START = `${new Date().toISOString().slice(0, 7)}-01`
 const STALE_AFTER_MS = 24 * 60 * 60 * 1000
 
 function formatCurrency(value: number) {
@@ -181,6 +181,13 @@ export default function BiSyncPanel({
           <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-bg text-red-t text-[10px]">
             <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
             <span>{integration.last_error}</span>
+          </div>
+        )}
+
+        {!isLoading && !integration && (
+          <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-blue-bg text-blue-t text-[10px]">
+            <Database className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <span>Este lançamento ainda não possui um dashboard conectado. Informe a URL específica dele para iniciar a configuração.</span>
           </div>
         )}
 

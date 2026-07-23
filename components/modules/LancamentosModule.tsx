@@ -169,6 +169,10 @@ export default function LancamentosModule() {
     enabled: !!activeProjectId,
   })
 
+  const selectedLaunchIdForActiveProject = launches.some((launch) => launch.id === selectedLaunchId)
+    ? selectedLaunchId
+    : null
+
   // 2. QUERY: CARREGAR DADOS DO LANÇAMENTO SELECIONADO
   const { data: activeLaunchData, isLoading: loadingActiveLaunch } = useQuery<{
     launch: Launch
@@ -178,18 +182,23 @@ export default function LancamentosModule() {
     investimentos: InvestimentosData
     briefing: BriefingData
   } | null>({
-    queryKey: ['launch_detail', selectedLaunchId],
+    queryKey: ['launch_detail', activeProjectId, selectedLaunchIdForActiveProject],
     queryFn: async () => {
-      if (!selectedLaunchId) return null
+      if (!selectedLaunchIdForActiveProject || !activeProjectId) return null
 
       // Fetch all tables in parallel
       const [lRes, cRes, pRes, rRes, iRes, bRes] = await Promise.all([
-        supabase.from('lancamentos').select('*').eq('id', selectedLaunchId).single(),
-        supabase.from('lancamentos_cronograma').select('*').eq('lancamento_id', selectedLaunchId).maybeSingle(),
-        supabase.from('lancamentos_provisionamento').select('*').eq('lancamento_id', selectedLaunchId).maybeSingle(),
-        supabase.from('lancamentos_realizado').select('*').eq('lancamento_id', selectedLaunchId).maybeSingle(),
-        supabase.from('lancamentos_investimentos').select('*').eq('lancamento_id', selectedLaunchId).maybeSingle(),
-        supabase.from('briefings').select('*').eq('lancamento_id', selectedLaunchId).eq('is_atual', true).maybeSingle(),
+        supabase
+          .from('lancamentos')
+          .select('*')
+          .eq('id', selectedLaunchIdForActiveProject)
+          .eq('project_id', activeProjectId)
+          .single(),
+        supabase.from('lancamentos_cronograma').select('*').eq('lancamento_id', selectedLaunchIdForActiveProject).maybeSingle(),
+        supabase.from('lancamentos_provisionamento').select('*').eq('lancamento_id', selectedLaunchIdForActiveProject).maybeSingle(),
+        supabase.from('lancamentos_realizado').select('*').eq('lancamento_id', selectedLaunchIdForActiveProject).maybeSingle(),
+        supabase.from('lancamentos_investimentos').select('*').eq('lancamento_id', selectedLaunchIdForActiveProject).maybeSingle(),
+        supabase.from('briefings').select('*').eq('lancamento_id', selectedLaunchIdForActiveProject).eq('is_atual', true).maybeSingle(),
       ])
 
       if (lRes.error) throw lRes.error
@@ -264,23 +273,24 @@ export default function LancamentosModule() {
         briefing: { ...briefing, tag: briefing.tag || '', dores_principais: briefing.dores_principais || '' } as BriefingData,
       }
     },
-    enabled: !!selectedLaunchId,
+    enabled: !!selectedLaunchIdForActiveProject && !!activeProjectId,
   })
 
   const {
     data: biIntegrationResponse,
     isLoading: loadingBiIntegration,
   } = useQuery<LaunchBiSyncResponse>({
-    queryKey: ['launch_bi_integration', selectedLaunchId],
+    queryKey: ['launch_bi_integration', activeProjectId, selectedLaunchIdForActiveProject],
     queryFn: async () => {
-      if (!selectedLaunchId) return { integration: null, canManage: false }
-      const response = await fetch(`/api/lancamentos/${selectedLaunchId}/bi-sync`, {
+      if (!selectedLaunchIdForActiveProject || !activeProjectId) return { integration: null, canManage: false }
+      const query = new URLSearchParams({ projectId: activeProjectId })
+      const response = await fetch(`/api/lancamentos/${selectedLaunchIdForActiveProject}/bi-sync?${query}`, {
         cache: 'no-store',
       })
       if (!response.ok) throw new Error('Não foi possível carregar a integração do BI.')
       return response.json()
     },
-    enabled: !!selectedLaunchId,
+    enabled: !!selectedLaunchIdForActiveProject && !!activeProjectId,
     retry: false,
   })
 
@@ -377,7 +387,7 @@ export default function LancamentosModule() {
       if (error) throw error
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['launch_detail', selectedLaunchId] })
+      queryClient.invalidateQueries({ queryKey: ['launch_detail', activeProjectId, selectedLaunchIdForActiveProject] })
       showToast('Alterações salvas com sucesso!')
     },
     onError: (err) => {
@@ -478,7 +488,7 @@ export default function LancamentosModule() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['launch_detail', selectedLaunchId] })
+      queryClient.invalidateQueries({ queryKey: ['launch_detail', activeProjectId, selectedLaunchIdForActiveProject] })
       showToast('Briefing salvo com sucesso!')
     },
     onError: (err) => {
@@ -499,7 +509,7 @@ export default function LancamentosModule() {
       if (error) throw error
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['launch_detail', selectedLaunchId] })
+      queryClient.invalidateQueries({ queryKey: ['launch_detail', activeProjectId, selectedLaunchIdForActiveProject] })
       showToast('Links atualizados com sucesso!')
     },
     onError: (err) => {
@@ -514,11 +524,11 @@ export default function LancamentosModule() {
       periodStart: string
       periodEnd: null
     }) => {
-      if (!selectedLaunchId) throw new Error('Selecione um lançamento antes de sincronizar.')
-      const response = await fetch(`/api/lancamentos/${selectedLaunchId}/bi-sync`, {
+      if (!selectedLaunchIdForActiveProject || !activeProjectId) throw new Error('Selecione um lançamento antes de sincronizar.')
+      const response = await fetch(`/api/lancamentos/${selectedLaunchIdForActiveProject}/bi-sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
+        body: JSON.stringify({ ...config, projectId: activeProjectId }),
       })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Não foi possível sincronizar o BI.')
@@ -526,14 +536,14 @@ export default function LancamentosModule() {
     },
     onSuccess: (payload) => {
       queryClient.setQueryData<LaunchBiSyncResponse>(
-        ['launch_bi_integration', selectedLaunchId],
+        ['launch_bi_integration', activeProjectId, selectedLaunchIdForActiveProject],
         payload
       )
-      queryClient.invalidateQueries({ queryKey: ['launch_detail', selectedLaunchId] })
+      queryClient.invalidateQueries({ queryKey: ['launch_detail', activeProjectId, selectedLaunchIdForActiveProject] })
       showToast('Dados do BI atualizados com sucesso!')
     },
     onError: (error) => {
-      queryClient.invalidateQueries({ queryKey: ['launch_bi_integration', selectedLaunchId] })
+      queryClient.invalidateQueries({ queryKey: ['launch_bi_integration', activeProjectId, selectedLaunchIdForActiveProject] })
       showToast(error instanceof Error ? error.message : 'Erro ao sincronizar o BI.', 'err')
     },
   })
@@ -703,7 +713,7 @@ export default function LancamentosModule() {
   return (
     <div className="space-y-6">
       {/* 1. PORTFOLIO LANDING SCREEN (If no launch selected) */}
-      {!selectedLaunchId ? (
+      {!selectedLaunchIdForActiveProject ? (
         <div className="space-y-4 animate-[fadeUp_0.15s_ease_both]">
           <div className="flex justify-between items-center bg-surface border border-border-custom rounded-xl p-4 shadow-sm">
             <div>
@@ -909,9 +919,10 @@ export default function LancamentosModule() {
                   }
                 }
 
-                const defaultDashboardUrl = activeLaunchData.launch.links?.find((link) =>
-                  link.url.includes('suporteb16-collab.github.io/dashboard-b16-cnp0426')
-                )?.url || 'https://suporteb16-collab.github.io/dashboard-b16-cnp0426/'
+                const defaultDashboardUrl = activeLaunchData.launch.links?.find((link) => {
+                  const linkReference = `${link.nome} ${link.url}`.toLowerCase()
+                  return linkReference.includes('dashboard') || linkReference.includes('dados') || linkReference.includes('bi')
+                })?.url || ''
 
                 return (
                   <div className="space-y-6 animate-[fadeUp_0.15s_ease_both]">
@@ -966,7 +977,7 @@ export default function LancamentosModule() {
                     </div>
 
                     <BiSyncPanel
-                      key={`${selectedLaunchId}-${biIntegration?.atualizado_em || 'new'}`}
+                      key={`${selectedLaunchIdForActiveProject}-${biIntegration?.atualizado_em || 'new'}`}
                       integration={biIntegration}
                       defaultDashboardUrl={defaultDashboardUrl}
                       isLoading={loadingBiIntegration}

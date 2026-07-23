@@ -46,6 +46,9 @@ Mantém uma configuração de BI por lançamento.
 *   `dashboard_url`, `external_launch_code`: origem e código externo validados.
 *   `period_start`, `period_end`: janela da sincronização.
 *   `status`, `last_synced_at`, `last_error`, `last_snapshot`: estado atual.
+*   Uma ausência de linha nesta tabela significa que o lançamento ainda não
+    possui dashboard conectado; não há configuração padrão compartilhada entre
+    lançamentos.
 
 ### `public.launch_bi_snapshots`
 Histórico auditável das sincronizações do BI.
