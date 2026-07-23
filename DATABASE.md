@@ -42,10 +42,17 @@ Representa um lançamento dentro de um projeto.
 ### `public.launch_bi_integrations`
 Mantém uma configuração de BI por lançamento.
 *   `lancamento_id`, `project_id`: relação protegida por foreign key composta.
-*   `provider`: atualmente `'b16_dashboard'`.
+*   `provider`: `'b16_dashboard'`, `'auto_dashboard'`, `'external_dashboard'`
+    ou o legado `'farol_e_forja_dashboard'`.
 *   `dashboard_url`, `external_launch_code`: origem e código externo validados.
 *   `period_start`, `period_end`: janela da sincronização.
 *   `status`, `last_synced_at`, `last_error`, `last_snapshot`: estado atual.
+*   `dashboard_url` é único no banco: o mesmo BI não pode ser vinculado a dois
+    lançamentos.
+*   O provider precisa respeitar seu contrato: `b16_dashboard` é reservado ao
+    CNP 2 - 2026 (`0726`), `auto_dashboard` usa dashboards públicos B16 com
+    descoberta automática, e `external_dashboard` é apenas link salvo sem
+    snapshot automático.
 *   Uma ausência de linha nesta tabela significa que o lançamento ainda não
     possui dashboard conectado; não há configuração padrão compartilhada entre
     lançamentos.

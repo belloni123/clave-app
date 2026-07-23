@@ -26,6 +26,7 @@ As migrações da integração de BI devem existir no Supabase nesta ordem:
 4. `20260723030000_external_dashboard_links.sql`
 5. `20260723110000_farol_e_forja_dashboard.sql`
 6. `20260723120000_auto_dashboard_discovery.sql`
+7. `20260723150322_launch_bi_standard_guardrails.sql`
 
 A terceira migração valida os registros existentes antes de criar constraints
 compostas. Se ela acusar referências inconsistentes, não faça o redeploy: corrija
@@ -35,7 +36,10 @@ no SQL Editor mostra `Success. No rows returned`.
 A quarta migração permite cadastrar uma URL externa por lançamento. A quinta
 habilita o conector do dashboard Farol e a Forja. A sexta substitui o cadastro
 individual por detecção automática para dashboards que usam o mesmo contrato
-Meta Ads + Tamborete Silver. Todas preservam dados, snapshots e permissões.
+Meta Ads + Tamborete Silver. A sétima torna a URL do dashboard única por
+lançamento e valida o contrato de provider/URL/código para impedir reutilização
+acidental de dashboards entre projetos. Todas preservam dados, snapshots e
+permissões.
 
 ### Contrato Para Novos Dashboards
 
@@ -55,6 +59,19 @@ O Worker precisa aceitar o nome da aba no parâmetro `sheet`.
 
 Com esse contrato, não há cadastro de cliente no código: cada URL informa sua
 própria fonte, e o Clave valida e descobre a integração no primeiro clique.
+
+### Padrão Por Projeto e Lançamento
+
+- Cada lançamento possui no máximo uma integração de BI ativa.
+- Cada URL de dashboard de BI pode pertencer a apenas um lançamento.
+- Dashboards em `suporteb16-collab.github.io` que seguem o contrato acima usam
+  `auto_dashboard` e sincronizam automaticamente.
+- URLs HTTPS fora do contrato ficam como `external_dashboard`: são salvas por
+  lançamento, mas não exibem métricas automáticas.
+- O dashboard legado `dashboard-b16-cnp0426` é exclusivo do lançamento
+  `CNP 2 - 2026` com código `0726`.
+- Lançamentos novos começam sem dashboard herdado. O gestor deve colar a URL
+  própria daquele lançamento no painel `Dados do BI`.
 
 ## 3. Checklist Antes Do Redeploy
 

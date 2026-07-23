@@ -18,6 +18,7 @@ interface SyncRequestBody {
 
 const B16_DASHBOARD_HOST = 'suporteb16-collab.github.io'
 const B16_DASHBOARD_PATH = '/dashboard-b16-cnp0426'
+const LEGACY_B16_LAUNCH_NAME = 'CNP 2 - 2026'
 const SUPPORTED_LAUNCH_CODE = '0726'
 const EXTERNAL_DASHBOARD_CODE = 'external'
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
@@ -107,7 +108,7 @@ async function getAuthorizedLaunch(launchId: string, expectedProjectId?: string 
 
   const { data: launch, error: launchError } = await supabase
     .from('lancamentos')
-    .select('id, project_id')
+    .select('id, nome, project_id')
     .eq('id', launchId)
     .maybeSingle()
 
@@ -221,6 +222,15 @@ export async function POST(
   if (periodEnd && periodEnd < periodStart) {
     return errorResponse('A data final não pode ser anterior à data inicial.', 400)
   }
+  if (
+    dashboardConfig.provider === 'b16_dashboard'
+    && context.launch.nome.trim().toLowerCase() !== LEGACY_B16_LAUNCH_NAME.toLowerCase()
+  ) {
+    return errorResponse(
+      `Este dashboard legado é exclusivo do lançamento ${LEGACY_B16_LAUNCH_NAME}. Use a URL própria deste lançamento.`,
+      400
+    )
+  }
 
   const { supabase, user, launch } = context
   const { data: existingIntegration, error: existingError } = await supabase
@@ -231,6 +241,18 @@ export async function POST(
     .maybeSingle()
 
   if (existingError) return errorResponse('Não foi possível preparar a integração do BI.', 500)
+
+  const { data: dashboardOwner, error: dashboardOwnerError } = await supabase
+    .from('launch_bi_integrations')
+    .select('id, lancamento_id')
+    .eq('dashboard_url', dashboardConfig.dashboardUrl)
+    .neq('lancamento_id', launchId)
+    .maybeSingle()
+
+  if (dashboardOwnerError) return errorResponse('Não foi possível validar se este dashboard já está em uso.', 500)
+  if (dashboardOwner) {
+    return errorResponse('Este dashboard já está vinculado a outro lançamento. Use a URL própria deste lançamento.', 409)
+  }
 
   const integrationPayload = {
     lancamento_id: launchId,
@@ -257,6 +279,9 @@ export async function POST(
         .single()
 
   if (integrationResult.error || !integrationResult.data) {
+    if (integrationResult.error?.code === '23505') {
+      return errorResponse('Este dashboard já está vinculado a outro lançamento. Use a URL própria deste lançamento.', 409)
+    }
     return errorResponse('Não foi possível salvar a configuração do BI.', 500)
   }
 
