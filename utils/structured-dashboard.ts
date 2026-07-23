@@ -1,14 +1,20 @@
 import { parseCsv } from '@/utils/b16-dashboard'
 import type { LaunchBiMetrics } from '@/types/launch-bi'
 
-const WORKER_URL = 'https://farol-e-forja-webhook.henrscard.workers.dev'
-const REQUEST_TIMEOUT_MS = 45_000
-const MAX_SHEET_RESPONSE_BYTES = 8 * 1024 * 1024
+export interface StructuredDashboardConfig {
+  dashboardUrl: string
+  workerUrl: string
+  metaSheet: string
+  salesSheet: string
+  externalLaunchCode: string
+}
 
-const SHEETS = {
-  meta: 'meta_ads',
-  sales: 'tamborete_silver',
-} as const
+const TRUSTED_DASHBOARD_HOST = 'suporteb16-collab.github.io'
+const TRUSTED_WORKER_SUFFIX = '.workers.dev'
+const REQUEST_TIMEOUT_MS = 45_000
+const MAX_DASHBOARD_RESPONSE_BYTES = 2 * 1024 * 1024
+const MAX_SHEET_RESPONSE_BYTES = 8 * 1024 * 1024
+const SAFE_SHEET_NAME = /^[\p{L}\p{N}_ .&-]{1,80}$/u
 
 function roundCurrency(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100
@@ -45,10 +51,62 @@ function isWithinPeriod(date: string, periodStart: string, periodEnd: string) {
   return date >= periodStart && date <= periodEnd
 }
 
-async function readBoundedResponse(response: Response, sheet: string) {
+function extractJavascriptString(html: string, name: string) {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = html.match(
+    new RegExp(`(?:const|let|var)\\s+${escapedName}\\s*=\\s*(['"])(.*?)\\1\\s*;`)
+  )
+  return match?.[2]?.trim() || null
+}
+
+function dashboardCode(value: string) {
+  const pathname = new URL(value).pathname
+  const code = pathname
+    .split('/')
+    .filter(Boolean)
+    .join('-')
+    .replace(/[^A-Za-z0-9_-]/g, '-')
+    .slice(0, 32)
+
+  return code.length >= 2 ? code : 'auto-dashboard'
+}
+
+function validateWorkerUrl(value: string) {
+  let workerUrl: URL
+  try {
+    workerUrl = new URL(value)
+  } catch {
+    throw new Error('O dashboard informou uma fonte de dados inválida.')
+  }
+
+  if (
+    workerUrl.protocol !== 'https:'
+    || workerUrl.username
+    || workerUrl.password
+    || !workerUrl.hostname.endsWith(TRUSTED_WORKER_SUFFIX)
+  ) {
+    throw new Error('A fonte automática precisa ser um Worker HTTPS público do BI.')
+  }
+
+  return workerUrl.toString()
+}
+
+export function supportsDashboardDiscovery(value: string) {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:'
+      && !url.username
+      && !url.password
+      && url.hostname === TRUSTED_DASHBOARD_HOST
+  } catch {
+    return false
+  }
+}
+
+async function readBoundedResponse(response: Response, label: string, maxBytes: number) {
   const declaredLength = Number(response.headers.get('content-length'))
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_SHEET_RESPONSE_BYTES) {
-    throw new Error(`A fonte "${sheet}" excedeu o limite de segurança de 8 MB.`)
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    throw new Error(`A fonte "${label}" excedeu o limite de segurança.`)
   }
 
   if (!response.body) return ''
@@ -63,9 +121,9 @@ async function readBoundedResponse(response: Response, sheet: string) {
     if (!value) continue
 
     totalBytes += value.byteLength
-    if (totalBytes > MAX_SHEET_RESPONSE_BYTES) {
+    if (totalBytes > maxBytes) {
       await reader.cancel()
-      throw new Error(`A fonte "${sheet}" excedeu o limite de segurança de 8 MB.`)
+      throw new Error(`A fonte "${label}" excedeu o limite de segurança.`)
     }
     chunks.push(value)
   }
@@ -80,45 +138,89 @@ async function readBoundedResponse(response: Response, sheet: string) {
   return new TextDecoder().decode(body)
 }
 
-async function fetchSheet(sheet: string) {
-  const url = new URL(WORKER_URL)
-  url.searchParams.set('sheet', sheet)
-  url.searchParams.set('cb', Date.now().toString())
-
+async function fetchBoundedText(url: URL, label: string, maxBytes: number) {
   let response: Response
   try {
     response = await fetch(url, {
       cache: 'no-store',
+      redirect: 'error',
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       headers: {
-        Accept: 'text/csv',
+        Accept: label === 'dashboard' ? 'text/html' : 'text/csv',
         'User-Agent': 'Clave-BI-Sync/1.0',
       },
     })
   } catch (error) {
     if (error instanceof DOMException && error.name === 'TimeoutError') {
-      throw new Error(`A fonte "${sheet}" demorou mais de 45 segundos para responder. Tente atualizar novamente.`)
+      throw new Error(`A fonte "${label}" demorou mais de 45 segundos para responder.`)
     }
     throw error
   }
 
-  if (!response.ok) throw new Error(`O BI respondeu com HTTP ${response.status} na fonte "${sheet}".`)
-  const csv = await readBoundedResponse(response, sheet)
-  if (!csv.trim()) throw new Error(`A fonte "${sheet}" retornou vazia.`)
+  if (!response.ok) {
+    throw new Error(`O BI respondeu com HTTP ${response.status} na fonte "${label}".`)
+  }
+
+  const text = await readBoundedResponse(response, label, maxBytes)
+  if (!text.trim()) throw new Error(`A fonte "${label}" retornou vazia.`)
+  return text
+}
+
+export async function discoverStructuredDashboard(
+  dashboardUrl: string
+): Promise<StructuredDashboardConfig> {
+  if (!supportsDashboardDiscovery(dashboardUrl)) {
+    throw new Error('A detecção automática está disponível nos dashboards públicos da B16.')
+  }
+
+  const html = await fetchBoundedText(
+    new URL(dashboardUrl),
+    'dashboard',
+    MAX_DASHBOARD_RESPONSE_BYTES
+  )
+  const workerUrl = extractJavascriptString(html, 'WORKER_URL')
+  const metaSheet = extractJavascriptString(html, 'SHEET_META')
+  const salesSheet = extractJavascriptString(html, 'SHEET_TAMB')
+
+  if (!workerUrl || !metaSheet || !salesSheet) {
+    throw new Error(
+      'O dashboard não segue o modelo automático Meta Ads + Tamborete Silver. Peça ao BI para manter as constantes WORKER_URL, SHEET_META e SHEET_TAMB.'
+    )
+  }
+  if (!SAFE_SHEET_NAME.test(metaSheet) || !SAFE_SHEET_NAME.test(salesSheet)) {
+    throw new Error('O dashboard informou nomes de fontes fora do padrão permitido.')
+  }
+
+  return {
+    dashboardUrl,
+    workerUrl: validateWorkerUrl(workerUrl),
+    metaSheet,
+    salesSheet,
+    externalLaunchCode: dashboardCode(dashboardUrl),
+  }
+}
+
+async function fetchSheet(config: StructuredDashboardConfig, sheet: string) {
+  const url = new URL(config.workerUrl)
+  url.searchParams.set('sheet', sheet)
+  url.searchParams.set('cb', Date.now().toString())
+  const csv = await fetchBoundedText(url, sheet, MAX_SHEET_RESPONSE_BYTES)
   return parseCsv(csv)
 }
 
-export async function syncFarolEForjaDashboard({
+export async function syncStructuredDashboard({
+  config,
   periodStart,
   periodEnd,
 }: {
+  config: StructuredDashboardConfig
   periodStart: string
   periodEnd?: string | null
 }): Promise<LaunchBiMetrics> {
   const effectivePeriodEnd = periodEnd || currentDateInSaoPaulo()
   const [metaRows, salesRows] = await Promise.all([
-    fetchSheet(SHEETS.meta),
-    fetchSheet(SHEETS.sales),
+    fetchSheet(config, config.metaSheet),
+    fetchSheet(config, config.salesSheet),
   ])
 
   const metaSpend = metaRows
@@ -144,8 +246,8 @@ export async function syncFarolEForjaDashboard({
   const averageTicket = salesCount > 0 ? roundCurrency(revenue / salesCount) : 0
 
   return {
-    provider: 'farol_e_forja_dashboard',
-    externalLaunchCode: 'farol-e-forja',
+    provider: 'auto_dashboard',
+    externalLaunchCode: config.externalLaunchCode,
     periodStart,
     periodEnd: effectivePeriodEnd,
     syncedAt: new Date().toISOString(),
@@ -170,7 +272,7 @@ export async function syncFarolEForjaDashboard({
       count: salesCount,
       refunded: 0,
       pending: 0,
-      productName: 'Farol e a Forja',
+      productName: config.externalLaunchCode,
       ticket: averageTicket,
       grossRevenue: revenue,
       netRevenueAfterRefunds: revenue,

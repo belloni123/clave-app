@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { syncB16Dashboard } from '@/utils/b16-dashboard'
-import { syncFarolEForjaDashboard } from '@/utils/farol-e-forja-dashboard'
+import {
+  discoverStructuredDashboard,
+  supportsDashboardDiscovery,
+  syncStructuredDashboard,
+  type StructuredDashboardConfig,
+} from '@/utils/structured-dashboard'
 
 interface SyncRequestBody {
   dashboardUrl?: string
@@ -13,10 +18,24 @@ interface SyncRequestBody {
 
 const B16_DASHBOARD_HOST = 'suporteb16-collab.github.io'
 const B16_DASHBOARD_PATH = '/dashboard-b16-cnp0426'
-const FAROL_E_FORJA_DASHBOARD_PATH = '/farol-e-forja'
 const SUPPORTED_LAUNCH_CODE = '0726'
 const EXTERNAL_DASHBOARD_CODE = 'external'
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+
+type DashboardConfig = {
+  dashboardUrl: string
+  provider: 'b16_dashboard'
+  externalLaunchCode: string
+} | {
+  dashboardUrl: string
+  provider: 'external_dashboard'
+  externalLaunchCode: string
+} | {
+  dashboardUrl: string
+  provider: 'auto_dashboard'
+  externalLaunchCode: string
+  structuredConfig: StructuredDashboardConfig
+}
 
 function errorResponse(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })
@@ -35,19 +54,37 @@ function normalizeDashboardUrl(value: string) {
   }
 
   url.hash = ''
+  return url.toString()
+}
+
+async function resolveDashboardConfig(value: string): Promise<DashboardConfig> {
+  const dashboardUrl = normalizeDashboardUrl(value)
+  const url = new URL(dashboardUrl)
   const isB16Dashboard = url.hostname === B16_DASHBOARD_HOST
     && (url.pathname === B16_DASHBOARD_PATH || url.pathname.startsWith(`${B16_DASHBOARD_PATH}/`))
-  const isFarolEForjaDashboard = url.hostname === B16_DASHBOARD_HOST
-    && (url.pathname === FAROL_E_FORJA_DASHBOARD_PATH || url.pathname.startsWith(`${FAROL_E_FORJA_DASHBOARD_PATH}/`))
+
+  if (isB16Dashboard) {
+    return {
+      dashboardUrl,
+      provider: 'b16_dashboard',
+      externalLaunchCode: SUPPORTED_LAUNCH_CODE,
+    }
+  }
+
+  if (supportsDashboardDiscovery(dashboardUrl)) {
+    const structuredConfig = await discoverStructuredDashboard(dashboardUrl)
+    return {
+      dashboardUrl,
+      provider: 'auto_dashboard',
+      externalLaunchCode: structuredConfig.externalLaunchCode,
+      structuredConfig,
+    }
+  }
 
   return {
-    dashboardUrl: url.toString(),
-    provider: isB16Dashboard
-      ? 'b16_dashboard' as const
-      : isFarolEForjaDashboard ? 'farol_e_forja_dashboard' as const : 'external_dashboard' as const,
-    externalLaunchCode: isB16Dashboard
-      ? SUPPORTED_LAUNCH_CODE
-      : isFarolEForjaDashboard ? 'farol-e-forja' : EXTERNAL_DASHBOARD_CODE,
+    dashboardUrl,
+    provider: 'external_dashboard',
+    externalLaunchCode: EXTERNAL_DASHBOARD_CODE,
   }
 }
 
@@ -162,11 +199,11 @@ export async function POST(
     return errorResponse('Seu acesso a este projeto é somente para visualização.', 403)
   }
 
-  let dashboardConfig: ReturnType<typeof normalizeDashboardUrl>
+  let dashboardConfig: DashboardConfig
   let periodStart: string
   let periodEnd: string | null
   try {
-    dashboardConfig = normalizeDashboardUrl(body.dashboardUrl || '')
+    dashboardConfig = await resolveDashboardConfig(body.dashboardUrl || '')
     periodStart = validateDate(body.periodStart, 'A data inicial') as string
     periodEnd = validateDate(body.periodEnd, 'A data final', true)
   } catch (error) {
@@ -249,8 +286,16 @@ export async function POST(
 
   try {
     const metrics = dashboardConfig.provider === 'b16_dashboard'
-      ? await syncB16Dashboard({ externalLaunchCode: dashboardConfig.externalLaunchCode, periodStart, periodEnd })
-      : await syncFarolEForjaDashboard({ periodStart, periodEnd })
+      ? await syncB16Dashboard({
+          externalLaunchCode: dashboardConfig.externalLaunchCode,
+          periodStart,
+          periodEnd,
+        })
+      : await syncStructuredDashboard({
+          config: dashboardConfig.structuredConfig,
+          periodStart,
+          periodEnd,
+        })
 
     const { data: existingRealized, error: realizedReadError } = await supabase
       .from('lancamentos_realizado')

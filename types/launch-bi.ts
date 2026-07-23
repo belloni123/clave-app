@@ -6,8 +6,13 @@ export interface LaunchBiStageMetric {
   executionPercent: number
 }
 
+export type LaunchBiMetricsProvider =
+  | 'b16_dashboard'
+  | 'farol_e_forja_dashboard'
+  | 'auto_dashboard'
+
 export interface LaunchBiMetrics {
-  provider: 'b16_dashboard' | 'farol_e_forja_dashboard'
+  provider: LaunchBiMetricsProvider
   externalLaunchCode: string
   periodStart: string
   periodEnd: string
@@ -50,7 +55,7 @@ export interface LaunchBiIntegration {
   id: string
   lancamento_id: string
   project_id: string
-  provider: 'b16_dashboard' | 'farol_e_forja_dashboard' | 'external_dashboard'
+  provider: LaunchBiMetricsProvider | 'external_dashboard'
   dashboard_url: string
   external_launch_code: string
   period_start: string
