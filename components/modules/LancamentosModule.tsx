@@ -520,7 +520,6 @@ export default function LancamentosModule() {
   const syncBiMutation = useMutation({
     mutationFn: async (config: {
       dashboardUrl: string
-      externalLaunchCode: '0726'
       periodStart: string
       periodEnd: null
     }) => {

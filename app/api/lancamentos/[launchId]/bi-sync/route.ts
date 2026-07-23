@@ -10,9 +10,10 @@ interface SyncRequestBody {
   projectId?: string
 }
 
-const ALLOWED_DASHBOARD_HOST = 'suporteb16-collab.github.io'
-const ALLOWED_DASHBOARD_PATH = '/dashboard-b16-cnp0426'
+const B16_DASHBOARD_HOST = 'suporteb16-collab.github.io'
+const B16_DASHBOARD_PATH = '/dashboard-b16-cnp0426'
 const SUPPORTED_LAUNCH_CODE = '0726'
+const EXTERNAL_DASHBOARD_CODE = 'external'
 const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 function errorResponse(message: string, status: number) {
@@ -27,16 +28,19 @@ function normalizeDashboardUrl(value: string) {
     throw new Error('Informe uma URL válida para o dashboard.')
   }
 
-  if (
-    url.protocol !== 'https:'
-    || url.hostname !== ALLOWED_DASHBOARD_HOST
-    || !url.pathname.startsWith(ALLOWED_DASHBOARD_PATH)
-  ) {
-    throw new Error('Esta primeira versão aceita apenas o dashboard B16 da Mundial Cromo.')
+  if (url.protocol !== 'https:' || url.username || url.password) {
+    throw new Error('Informe uma URL HTTPS pública e sem credenciais.')
   }
 
   url.hash = ''
-  return url.toString()
+  const isB16Dashboard = url.hostname === B16_DASHBOARD_HOST
+    && (url.pathname === B16_DASHBOARD_PATH || url.pathname.startsWith(`${B16_DASHBOARD_PATH}/`))
+
+  return {
+    dashboardUrl: url.toString(),
+    provider: isB16Dashboard ? 'b16_dashboard' as const : 'external_dashboard' as const,
+    externalLaunchCode: isB16Dashboard ? SUPPORTED_LAUNCH_CODE : EXTERNAL_DASHBOARD_CODE,
+  }
 }
 
 function validateDate(value: string | null | undefined, label: string, optional = false) {
@@ -150,19 +154,23 @@ export async function POST(
     return errorResponse('Seu acesso a este projeto é somente para visualização.', 403)
   }
 
-  let dashboardUrl: string
+  let dashboardConfig: ReturnType<typeof normalizeDashboardUrl>
   let periodStart: string
   let periodEnd: string | null
   try {
-    dashboardUrl = normalizeDashboardUrl(body.dashboardUrl || '')
+    dashboardConfig = normalizeDashboardUrl(body.dashboardUrl || '')
     periodStart = validateDate(body.periodStart, 'A data inicial') as string
     periodEnd = validateDate(body.periodEnd, 'A data final', true)
   } catch (error) {
     return errorResponse(error instanceof Error ? error.message : 'Configuração inválida.', 400)
   }
 
-  const externalLaunchCode = (body.externalLaunchCode || '').trim()
-  if (externalLaunchCode !== SUPPORTED_LAUNCH_CODE) {
+  const requestedLaunchCode = (body.externalLaunchCode || '').trim()
+  if (
+    dashboardConfig.provider === 'b16_dashboard'
+    && requestedLaunchCode
+    && requestedLaunchCode !== SUPPORTED_LAUNCH_CODE
+  ) {
     return errorResponse('Use o lançamento CNP 2 - 2026 (código 0726).', 400)
   }
   if (periodEnd && periodEnd < periodStart) {
@@ -182,9 +190,9 @@ export async function POST(
   const integrationPayload = {
     lancamento_id: launchId,
     project_id: launch.project_id,
-    provider: 'b16_dashboard',
-    dashboard_url: dashboardUrl,
-    external_launch_code: externalLaunchCode,
+    provider: dashboardConfig.provider,
+    dashboard_url: dashboardConfig.dashboardUrl,
+    external_launch_code: dashboardConfig.externalLaunchCode,
     period_start: periodStart,
     period_end: periodEnd,
     atualizado_em: new Date().toISOString(),
@@ -209,9 +217,31 @@ export async function POST(
 
   const integration = integrationResult.data
 
+  // External dashboards are saved per launch, but never parsed with the CNP2 connector.
+  if (dashboardConfig.provider === 'external_dashboard') {
+    const { data: externalIntegration, error: externalUpdateError } = await supabase
+      .from('launch_bi_integrations')
+      .update({
+        status: 'connected',
+        last_synced_at: null,
+        last_error: null,
+        last_snapshot: null,
+        atualizado_em: new Date().toISOString(),
+      })
+      .eq('id', integration.id)
+      .select('*')
+      .single()
+
+    if (externalUpdateError || !externalIntegration) {
+      return errorResponse('O dashboard foi salvo, mas seu estado não pôde ser atualizado.', 500)
+    }
+
+    return NextResponse.json({ integration: externalIntegration, canManage: true })
+  }
+
   try {
     const metrics = await syncB16Dashboard({
-      externalLaunchCode,
+      externalLaunchCode: dashboardConfig.externalLaunchCode,
       periodStart,
       periodEnd,
     })

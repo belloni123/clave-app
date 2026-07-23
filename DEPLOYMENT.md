@@ -23,11 +23,15 @@ As migrações da integração de BI devem existir no Supabase nesta ordem:
 1. `20260723000000_launch_bi_integrations.sql`
 2. `20260723010000_launch_bi_management_permissions.sql`
 3. `20260723020000_launch_bi_scope_integrity.sql`
+4. `20260723030000_external_dashboard_links.sql`
 
 A terceira migração valida os registros existentes antes de criar constraints
 compostas. Se ela acusar referências inconsistentes, não faça o redeploy: corrija
 os registros indicados e execute a migração novamente. Uma execução bem-sucedida
 no SQL Editor mostra `Success. No rows returned`.
+
+A quarta migração permite cadastrar uma URL externa por lançamento. Ela apenas
+libera o vínculo do link; não altera dados, snapshots ou permissões existentes.
 
 ## 3. Checklist Antes Do Redeploy
 
@@ -104,7 +108,9 @@ operação manual do responsável pelo ambiente.
 4. Confirme que o painel mantém os últimos dados sincronizados.
 5. Clique em `Atualizar dados` com um usuário gestor e confirme o novo horário.
 6. Confirme que um usuário viewer consegue ler, mas não sincronizar.
-7. Verifique os logs do container para erros `5xx` ou falhas de healthcheck.
+7. Em outro lançamento, salve uma URL HTTPS de dashboard externo e confirme que
+   ela permanece vinculada somente a esse lançamento, sem mostrar métricas da CNP 2.
+8. Verifique os logs do container para erros `5xx` ou falhas de healthcheck.
 
 ## 7. Rollback
 

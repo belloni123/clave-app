@@ -15,7 +15,6 @@ import type { LaunchBiIntegration } from '@/types/launch-bi'
 
 interface BiSyncConfig {
   dashboardUrl: string
-  externalLaunchCode: '0726'
   periodStart: string
   periodEnd: null
 }
@@ -57,6 +56,26 @@ function isSyncStale(value: string | null | undefined) {
   return Number.isFinite(timestamp) && Date.now() - timestamp > STALE_AFTER_MS
 }
 
+function isHttpsDashboardUrl(value: string) {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' && !url.username && !url.password
+  } catch {
+    return false
+  }
+}
+
+function isB16DashboardUrl(value: string) {
+  try {
+    const url = new URL(value)
+    return isHttpsDashboardUrl(value)
+      && url.hostname === 'suporteb16-collab.github.io'
+      && (url.pathname === '/dashboard-b16-cnp0426' || url.pathname.startsWith('/dashboard-b16-cnp0426/'))
+  } catch {
+    return false
+  }
+}
+
 export default function BiSyncPanel({
   integration,
   defaultDashboardUrl,
@@ -74,7 +93,11 @@ export default function BiSyncPanel({
 
   const metrics = integration?.last_snapshot
   const stale = isSyncStale(integration?.last_synced_at)
-  const canSync = canManage && !isLoading && dashboardUrl.trim().length > 0 && !isSyncing
+  const hasValidDashboardUrl = isHttpsDashboardUrl(dashboardUrl)
+  const canSync = canManage && !isLoading && hasValidDashboardUrl && !isSyncing
+  const isB16Dashboard = isB16DashboardUrl(dashboardUrl)
+  const isExternalDashboard = integration?.provider === 'external_dashboard'
+    || (dashboardUrl.trim().length > 0 && !isB16Dashboard)
 
   return (
     <section className="bg-surface border border-border-custom rounded-xl shadow-sm overflow-hidden">
@@ -88,7 +111,7 @@ export default function BiSyncPanel({
               <h4 className="text-xs font-bold text-text-custom">Dados do BI</h4>
               {integration?.status === 'connected' && (
                 <span className="inline-flex items-center gap-1 text-[9px] font-bold text-green-t">
-                  <CheckCircle2 className="w-3 h-3" /> Conectado
+                  <CheckCircle2 className="w-3 h-3" /> {isExternalDashboard ? 'Dashboard salvo' : 'Conectado'}
                 </span>
               )}
               {integration?.status === 'error' && (
@@ -108,7 +131,9 @@ export default function BiSyncPanel({
               )}
             </div>
             <p className="text-[10px] text-text3 truncate">
-              CNP 2 - 2026 · {isLoading ? 'Carregando integração...' : formatSyncDate(integration?.last_synced_at ?? null)}
+              {isExternalDashboard ? 'Dashboard externo deste lançamento' : 'CNP 2 - 2026'} · {isLoading
+                ? 'Carregando integração...'
+                : isExternalDashboard ? (integration ? 'Link salvo' : 'Aguardando salvar') : formatSyncDate(integration?.last_synced_at ?? null)}
             </p>
           </div>
         </div>
@@ -119,14 +144,13 @@ export default function BiSyncPanel({
           title={!isLoading && !canManage ? 'Somente editores e administradores podem sincronizar o BI' : undefined}
           onClick={() => onSync({
             dashboardUrl: dashboardUrl.trim(),
-            externalLaunchCode: '0726',
             periodStart,
             periodEnd: null,
           })}
           className="h-8 px-3 inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-custom text-white text-[10px] font-bold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-          {isSyncing ? 'Atualizando...' : integration ? 'Atualizar dados' : 'Conectar e atualizar'}
+          {isSyncing ? 'Salvando...' : isB16Dashboard ? (integration ? 'Atualizar dados' : 'Conectar e atualizar') : 'Salvar dashboard'}
         </button>
       </div>
 
@@ -141,10 +165,10 @@ export default function BiSyncPanel({
                 value={dashboardUrl}
                 onChange={(event) => setDashboardUrl(event.target.value)}
                 readOnly={!canManage}
-                placeholder="https://suporteb16-collab.github.io/..."
+                placeholder="https://seu-dashboard.com/..."
                 className="w-full min-w-0 bg-transparent text-[11px] text-text-custom font-mono outline-none read-only:cursor-not-allowed"
               />
-              {dashboardUrl && (
+              {hasValidDashboardUrl && (
                 <a
                   href={dashboardUrl}
                   target="_blank"
@@ -170,9 +194,9 @@ export default function BiSyncPanel({
           </label>
 
           <div>
-            <span className="text-[9px] text-text3 uppercase font-bold block mb-1">Lançamento no BI</span>
+            <span className="text-[9px] text-text3 uppercase font-bold block mb-1">Integração</span>
             <div className="h-9 px-3 border border-border-custom rounded-lg bg-surface2/60 flex items-center text-[11px] font-bold text-text2">
-              CNP 2 - 2026 · 0726
+              {isB16Dashboard ? 'CNP 2 - 2026 · 0726' : 'Link externo por lançamento'}
             </div>
           </div>
         </div>
@@ -188,6 +212,13 @@ export default function BiSyncPanel({
           <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-blue-bg text-blue-t text-[10px]">
             <Database className="w-3.5 h-3.5 mt-0.5 shrink-0" />
             <span>Este lançamento ainda não possui um dashboard conectado. Informe a URL específica dele para iniciar a configuração.</span>
+          </div>
+        )}
+
+        {!isLoading && isExternalDashboard && (
+          <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-blue-bg text-blue-t text-[10px]">
+            <Link2 className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <span>Este dashboard está vinculado somente a este lançamento. A leitura automática será liberada quando houver um conector compatível com a fonte dele.</span>
           </div>
         )}
 
