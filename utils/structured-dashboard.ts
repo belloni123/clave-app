@@ -11,7 +11,7 @@ export interface StructuredDashboardConfig {
 
 const TRUSTED_DASHBOARD_HOST = 'suporteb16-collab.github.io'
 const TRUSTED_WORKER_SUFFIX = '.workers.dev'
-const REQUEST_TIMEOUT_MS = 45_000
+const REQUEST_TIMEOUT_MS = 20_000
 const MAX_DASHBOARD_RESPONSE_BYTES = 2 * 1024 * 1024
 const MAX_SHEET_RESPONSE_BYTES = 8 * 1024 * 1024
 const SAFE_SHEET_NAME = /^[\p{L}\p{N}_ .&-]{1,80}$/u
@@ -152,7 +152,7 @@ async function fetchBoundedText(url: URL, label: string, maxBytes: number) {
     })
   } catch (error) {
     if (error instanceof DOMException && error.name === 'TimeoutError') {
-      throw new Error(`A fonte "${label}" demorou mais de 45 segundos para responder.`)
+      throw new Error(`A fonte "${label}" demorou mais de 20 segundos para responder.`)
     }
     throw error
   }

@@ -524,14 +524,33 @@ export default function LancamentosModule() {
       periodEnd: null
     }) => {
       if (!selectedLaunchIdForActiveProject || !activeProjectId) throw new Error('Selecione um lançamento antes de sincronizar.')
-      const response = await fetch(`/api/lancamentos/${selectedLaunchIdForActiveProject}/bi-sync`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...config, projectId: activeProjectId }),
-      })
-      const payload = await response.json()
-      if (!response.ok) throw new Error(payload.error || 'Não foi possível sincronizar o BI.')
-      return payload as LaunchBiSyncResponse
+      const controller = new AbortController()
+      const timeoutId = window.setTimeout(() => controller.abort(), 30_000)
+
+      try {
+        const response = await fetch(`/api/lancamentos/${selectedLaunchIdForActiveProject}/bi-sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...config, projectId: activeProjectId }),
+          signal: controller.signal,
+        })
+        const contentType = response.headers.get('content-type') || ''
+        const payload = contentType.includes('application/json')
+          ? await response.json()
+          : null
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Não foi possível sincronizar o BI agora. Recarregue a página e tente novamente.')
+        }
+        if (!payload) throw new Error('O servidor respondeu sem dados da integração do BI.')
+        return payload as LaunchBiSyncResponse
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          throw new Error('A sincronização do BI demorou demais. Recarregue a página e tente novamente.')
+        }
+        throw error
+      } finally {
+        window.clearTimeout(timeoutId)
+      }
     },
     onSuccess: (payload) => {
       queryClient.setQueryData<LaunchBiSyncResponse>(
