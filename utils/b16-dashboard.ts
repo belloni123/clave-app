@@ -9,7 +9,7 @@ interface SyncB16DashboardOptions {
 }
 
 const WORKER_URL = 'https://noisy-brook-b3b8.henrscard.workers.dev'
-const REQUEST_TIMEOUT_MS = 45_000
+const REQUEST_TIMEOUT_MS = 20_000
 const MAX_SHEET_RESPONSE_BYTES = 8 * 1024 * 1024
 
 const LAUNCH_CONFIG: Record<string, { productName: string; ticket: number }> = {
@@ -161,7 +161,7 @@ async function fetchSheet(sheet: string, externalLaunchCode: string) {
     })
   } catch (error) {
     if (error instanceof DOMException && error.name === 'TimeoutError') {
-      throw new Error(`A fonte "${sheet}" demorou mais de 45 segundos para responder. Tente atualizar novamente.`)
+      throw new Error(`A fonte "${sheet}" demorou mais de 20 segundos para responder. Tente atualizar novamente.`)
     }
     throw error
   }
