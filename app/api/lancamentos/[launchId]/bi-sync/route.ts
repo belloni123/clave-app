@@ -64,7 +64,46 @@ async function getAuthorizedLaunch(launchId: string) {
   if (launchError) return { error: errorResponse('Não foi possível validar o lançamento.', 500) }
   if (!launch) return { error: errorResponse('Lançamento não encontrado ou sem acesso.', 404) }
 
-  return { supabase, user, launch }
+  const [profileResult, projectResult, projectAccessResult] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('role, agency_id, agency_role')
+      .eq('id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('projects')
+      .select('user_id, agency_id')
+      .eq('id', launch.project_id)
+      .maybeSingle(),
+    supabase
+      .from('project_users')
+      .select('permission_level, ativo')
+      .eq('project_id', launch.project_id)
+      .eq('user_id', user.id)
+      .maybeSingle(),
+  ])
+
+  const profile = profileResult.data
+  const project = projectResult.data
+  const projectAccess = projectAccessResult.data
+  const isSystemAdmin = profile?.role === 'admin'
+  const isAgencyManager = Boolean(
+    profile?.agency_id
+    && profile.agency_id === project?.agency_id
+    && (profile.agency_role === 'admin' || profile.agency_role === 'gestor')
+  )
+  const isProjectOwner = project?.user_id === user.id
+  const hasProjectEditAccess = Boolean(
+    projectAccess?.ativo
+    && (projectAccess.permission_level === 'editor' || projectAccess.permission_level === 'admin')
+  )
+
+  return {
+    supabase,
+    user,
+    launch,
+    canManage: isSystemAdmin || isAgencyManager || isProjectOwner || hasProjectEditAccess,
+  }
 }
 
 export async function GET(
@@ -82,7 +121,7 @@ export async function GET(
     .maybeSingle()
 
   if (error) return errorResponse('Não foi possível carregar a integração do BI.', 500)
-  return NextResponse.json({ integration: data ?? null })
+  return NextResponse.json({ integration: data ?? null, canManage: context.canManage })
 }
 
 export async function POST(
@@ -92,6 +131,9 @@ export async function POST(
   const { launchId } = await params
   const context = await getAuthorizedLaunch(launchId)
   if ('error' in context) return context.error
+  if (!context.canManage) {
+    return errorResponse('Seu acesso a este projeto é somente para visualização.', 403)
+  }
 
   let body: SyncRequestBody
   try {
@@ -226,7 +268,7 @@ export async function POST(
       throw new Error('Os dados chegaram, mas o estado da integração não pôde ser atualizado.')
     }
 
-    return NextResponse.json({ integration: updatedIntegration })
+    return NextResponse.json({ integration: updatedIntegration, canManage: true })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Falha inesperada ao consultar o BI.'
     await supabase

@@ -4,9 +4,11 @@ import { useState } from 'react'
 import {
   AlertCircle,
   CheckCircle2,
+  Clock3,
   Database,
   ExternalLink,
   Link2,
+  LockKeyhole,
   RefreshCw,
 } from 'lucide-react'
 import type { LaunchBiIntegration } from '@/types/launch-bi'
@@ -23,10 +25,12 @@ interface BiSyncPanelProps {
   defaultDashboardUrl: string
   isLoading: boolean
   isSyncing: boolean
+  canManage: boolean
   onSync: (config: BiSyncConfig) => void
 }
 
 const DEFAULT_PERIOD_START = '2026-07-01'
+const STALE_AFTER_MS = 24 * 60 * 60 * 1000
 
 function formatCurrency(value: number) {
   return value.toLocaleString('pt-BR', {
@@ -47,11 +51,18 @@ function formatSyncDate(value: string | null) {
   })
 }
 
+function isSyncStale(value: string | null | undefined) {
+  if (!value) return false
+  const timestamp = new Date(value).getTime()
+  return Number.isFinite(timestamp) && Date.now() - timestamp > STALE_AFTER_MS
+}
+
 export default function BiSyncPanel({
   integration,
   defaultDashboardUrl,
   isLoading,
   isSyncing,
+  canManage,
   onSync,
 }: BiSyncPanelProps) {
   const [dashboardUrl, setDashboardUrl] = useState(
@@ -62,7 +73,8 @@ export default function BiSyncPanel({
   )
 
   const metrics = integration?.last_snapshot
-  const canSync = dashboardUrl.trim().length > 0 && !isSyncing
+  const stale = isSyncStale(integration?.last_synced_at)
+  const canSync = canManage && !isLoading && dashboardUrl.trim().length > 0 && !isSyncing
 
   return (
     <section className="bg-surface border border-border-custom rounded-xl shadow-sm overflow-hidden">
@@ -84,9 +96,19 @@ export default function BiSyncPanel({
                   <AlertCircle className="w-3 h-3" /> Erro
                 </span>
               )}
+              {stale && (
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-t">
+                  <Clock3 className="w-3 h-3" /> Desatualizado
+                </span>
+              )}
+              {!isLoading && !canManage && (
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-text3">
+                  <LockKeyhole className="w-3 h-3" /> Somente leitura
+                </span>
+              )}
             </div>
             <p className="text-[10px] text-text3 truncate">
-              CNP 2 - 2026 · {formatSyncDate(integration?.last_synced_at ?? null)}
+              CNP 2 - 2026 · {isLoading ? 'Carregando integração...' : formatSyncDate(integration?.last_synced_at ?? null)}
             </p>
           </div>
         </div>
@@ -94,6 +116,7 @@ export default function BiSyncPanel({
         <button
           type="button"
           disabled={!canSync}
+          title={!isLoading && !canManage ? 'Somente editores e administradores podem sincronizar o BI' : undefined}
           onClick={() => onSync({
             dashboardUrl: dashboardUrl.trim(),
             externalLaunchCode: '0726',
@@ -117,8 +140,9 @@ export default function BiSyncPanel({
                 type="url"
                 value={dashboardUrl}
                 onChange={(event) => setDashboardUrl(event.target.value)}
+                readOnly={!canManage}
                 placeholder="https://suporteb16-collab.github.io/..."
-                className="w-full min-w-0 bg-transparent text-[11px] text-text-custom font-mono outline-none"
+                className="w-full min-w-0 bg-transparent text-[11px] text-text-custom font-mono outline-none read-only:cursor-not-allowed"
               />
               {dashboardUrl && (
                 <a
@@ -140,7 +164,8 @@ export default function BiSyncPanel({
               type="date"
               value={periodStart}
               onChange={(event) => setPeriodStart(event.target.value)}
-              className="w-full h-9 px-3 border border-border2 rounded-lg bg-surface text-[11px] text-text-custom outline-none"
+              disabled={!canManage}
+              className="w-full h-9 px-3 border border-border2 rounded-lg bg-surface text-[11px] text-text-custom outline-none disabled:cursor-not-allowed disabled:opacity-70"
             />
           </label>
 
@@ -156,6 +181,13 @@ export default function BiSyncPanel({
           <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-bg text-red-t text-[10px]">
             <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
             <span>{integration.last_error}</span>
+          </div>
+        )}
+
+        {stale && (
+          <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-bg text-amber-t text-[10px]">
+            <Clock3 className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <span>Os dados do BI não são atualizados há mais de 24 horas.</span>
           </div>
         )}
 
@@ -191,8 +223,8 @@ export default function BiSyncPanel({
                 <thead>
                   <tr className="text-[8px] uppercase font-bold text-text3 border-b border-border-custom">
                     <th className="py-2 pr-3">Etapa</th>
-                    <th className="py-2 px-3 text-right">Planejado</th>
-                    <th className="py-2 px-3 text-right">Investido</th>
+                    <th className="py-2 px-3 text-right">Planejado no Dash</th>
+                    <th className="py-2 px-3 text-right">Investido no Dash</th>
                     <th className="py-2 pl-3 text-right">Execução</th>
                   </tr>
                 </thead>
@@ -213,6 +245,18 @@ export default function BiSyncPanel({
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr className="border-t border-border-custom font-bold text-text-custom">
+                    <td className="py-2.5 pr-3">Total do Dash</td>
+                    <td className="py-2.5 px-3 text-right">{formatCurrency(metrics.investment.planned)}</td>
+                    <td className="py-2.5 px-3 text-right">{formatCurrency(metrics.investment.total)}</td>
+                    <td className="py-2.5 pl-3 text-right">
+                      {metrics.investment.planned > 0
+                        ? `${((metrics.investment.total / metrics.investment.planned) * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
+                        : '0%'}
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
 

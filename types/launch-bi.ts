@@ -65,4 +65,5 @@ export interface LaunchBiIntegration {
 
 export interface LaunchBiSyncResponse {
   integration: LaunchBiIntegration | null
+  canManage: boolean
 }

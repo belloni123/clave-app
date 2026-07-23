@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
 import BiSyncPanel from '@/components/launches/BiSyncPanel'
-import type { LaunchBiIntegration, LaunchBiSyncResponse } from '@/types/launch-bi'
+import type { LaunchBiSyncResponse } from '@/types/launch-bi'
 import { 
   ChevronLeft, Plus, Calendar, DollarSign, Target, Award, BarChart3, 
   Settings, User, Clock, Trash, AlertTriangle, ArrowRight, Save, CheckCircle, Rocket
@@ -273,7 +273,7 @@ export default function LancamentosModule() {
   } = useQuery<LaunchBiSyncResponse>({
     queryKey: ['launch_bi_integration', selectedLaunchId],
     queryFn: async () => {
-      if (!selectedLaunchId) return { integration: null }
+      if (!selectedLaunchId) return { integration: null, canManage: false }
       const response = await fetch(`/api/lancamentos/${selectedLaunchId}/bi-sync`, {
         cache: 'no-store',
       })
@@ -522,7 +522,7 @@ export default function LancamentosModule() {
       })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Não foi possível sincronizar o BI.')
-      return payload as { integration: LaunchBiIntegration }
+      return payload as LaunchBiSyncResponse
     },
     onSuccess: (payload) => {
       queryClient.setQueryData<LaunchBiSyncResponse>(
@@ -950,7 +950,7 @@ export default function LancamentosModule() {
                         </span>
                       </div>
                       <div className="bg-surface border border-border-custom rounded-xl p-3 flex flex-col justify-between shadow-sm">
-                        <span className="text-[8px] font-bold text-text3 uppercase tracking-wider">Verba Provisionada</span>
+                        <span className="text-[8px] font-bold text-text3 uppercase tracking-wider">Verba planejada · Clave</span>
                         <span className="text-[13px] font-bold text-text-custom mt-2 truncate">
                           R$ {verbaInvestidaProvisionada.toLocaleString('pt-BR')}
                         </span>
@@ -971,6 +971,7 @@ export default function LancamentosModule() {
                       defaultDashboardUrl={defaultDashboardUrl}
                       isLoading={loadingBiIntegration}
                       isSyncing={syncBiMutation.isPending}
+                      canManage={biIntegrationResponse?.canManage ?? false}
                       onSync={(config) => syncBiMutation.mutate(config)}
                     />
 
