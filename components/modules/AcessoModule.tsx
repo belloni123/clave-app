@@ -147,7 +147,7 @@ export default function AcessoModule() {
           ativo,
           criado_em,
           user_id,
-          profiles (
+          profiles!project_users_user_id_fkey (
             nome,
             email,
             agency_role,
