@@ -22,6 +22,11 @@ Runtime secrets must stay in the deployment platform or a local ignored
 environment file. Never commit `.env*`, service-role keys, API keys, database
 passwords, access tokens, or production exports.
 
+`SUPABASE_SERVICE_ROLE_KEY` is server-only and may be used only through
+`utils/supabase/admin.ts`. Every route using it must authenticate the caller
+with `auth.getUser()` and perform an explicit authorization check before
+creating an admin client. The key must be runtime-only in Coolify.
+
 ## Project And Module Isolation
 
 Hiding a navigation item is not an authorization control. Project membership

@@ -12,6 +12,7 @@ Armazena as informações adicionais dos usuários autenticados da plataforma.
 *   `role`: `text` (Tipo de conta: `'admin'`, `'client'`, `'colab'`, `'student'`).
 *   `plan`: `text` (Plano de cobrança: `'free'`, `'pro'`, etc).
 *   `max_projects`: `integer` (Limite histórico de projetos associados. O sistema agora ignora esse limite no client-side para permitir projetos ilimitados).
+*   `nome`, `email`: identificação sincronizada com `auth.users` e usada no cadastro de acessos por projeto.
 *   `created_at`, `updated_at`: `timestamp`.
 *   `agency_id`: `uuid` (Agência à qual o perfil pertence).
 *   `agency_role`: `text` (`'admin'`, `'gestor'` ou `'colaborador'`).
@@ -205,14 +206,25 @@ essa validação além do acesso geral ao projeto.
 Para garantir consistência e evitar erros onde um usuário cadastrado no Supabase Auth fica sem perfil associado no banco, há um trigger automático pós-cadastro:
 ```sql
 create or replace function public.handle_new_user()
-returns trigger as $$
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
 begin
-  insert into public.profiles (id, role, plan, max_projects)
-  values (new.id, 'client', 'free', 2)
+  insert into public.profiles (id, role, plan, max_projects, email, nome)
+  values (
+    new.id,
+    'client',
+    'free',
+    2,
+    lower(new.email),
+    coalesce(new.raw_user_meta_data ->> 'nome', split_part(new.email, '@', 1))
+  )
   on conflict (id) do nothing;
   return new;
 end;
-$$ language plpgsql security definer;
+$$;
 
 create trigger on_auth_user_created
   after insert on auth.users
@@ -234,6 +246,8 @@ As migrações devem ser aplicadas em ordem crescente:
    permissões modulares, Comunicação por produto, agenda e eventos dos chips.
 5. `20260730200000_security_definer_hardening.sql`: fixa `search_path` e remove
    execução anônima das funções administrativas e de trigger.
+6. `20260730231015_user_invites_and_profile_contact_fields.sql`: normaliza
+   nome/e-mail dos perfis e auditoria dos convites por projeto.
 
 O deploy da aplicação não executa essas migrações. Consulte
 [DEPLOYMENT.md](./DEPLOYMENT.md) para o procedimento de produção.

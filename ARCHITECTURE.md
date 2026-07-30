@@ -81,6 +81,13 @@ Donos de projeto, administradores do sistema, administradores da agência e
 administradores do projeto têm acesso administrativo. Mudanças de nível,
 revogação e módulos são registradas em `project_access_audit`.
 
+O cadastro em `Central de acesso > Usuários e módulos` é uma operação única.
+A rota autenticada `POST /api/project-users/invite` valida se o operador pode
+administrar o projeto e, somente no servidor, usa a chave administrativa do
+Supabase para localizar ou convidar a conta. Em seguida sincroniza `profiles` e
+faz `upsert` do vínculo em `project_users`. Contas novas recebem o link para
+`/definir-senha`; contas existentes são apenas vinculadas ou reativadas.
+
 ## 4. Comunicação Por Produto/Curso
 
 `communication_products` é o primeiro nível do módulo Comunicação. Depois da

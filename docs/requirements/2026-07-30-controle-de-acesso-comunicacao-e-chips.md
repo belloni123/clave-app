@@ -122,6 +122,9 @@ Texto de apoio:
 - O projeto selecionado permanece ativo após atualização da página, desde que o
   usuário ainda tenha acesso a ele.
 - Cada vínculo em `project_users` possui uma lista de módulos permitidos.
+- Nome, e-mail, projeto e módulos são definidos em uma única operação.
+- Contas novas recebem convite para definir a senha; contas existentes são
+  vinculadas ou reativadas sem duplicação.
 - Administradores conseguem liberar ou retirar módulos por pessoa e projeto.
 - O menu, os atalhos do Dashboard e o banco respeitam a mesma permissão.
 - Comunicação começa por uma lista de produtos/cursos.

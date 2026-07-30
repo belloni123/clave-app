@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
-import { X, Check, Trash, Search, CheckSquare, Square } from 'lucide-react'
+import { X, Trash, Search, CheckSquare, Square, UserPlus } from 'lucide-react'
 import {
   DEFAULT_PROJECT_MODULES,
   PROJECT_MODULES,
@@ -119,18 +119,19 @@ const MODULE_PERMISSIONS = PROJECT_MODULES
 export default function AcessoModule() {
   const queryClient = useQueryClient()
   const supabase = createClient()
-  const { profile, showToast, activeProjectId } = useAppStore()
+  const { profile, projects, showToast, activeProjectId } = useAppStore()
 
-  const [activeSubTab, setActiveSubTab] = useState<'colabs' | 'project_users' | 'clients' | 'students' | 'net' | 'pjs'>('colabs')
+  const [activeSubTab, setActiveSubTab] = useState<'colabs' | 'project_users' | 'clients' | 'students' | 'net' | 'pjs'>('project_users')
 
   // ==========================================
   // PROJECT MEMBERS & AUDIT STATES & QUERIES
   // ==========================================
-  const [selectedMemberUserId, setSelectedMemberUserId] = useState('')
-  const [selectedMemberLevel, setSelectedMemberLevel] = useState<'viewer' | 'editor' | 'admin'>('viewer')
-  const [selectedMemberModules, setSelectedMemberModules] = useState<ProjectModuleKey[]>([
-    ...DEFAULT_PROJECT_MODULES,
-  ])
+  const [selectedMemberLevel, setSelectedMemberLevel] = useState<'viewer' | 'editor' | 'admin'>('editor')
+  const [selectedMemberModules, setSelectedMemberModules] = useState<ProjectModuleKey[]>([])
+  const [memberAccountRole, setMemberAccountRole] = useState<'colab' | 'client'>('colab')
+  const [memberName, setMemberName] = useState('')
+  const [memberEmail, setMemberEmail] = useState('')
+  const [isMemberModalOpen, setIsMemberModalOpen] = useState(false)
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false)
 
   // Load members of the active project
@@ -196,36 +197,87 @@ export default function AcessoModule() {
     enabled: !!activeProjectId,
   })
 
-  const addProjectMemberMutation = useMutation({
+  const inviteProjectMemberMutation = useMutation({
     mutationFn: async (vars: {
-      userId: string
+      name: string
+      email: string
+      accountRole: 'colab' | 'client'
       level: 'viewer' | 'editor' | 'admin'
       modules: ProjectModuleKey[]
     }) => {
-      if (!activeProjectId) return
-      const { error } = await supabase
-        .from('project_users')
-        .insert({
-          project_id: activeProjectId,
-          user_id: vars.userId,
-          permission_level: vars.level,
-          allowed_modules:
-            vars.level === 'admin' ? DEFAULT_PROJECT_MODULES : vars.modules,
-          concedido_por: profile?.id,
-        })
-      if (error) throw error
+      if (!activeProjectId) throw new Error('Selecione um projeto.')
+
+      const response = await fetch('/api/project-users/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: activeProjectId,
+          name: vars.name,
+          email: vars.email,
+          accountRole: vars.accountRole,
+          permissionLevel: vars.level,
+          modules: vars.modules,
+        }),
+      })
+      const data = await response.json() as {
+        error?: string
+        invited?: boolean
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Não foi possível criar o acesso.')
+      }
+
+      return data
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['project_members', activeProjectId] })
       queryClient.invalidateQueries({ queryKey: ['project_access_audit', activeProjectId] })
-      setSelectedMemberUserId('')
-      setSelectedMemberModules([...DEFAULT_PROJECT_MODULES])
-      showToast('Acesso concedido com sucesso!')
+      queryClient.invalidateQueries({ queryKey: ['agency_profiles', profile?.agency_id] })
+      setIsMemberModalOpen(false)
+      setMemberName('')
+      setMemberEmail('')
+      setMemberAccountRole('colab')
+      setSelectedMemberLevel('editor')
+      setSelectedMemberModules([])
+      showToast(
+        data.invited
+          ? 'Convite enviado e módulos liberados!'
+          : 'Usuário vinculado e módulos liberados!',
+      )
     },
-    onError: (err) => {
-      showToast('Erro ao conceder acesso: ' + err.message, 'err')
-    }
+    onError: (err: Error) => {
+      showToast(err.message || 'Erro ao adicionar usuário', 'err')
+    },
   })
+
+  const handleInviteProjectMember = () => {
+    if (!memberName.trim() || !memberEmail.trim()) {
+      showToast('Informe o nome e o e-mail.', 'err')
+      return
+    }
+    if (selectedMemberLevel !== 'admin' && selectedMemberModules.length === 0) {
+      showToast('Selecione pelo menos um módulo.', 'err')
+      return
+    }
+
+    inviteProjectMemberMutation.mutate({
+      name: memberName.trim(),
+      email: memberEmail.trim(),
+      accountRole: memberAccountRole,
+      level: selectedMemberLevel,
+      modules: selectedMemberModules,
+    })
+  }
+
+  const openMemberModal = () => {
+    setMemberName('')
+    setMemberEmail('')
+    setMemberAccountRole('colab')
+    setSelectedMemberLevel('editor')
+    setSelectedMemberModules([])
+    setIsMemberModalOpen(true)
+  }
 
   const updateProjectMemberMutation = useMutation({
     mutationFn: async (vars: {
@@ -371,14 +423,6 @@ export default function AcessoModule() {
     }
     if (editColabId) payload.id = editColabId
     saveColabMutation.mutate(payload)
-  }
-
-  const togglePermission = (key: string) => {
-    if (colabPerms.includes(key)) {
-      setColabPerms(colabPerms.filter((p) => p !== key))
-    } else {
-      setColabPerms([...colabPerms, key])
-    }
   }
 
   // ==========================================
@@ -725,21 +769,20 @@ export default function AcessoModule() {
   }
 
   const isAdmin = profile?.role === 'admin'
+  const activeProject = projects.find((project) => project.id === activeProjectId)
+  const currentProjectMember = projectMembers.find(
+    (member) => member.user_id === profile?.id && member.ativo,
+  )
+  const canManageProject =
+    isAdmin
+    || profile?.agency_role === 'admin'
+    || activeProject?.user_id === profile?.id
+    || currentProjectMember?.permission_level === 'admin'
 
   return (
     <div className="space-y-6">
       {/* Subtabs header */}
       <div className="flex gap-1 border-b border-border-custom flex-wrap mb-4">
-        <button
-          onClick={() => setActiveSubTab('colabs')}
-          className={`px-4 py-2 text-xs font-semibold cursor-pointer border-b-2 bg-transparent transition-colors duration-150 ${
-            activeSubTab === 'colabs'
-              ? 'border-text-custom text-text-custom'
-              : 'border-transparent text-text2 hover:text-text-custom'
-          }`}
-        >
-          Equipe / Colaboradores
-        </button>
         <button
           onClick={() => setActiveSubTab('project_users')}
           className={`px-4 py-2 text-xs font-semibold cursor-pointer border-b-2 bg-transparent transition-colors duration-150 ${
@@ -748,7 +791,17 @@ export default function AcessoModule() {
               : 'border-transparent text-text2 hover:text-text-custom'
           }`}
         >
-          Acessos do Projeto
+          Usuários e módulos
+        </button>
+        <button
+          onClick={() => setActiveSubTab('colabs')}
+          className={`px-4 py-2 text-xs font-semibold cursor-pointer border-b-2 bg-transparent transition-colors duration-150 ${
+            activeSubTab === 'colabs'
+              ? 'border-text-custom text-text-custom'
+              : 'border-transparent text-text2 hover:text-text-custom'
+          }`}
+        >
+          Cadastro interno da equipe
         </button>
         <button
           onClick={() => setActiveSubTab('clients')}
@@ -799,15 +852,15 @@ export default function AcessoModule() {
         <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4 animate-[fadeUp_0.15s_ease_both]">
           <div className="flex justify-between items-center border-b border-border-custom pb-3">
             <div>
-              <span className="text-xs font-bold text-text-custom block">Membros da Equipe</span>
-              <span className="text-[10px] text-text3 mt-0.5">Gerenciamento de acessos e permissões por colaborador</span>
+              <span className="text-xs font-bold text-text-custom block">Cadastro interno da equipe</span>
+              <span className="text-[10px] text-text3 mt-0.5">Contatos e funções da operação</span>
             </div>
             {isAdmin && (
               <button
                 onClick={() => openColabModal()}
                 className="px-3 py-1.5 bg-text-custom text-surface hover:opacity-90 rounded text-[11px] font-semibold cursor-pointer transition-colors"
               >
-                + Colaborador
+                + Contato
               </button>
             )}
           </div>
@@ -851,26 +904,6 @@ export default function AcessoModule() {
                     )}
                   </div>
 
-                  {/* Permissões */}
-                  <div className="border-t border-border-custom/50 pt-2.5">
-                    <span className="text-[9px] font-bold text-text3 block uppercase mb-1.5">
-                      Módulos Permitidos
-                    </span>
-                    <div className="flex gap-1.5 flex-wrap">
-                      {colab.permissions && colab.permissions.length > 0 ? (
-                        colab.permissions.map((p) => (
-                          <span
-                            key={p}
-                            className="text-[8px] font-semibold px-2 py-0.5 rounded bg-purple-bg text-purple-t border border-purple-custom/10 capitalize"
-                          >
-                            {p}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-[9px] text-text3 italic">Nenhum módulo permitido</span>
-                      )}
-                    </div>
-                  </div>
                 </div>
               ))
             )}
@@ -882,7 +915,7 @@ export default function AcessoModule() {
               <div className="bg-surface rounded-xl p-5 w-full max-w-[380px] shadow-2xl border border-border2">
                 <div className="flex justify-between items-center mb-4 border-b border-border-custom pb-2">
                   <p className="text-sm font-semibold text-text-custom">
-                    {editColabId ? 'Editar Colaborador' : 'Adicionar Colaborador'}
+                    {editColabId ? 'Editar contato' : 'Adicionar contato'}
                   </p>
                   <button
                     onClick={closeColabModal}
@@ -929,37 +962,6 @@ export default function AcessoModule() {
                     </select>
                   </div>
 
-                  {/* Permissões do Colaborador */}
-                  <div>
-                    <label className="text-[10px] font-bold text-text2 mb-1.5 block">
-                      Permissões de Módulo
-                    </label>
-                    <div className="grid grid-cols-2 gap-1.5 max-h-32 overflow-y-auto border border-border-custom rounded p-2.5 scrollbar-thin">
-                      {MODULE_PERMISSIONS.map((perm) => {
-                        const isChecked = colabPerms.includes(perm.key)
-                        return (
-                          <div
-                            key={perm.key}
-                            onClick={() => togglePermission(perm.key)}
-                            className="flex items-center gap-2 cursor-pointer py-0.5 select-none"
-                          >
-                            <div
-                              className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 ${
-                                isChecked
-                                  ? 'bg-purple-custom border-purple-custom text-white'
-                                  : 'border-border2 bg-transparent'
-                              }`}
-                            >
-                              {isChecked && <Check className="w-2.5 h-2.5" />}
-                            </div>
-                            <span className="text-[11px] text-text-custom truncate">
-                              {perm.name}
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
                 </div>
 
                 <div className="flex justify-between items-center gap-2 mt-6 pt-3 border-t border-border-custom">
@@ -1003,124 +1005,28 @@ export default function AcessoModule() {
         <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-5 animate-[fadeUp_0.15s_ease_both]">
           <div className="flex justify-between items-start border-b border-border-custom pb-3 flex-wrap gap-4">
             <div>
-              <span className="text-xs font-bold text-text-custom block">Acessos do Projeto</span>
+              <span className="text-xs font-bold text-text-custom block">Usuários e módulos do projeto</span>
               <span className="text-[10px] text-text3 mt-1 max-w-xl block">
                 Defina quais funcionários e clientes podem entrar neste projeto e quais módulos ficam disponíveis para cada pessoa.
               </span>
             </div>
-            
-            <button
-              onClick={() => setIsAuditModalOpen(true)}
-              className="text-[11px] text-purple-custom hover:underline font-semibold cursor-pointer"
-            >
-              Ver histórico de acessos (Auditoria)
-            </button>
-          </div>
 
-          {/* Add member form */}
-          <div className="p-4 bg-surface2/45 border border-border-custom rounded-xl space-y-3">
-            <span className="text-[10px] font-bold text-text-custom uppercase tracking-wider block">Conceder acesso a funcionário ou cliente</span>
-            <div className="flex flex-col sm:flex-row gap-3 items-end text-xs">
-              <div className="flex-1 w-full flex flex-col gap-1">
-                <span className="text-[9px] text-text2 uppercase font-bold">Colaborador</span>
-                <select
-                  className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none cursor-pointer"
-                  value={selectedMemberUserId}
-                  onChange={(e) => setSelectedMemberUserId(e.target.value)}
-                >
-                  <option value="">Selecione uma pessoa da agência...</option>
-                  {agencyProfiles
-                    .filter(ap => !projectMembers.some(pm => pm.user_id === ap.id))
-                    .map(ap => (
-                      <option key={ap.id} value={ap.id}>
-                        {ap.nome} ({ap.email})
-                      </option>
-                    ))
-                  }
-                </select>
-              </div>
-
-              <div className="w-full sm:w-36 flex flex-col gap-1">
-                <span className="text-[9px] text-text2 uppercase font-bold">Permissão</span>
-                <select
-                  className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none cursor-pointer"
-                  value={selectedMemberLevel}
-                  onChange={(e) =>
-                    setSelectedMemberLevel(
-                      e.target.value as 'viewer' | 'editor' | 'admin',
-                    )
-                  }
-                >
-                  <option value="viewer">Viewer (Leitura)</option>
-                  <option value="editor">Editor (Edição)</option>
-                  <option value="admin">Admin (Acesso total)</option>
-                </select>
-              </div>
-
+            <div className="flex items-center gap-3">
               <button
-                onClick={() => {
-                  if (!selectedMemberUserId) {
-                    showToast('Selecione um colaborador', 'err')
-                    return
-                  }
-                  addProjectMemberMutation.mutate({
-                    userId: selectedMemberUserId,
-                    level: selectedMemberLevel,
-                    modules: selectedMemberModules,
-                  })
-                }}
-                className="px-4 py-1.5 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer w-full sm:w-auto shrink-0"
+                onClick={() => setIsAuditModalOpen(true)}
+                className="text-[11px] text-purple-custom hover:underline font-semibold cursor-pointer"
               >
-                Conceder Acesso
+                Ver histórico
               </button>
-            </div>
-
-            <div className="space-y-2 border-t border-border-custom pt-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-[9px] text-text2 uppercase font-bold">Módulos liberados</span>
-                <div className="flex gap-3 text-[10px]">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMemberModules([...DEFAULT_PROJECT_MODULES])}
-                    className="text-purple-custom hover:underline cursor-pointer"
-                  >
-                    Marcar todos
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMemberModules([])}
-                    className="text-text3 hover:text-text-custom cursor-pointer"
-                  >
-                    Limpar
-                  </button>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
-                {MODULE_PERMISSIONS.map((module) => (
-                  <label
-                    key={module.key}
-                    className="flex items-center gap-2 text-[11px] text-text2 cursor-pointer min-w-0"
-                  >
-                    <input
-                      type="checkbox"
-                      className="accent-purple-custom shrink-0"
-                      checked={
-                        selectedMemberLevel === 'admin'
-                        || selectedMemberModules.includes(module.key)
-                      }
-                      disabled={selectedMemberLevel === 'admin'}
-                      onChange={(event) => {
-                        setSelectedMemberModules((current) =>
-                          event.target.checked
-                            ? [...current, module.key]
-                            : current.filter((key) => key !== module.key),
-                        )
-                      }}
-                    />
-                    <span className="truncate">{module.name}</span>
-                  </label>
-                ))}
-              </div>
+              {canManageProject && (
+                <button
+                  onClick={openMemberModal}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-text-custom text-surface rounded-md text-[11px] font-semibold hover:opacity-90"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  Adicionar usuário
+                </button>
+              )}
             </div>
           </div>
 
@@ -1162,7 +1068,7 @@ export default function AcessoModule() {
                               level: e.target.value as 'viewer' | 'editor' | 'admin',
                             })
                           }}
-                          disabled={!pm.ativo}
+                          disabled={!pm.ativo || !canManageProject}
                         >
                           <option value="viewer">Viewer</option>
                           <option value="editor">Editor</option>
@@ -1183,7 +1089,11 @@ export default function AcessoModule() {
                                   pm.permission_level === 'admin'
                                   || (pm.allowed_modules || []).includes(module.key)
                                 }
-                                disabled={!pm.ativo || pm.permission_level === 'admin'}
+                                disabled={
+                                  !pm.ativo
+                                  || !canManageProject
+                                  || pm.permission_level === 'admin'
+                                }
                                 onChange={(event) => {
                                   const current = pm.allowed_modules || []
                                   const modules = event.target.checked
@@ -1217,11 +1127,12 @@ export default function AcessoModule() {
                           onClick={() => {
                             updateProjectMemberMutation.mutate({ id: pm.id, ativo: !pm.ativo })
                           }}
+                          disabled={!canManageProject}
                           className={`px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-colors ${
                             pm.ativo
                               ? 'border border-red-t/30 text-red-t hover:bg-red-bg'
                               : 'border border-border2 text-text2 hover:bg-surface'
-                          }`}
+                          } disabled:opacity-40 disabled:cursor-not-allowed`}
                         >
                           {pm.ativo ? 'Revogar' : 'Reativar'}
                         </button>
@@ -1232,6 +1143,161 @@ export default function AcessoModule() {
               </tbody>
             </table>
           </div>
+
+          {/* ADD OR INVITE USER MODAL */}
+          {isMemberModalOpen && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-[2px] animate-fadeIn">
+              <div className="bg-surface border border-border-custom rounded-lg p-5 shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-center border-b border-border-custom pb-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-text-custom">Adicionar usuário</h3>
+                    <p className="text-[10px] text-text3 mt-0.5">
+                      {activeProject?.name || 'Projeto selecionado'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setIsMemberModalOpen(false)}
+                    className="text-text3 hover:text-text-custom cursor-pointer p-1"
+                    aria-label="Fechar"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 text-xs">
+                  <div>
+                    <label className="text-[10px] font-bold text-text2 mb-1 block">
+                      Nome completo
+                    </label>
+                    <input
+                      value={memberName}
+                      onChange={(event) => setMemberName(event.target.value)}
+                      className="w-full px-3 py-2 border border-border2 rounded-md bg-surface text-text-custom outline-none focus:border-text-custom"
+                      maxLength={120}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-text2 mb-1 block">
+                      E-mail
+                    </label>
+                    <input
+                      type="email"
+                      value={memberEmail}
+                      onChange={(event) => setMemberEmail(event.target.value)}
+                      className="w-full px-3 py-2 border border-border2 rounded-md bg-surface text-text-custom outline-none focus:border-text-custom"
+                      maxLength={254}
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-text2 mb-1 block">
+                      Tipo de usuário
+                    </label>
+                    <select
+                      value={memberAccountRole}
+                      onChange={(event) =>
+                        setMemberAccountRole(event.target.value as 'colab' | 'client')
+                      }
+                      className="w-full px-3 py-2 border border-border2 rounded-md bg-surface text-text-custom outline-none"
+                    >
+                      <option value="colab">Funcionário</option>
+                      <option value="client">Cliente</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-text2 mb-1 block">
+                      Nível no projeto
+                    </label>
+                    <select
+                      value={selectedMemberLevel}
+                      onChange={(event) =>
+                        setSelectedMemberLevel(
+                          event.target.value as 'viewer' | 'editor' | 'admin',
+                        )
+                      }
+                      className="w-full px-3 py-2 border border-border2 rounded-md bg-surface text-text-custom outline-none"
+                    >
+                      <option value="viewer">Leitura</option>
+                      <option value="editor">Edição</option>
+                      <option value="admin">Administrador</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="mt-4 border-t border-border-custom pt-4">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <span className="text-[10px] text-text2 uppercase font-bold">
+                      Módulos liberados
+                    </span>
+                    <div className="flex gap-3 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMemberModules([...DEFAULT_PROJECT_MODULES])}
+                        className="text-purple-custom hover:underline"
+                      >
+                        Marcar todos
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMemberModules([])}
+                        className="text-text3 hover:text-text-custom"
+                      >
+                        Limpar
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {MODULE_PERMISSIONS.map((module) => (
+                      <label
+                        key={module.key}
+                        className="flex items-center gap-2 px-2.5 py-2 border border-border-custom rounded-md text-[11px] text-text2 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          className="accent-purple-custom shrink-0"
+                          checked={
+                            selectedMemberLevel === 'admin'
+                            || selectedMemberModules.includes(module.key)
+                          }
+                          disabled={selectedMemberLevel === 'admin'}
+                          onChange={(event) => {
+                            setSelectedMemberModules((current) =>
+                              event.target.checked
+                                ? [...current, module.key]
+                                : current.filter((key) => key !== module.key),
+                            )
+                          }}
+                        />
+                        <span>{module.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-border-custom">
+                  <button
+                    type="button"
+                    onClick={() => setIsMemberModalOpen(false)}
+                    className="px-3 py-2 border border-border2 rounded-md text-xs text-text2 hover:bg-surface2"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleInviteProjectMember}
+                    disabled={inviteProjectMemberMutation.isPending}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-text-custom text-surface rounded-md text-xs font-semibold disabled:opacity-50"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    {inviteProjectMemberMutation.isPending
+                      ? 'Adicionando...'
+                      : 'Adicionar usuário'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* AUDIT LOG MODAL */}
           {isAuditModalOpen && (
