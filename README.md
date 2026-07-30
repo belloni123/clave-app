@@ -41,7 +41,7 @@ A plataforma unifica diversos recursos de controle operacional e estratégico em
 5.  **Comparador de Cenários**: Salva e compara múltiplos cenários de precificação em tempo real lado a lado, persistindo as informações localmente.
 6.  **Planejador Editorial**: Calendário editorial interativo que inclui simulação rápida de sincronização com o Google Calendar.
 7.  **Links & QR Code**: Gerador de tags UTM, links rápidos de WhatsApp e conversão em QR Code com opção de download de imagem em alta resolução (600x600px).
-8.  **Central de Acesso Multi-usuário**: Gerencia funcionários e clientes por projeto, com nível de acesso e seleção dos módulos liberados. O menu e a RLS do Supabase aplicam a mesma regra.
+8.  **Central de Acesso Multi-usuário**: Cria ou vincula funcionários e clientes por e-mail, envia convite para contas novas e define os módulos liberados em cada projeto. O menu e a RLS do Supabase aplicam a mesma regra.
 9.  **Dados do BI em Lançamentos**: O lançamento CNP 2 - 2026 pode sincronizar investimento, leads, vendas, faturamento, CPL e ROAS a partir do dashboard público da B16. A escrita exige acesso de gestão e mantém histórico de snapshots por projeto.
 10. **Comunicação por Produto/Curso**: Cada produto ou curso possui Identidades, Urgências, Bloqueios, VSL e Página de Vendas próprias, incluindo Mecanismo Único, Resultado-Alvo e Benefício Estendido.
 11. **Controle Operacional de Chips**: Mantém histórico automático de status e recargas com data e hora, Restrição 24h e alertas calculados de próxima recarga.
@@ -59,12 +59,13 @@ Crie um arquivo chamado `.env.local` na pasta raiz e insira as chaves de acesso:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-anon-key-publica
+SUPABASE_SERVICE_ROLE_KEY=sua-service-role-key-privada
 GEMINI_API_KEY=sua-gemini-api-key-privada
 ```
 
-O runtime da aplicação não usa `SUPABASE_SERVICE_ROLE_KEY`. Essa chave só deve
-existir localmente quando um script administrativo explicitamente exigir e
-nunca deve ser configurada no frontend ou commitada.
+`SUPABASE_SERVICE_ROLE_KEY` é usada apenas no servidor pela rota administrativa
+de convites. Nunca use o prefixo `NEXT_PUBLIC_`, nunca disponibilize essa
+variável durante o build e nunca a envie ao navegador ou ao Git.
 
 ### 3. Executando os Comandos
 ```bash

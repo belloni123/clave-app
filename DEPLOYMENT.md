@@ -10,11 +10,13 @@ uma imagem não aplica migrações no Supabase.
 | :--- | :---: | :--- | :--- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Sim | Frontend e backend | URL pública da API do projeto Supabase. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Sim | Frontend e backend | Chave anônima pública; a autorização real é feita por Auth + RLS. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Sim | Somente backend/runtime | Chave administrativa usada exclusivamente para convidar usuários e sincronizar seus vínculos. |
 | `GEMINI_API_KEY` | Produção | Somente backend | Chave da API Gemini usada pela rota de IA. |
 
-O runtime não usa `SUPABASE_SERVICE_ROLE_KEY`. Não configure essa chave no
-Coolify. Scripts administrativos locais podem pedi-la explicitamente, mas ela
-deve permanecer em um arquivo ignorado e nunca ser exposta ao navegador.
+`SUPABASE_SERVICE_ROLE_KEY` nunca pode usar o prefixo `NEXT_PUBLIC_`, ficar
+disponível durante o build ou ser enviada ao navegador. A rota de convite
+primeiro autentica o operador e valida a administração do projeto antes de
+criar ou vincular qualquer conta.
 
 ## 2. Ordem Das Migrações
 
@@ -29,6 +31,7 @@ As migrações da integração de BI devem existir no Supabase nesta ordem:
 7. `20260723150322_launch_bi_standard_guardrails.sql`
 8. `20260730190000_project_modules_communication_products_chip_events.sql`
 9. `20260730200000_security_definer_hardening.sql`
+10. `20260730231015_user_invites_and_profile_contact_fields.sql`
 
 A terceira migração valida os registros existentes antes de criar constraints
 compostas. Se ela acusar referências inconsistentes, não faça o redeploy: corrija
@@ -100,6 +103,8 @@ histórico JSON dos chips para `chip_events` e só então ativa os novos trigger
 Ela deve ser aplicada antes de publicar a interface que consulta essas tabelas.
 A nona migração remove exposição RPC desnecessária de triggers e fixa o
 `search_path` das funções legadas apontadas pelo advisor de segurança.
+A décima documenta nome/e-mail em `profiles`, sincroniza novos usuários do Auth
+e preserva o ator da auditoria quando o vínculo é criado pela rota do servidor.
 - O dashboard legado `dashboard-b16-cnp0426` é exclusivo do lançamento
   `CNP 2 - 2026` com código `0726`.
 - Lançamentos novos começam sem dashboard herdado. O gestor deve colar a URL
@@ -145,6 +150,7 @@ healthcheck em `/api/health`.
 docker run --rm -p 3000:3000 \
   -e NEXT_PUBLIC_SUPABASE_URL="https://seu-projeto.supabase.co" \
   -e NEXT_PUBLIC_SUPABASE_ANON_KEY="sua-anon-key" \
+  -e SUPABASE_SERVICE_ROLE_KEY="sua-service-role-key" \
   -e GEMINI_API_KEY="sua-gemini-key" \
   clave-app:release
 ```
@@ -162,12 +168,19 @@ Resposta esperada: `{"status":"ok"}`.
 1. Confirme que o repositório é `belloni123/clave-app` e que a branch de
    produção é `main`.
 2. Faça merge do pull request somente depois dos checks verdes.
-3. Confirme as três variáveis de ambiente da seção 1. Não adicione service role.
+3. Confirme as quatro variáveis de ambiente da seção 1.
 4. Marque `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` como
    disponíveis durante o build e durante o runtime.
-5. Use o `Dockerfile` da raiz e porta `3000`.
-6. Dispare o redeploy manual no Coolify.
-7. Aguarde o healthcheck ficar saudável antes de encerrar a versão anterior.
+5. Mantenha `SUPABASE_SERVICE_ROLE_KEY` e `GEMINI_API_KEY` somente no runtime,
+   com a opção de build desmarcada.
+6. No Supabase Auth, permita
+   `https://clave.agenciab16.com.br/auth/callback` e
+   `https://clave.agenciab16.com.br/definir-senha` como URLs de
+   redirecionamento e mantenha um SMTP apto a enviar convites aos usuários
+   finais.
+7. Use o `Dockerfile` da raiz e porta `3000`.
+8. Dispare o redeploy manual no Coolify.
+9. Aguarde o healthcheck ficar saudável antes de encerrar a versão anterior.
 
 Este repositório não executa ações no Coolify automaticamente. O redeploy é uma
 operação manual do responsável pelo ambiente.
@@ -185,9 +198,11 @@ operação manual do responsável pelo ambiente.
 8. Verifique os logs do container para erros `5xx` ou falhas de healthcheck.
 9. Atualize a página em um projeto diferente do primeiro e confirme que a seleção permanece.
 10. Em Central de acesso, limite um usuário de teste ao Controle de Chips e confirme menu e RLS.
-11. Em Comunicação, abra `Produto principal`, crie outro produto e confirme que os campos não se misturam.
-12. Em Chips, altere um status para `Restrição 24h`, volte para `Ativo` e confirme os dois eventos com horário.
-13. Informe última recarga e ciclo; confirme a data gerada em Próx. Recarga e o alerta correspondente.
+11. Convide um e-mail de teste, abra o link recebido, defina a senha e confirme
+    que somente o Dashboard e o Controle de Chips ficam visíveis naquele projeto.
+12. Em Comunicação, abra `Produto principal`, crie outro produto e confirme que os campos não se misturam.
+13. Em Chips, altere um status para `Restrição 24h`, volte para `Ativo` e confirme os dois eventos com horário.
+14. Informe última recarga e ciclo; confirme a data gerada em Próx. Recarga e o alerta correspondente.
 
 ## 7. Rollback
 
