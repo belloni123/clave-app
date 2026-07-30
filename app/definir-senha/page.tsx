@@ -82,16 +82,16 @@ export default function DefinirSenhaPage() {
             src="/logo_white.svg"
             alt="Clave"
             width={140}
-            height={40}
-            className="dark:block hidden"
+            height={26}
+            className="w-[140px] h-auto dark:block hidden"
             priority
           />
           <Image
             src="/logo_black.svg"
             alt="Clave"
             width={140}
-            height={40}
-            className="dark:hidden block"
+            height={26}
+            className="w-[140px] h-auto dark:hidden block"
             priority
           />
         </div>
