@@ -31,6 +31,34 @@ Define o acesso atual de cada perfil a um projeto.
 *   `project_id`, `user_id`: relação única entre projeto e perfil.
 *   `permission_level`: `'viewer'`, `'editor'` ou `'admin'`.
 *   `ativo`: indica se o acesso continua válido.
+*   `allowed_modules`: `text[]` com os módulos liberados nesse projeto. Os valores válidos são `concepcao`, `comunicacao`, `lancamentos`, `validacao`, `historias`, `financeiro`, `planejador`, `urlbuilder`, `chips` e `acesso`.
+
+### `public.communication_products`
+Catálogo de produtos e cursos dentro de cada projeto.
+*   `project_id`: projeto proprietário.
+*   `name`: nome exibido na entrada de Comunicação.
+*   `archived`: arquivamento lógico.
+*   `created_by`, `created_at`, `updated_at`: auditoria.
+
+### `public.communication_product_fields`
+Todos os campos das abas de Comunicação, isolados por produto.
+*   `product_id`: referencia `communication_products`.
+*   `key`, `value`: identificador estável e conteúdo do campo.
+*   A combinação `(product_id, key)` é única.
+
+### `public.chips`
+Estado atual de cada chip do projeto.
+*   `status`: inclui `Restrição 24h` além dos estados anteriores.
+*   `ultima_recarga`, `periodicidade`: base da agenda de recarga.
+*   `proxima_recarga`: coluna gerada por `ultima_recarga + periodicidade`.
+*   `restricao_24h_ate`: instante agendado para verificar a liberação.
+
+### `public.chip_events`
+Histórico normalizado e cronológico dos chips.
+*   `event_type`: cadastro, mudança de status, recarga, anotação manual ou evento legado.
+*   `previous_status`, `new_status`: transição, quando aplicável.
+*   `note`, `occurred_at`, `actor_id`: descrição, data/hora e usuário responsável.
+*   `metadata`: dados complementares, como próxima recarga e prazo de verificação.
 
 ### `public.lancamentos`
 Representa um lançamento dentro de um projeto.
@@ -110,7 +138,7 @@ Armazena as respostas da **Matriz do Perpétuo** (18 perguntas).
 Para impedir que dados de um cliente vazem para outro, a plataforma tem a segurança RLS habilitada em todas as tabelas transacionais.
 
 ### Políticas de Projetos (`public.projects`):
-1.  **Leitura (SELECT)**: Um projeto só é visível se o usuário for o dono (`user_id = auth.uid()`), for um administrador do sistema, ou estiver associado na tabela de colaboradores (`colab_assignments`).
+1.  **Leitura (SELECT)**: Um projeto só é visível se o usuário for o dono, administrador ou possuir vínculo ativo em `project_users`. `colab_assignments` continua compatível com os vínculos legados.
 2.  **Modificação (ALL)**: Apenas o dono ou um administrador podem deletar, alterar ou criar projetos.
 
 ### Políticas do BI
@@ -162,6 +190,13 @@ ativos com permissão `editor` ou `admin`. A função não substitui as constrai
 relacionais: autorização do usuário e integridade dos objetos são controles
 independentes.
 
+#### Funções de acesso modular:
+
+`public.user_can_administer_project` identifica quem pode gerenciar pessoas e
+permissões. `public.user_has_project_module_access` combina esse privilégio com
+`project_users.allowed_modules`. As políticas restritivas dos módulos exigem
+essa validação além do acesso geral ao projeto.
+
 ---
 
 ## 3. Triggers do Sistema
@@ -195,6 +230,10 @@ As migrações devem ser aplicadas em ordem crescente:
    escrita e cria `user_can_manage_project`.
 3. `20260723020000_launch_bi_scope_integrity.sql`: valida os dados existentes e
    cria foreign keys compostas para o isolamento entre projetos.
+4. `20260730190000_project_modules_communication_products_chip_events.sql`:
+   permissões modulares, Comunicação por produto, agenda e eventos dos chips.
+5. `20260730200000_security_definer_hardening.sql`: fixa `search_path` e remove
+   execução anônima das funções administrativas e de trigger.
 
 O deploy da aplicação não executa essas migrações. Consulte
 [DEPLOYMENT.md](./DEPLOYMENT.md) para o procedimento de produção.

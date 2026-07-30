@@ -12,6 +12,7 @@ Para facilitar o desenvolvimento, a manutenção e o deploy do sistema, a docume
 *   **[Modelo de Banco de Dados e Segurança (DATABASE.md)](./DATABASE.md)**: Dicionário de tabelas do banco de dados, mapeamento de chaves estrangeiras, triggers de inicialização de perfil e políticas RLS detalhadas com funções de desvio para evitar recursão infinita.
 *   **[Manual de Implantação e Deploy (DEPLOYMENT.md)](./DEPLOYMENT.md)**: Orientações de configuração de variáveis de ambiente e deploy em nuvem através da Vercel, Docker Standalone ou VPS própria via Coolify.
 *   **[Política de Segurança (SECURITY.md)](./SECURITY.md)**: Versão suportada, canal privado de reporte e regras para tratamento de segredos.
+*   **[Requisitos de julho de 2026](./docs/requirements/2026-07-30-controle-de-acesso-comunicacao-e-chips.md)**: Transcrições e critérios de aceite de acesso modular, Comunicação por produto e Controle de Chips.
 
 ---
 
@@ -40,8 +41,10 @@ A plataforma unifica diversos recursos de controle operacional e estratégico em
 5.  **Comparador de Cenários**: Salva e compara múltiplos cenários de precificação em tempo real lado a lado, persistindo as informações localmente.
 6.  **Planejador Editorial**: Calendário editorial interativo que inclui simulação rápida de sincronização com o Google Calendar.
 7.  **Links & QR Code**: Gerador de tags UTM, links rápidos de WhatsApp e conversão em QR Code com opção de download de imagem em alta resolução (600x600px).
-8.  **Central de Acesso Multi-usuário**: Gerencia permissões de equipe, classificando novos acessos em badges específicas para a B16 (Equipe B16, Clientes B16 e Alunos).
+8.  **Central de Acesso Multi-usuário**: Gerencia funcionários e clientes por projeto, com nível de acesso e seleção dos módulos liberados. O menu e a RLS do Supabase aplicam a mesma regra.
 9.  **Dados do BI em Lançamentos**: O lançamento CNP 2 - 2026 pode sincronizar investimento, leads, vendas, faturamento, CPL e ROAS a partir do dashboard público da B16. A escrita exige acesso de gestão e mantém histórico de snapshots por projeto.
+10. **Comunicação por Produto/Curso**: Cada produto ou curso possui Identidades, Urgências, Bloqueios, VSL e Página de Vendas próprias, incluindo Mecanismo Único, Resultado-Alvo e Benefício Estendido.
+11. **Controle Operacional de Chips**: Mantém histórico automático de status e recargas com data e hora, Restrição 24h e alertas calculados de próxima recarga.
 
 ---
 

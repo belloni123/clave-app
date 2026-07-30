@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { useAppStore, MaturityLevel } from '@/store/useAppStore'
+import type { AppModuleKey } from '@/utils/module-access'
 import {
   Lightbulb,
   MessageSquare,
@@ -12,7 +13,7 @@ import {
 } from 'lucide-react'
 
 interface PrioItem {
-  module: string
+  module: AppModuleKey
   label: string
 }
 
@@ -107,12 +108,26 @@ const MODULE_NAMES: Record<string, string> = {
 }
 
 export default function DashboardModule() {
-  const { currentLevel, setActiveModule, getActiveProject } = useAppStore()
+  const {
+    currentLevel,
+    setActiveModule,
+    getActiveProject,
+    allowedModules,
+  } = useAppStore()
 
   const config = LEVEL_CONFIGS[currentLevel] || LEVEL_CONFIGS.newbie
   const activeProj = getActiveProject()
 
-  const homeCards = [
+  type HomeCard = {
+    id: AppModuleKey
+    title: string
+    desc: string
+    bg: string
+    icon: React.ComponentType<{ className?: string }>
+    iconColor: string
+  }
+
+  const allHomeCards: HomeCard[] = [
     {
       id: 'concepcao',
       title: 'Concepção do produto',
@@ -163,6 +178,12 @@ export default function DashboardModule() {
     },
   ]
 
+  const homeCards = allHomeCards.filter((card) => allowedModules.includes(card.id))
+
+  const visiblePriorities = config.prios.filter((priority) =>
+    allowedModules.includes(priority.module),
+  )
+
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
@@ -189,7 +210,7 @@ export default function DashboardModule() {
         </p>
 
         <div className="flex flex-col gap-2 mt-4">
-          {config.prios.map((p, idx) => (
+          {visiblePriorities.map((p, idx) => (
             <div key={idx} className="flex items-center gap-3">
               <div
                 className="w-5 h-5 rounded-full text-white text-[10px] font-bold flex items-center justify-center shrink-0 shadow-sm"

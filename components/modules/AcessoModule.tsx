@@ -4,7 +4,12 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
-import { X, Check, Plus, Trash, Search, CheckSquare, Square } from 'lucide-react'
+import { X, Check, Trash, Search, CheckSquare, Square } from 'lucide-react'
+import {
+  DEFAULT_PROJECT_MODULES,
+  PROJECT_MODULES,
+  type ProjectModuleKey,
+} from '@/utils/module-access'
 
 interface SaveColabPayload {
   id?: string
@@ -72,17 +77,44 @@ interface SubProject {
   tasks: SubTask[]
 }
 
+interface ProjectMember {
+  id: string
+  permission_level: 'viewer' | 'editor' | 'admin'
+  allowed_modules: ProjectModuleKey[]
+  ativo: boolean
+  criado_em: string
+  user_id: string
+  profiles: {
+    nome: string | null
+    email: string | null
+    agency_role: string | null
+    role: string | null
+  } | null
+}
+
+interface AgencyProfile {
+  id: string
+  nome: string | null
+  email: string | null
+  agency_role: string | null
+  role: string | null
+}
+
+interface ProjectAccessAudit {
+  id: string
+  target_user_id: string
+  actor_id: string | null
+  acao: 'grant' | 'revoke' | 'update_level' | 'update_modules'
+  nivel_anterior: string | null
+  nivel_novo: string | null
+  modulos_anteriores: ProjectModuleKey[] | null
+  modulos_novos: ProjectModuleKey[] | null
+  criado_em: string
+}
+
 const ROLES = ['Equipe B16', 'Clientes B16', 'Alunos da mentoria/consultoria']
 
-const MODULE_PERMISSIONS = [
-  { key: 'concepcao', name: 'Concepção' },
-  { key: 'comunicacao', name: 'Comunicação' },
-  { key: 'lancamentos', name: 'Lançamentos' },
-  { key: 'validacao', name: 'Validação Direta' },
-  { key: 'historias', name: 'Banco de Histórias' },
-  { key: 'financeiro', name: 'Financeiro' },
-  { key: 'planejador', name: 'Planejador' },
-]
+const MODULE_PERMISSIONS = PROJECT_MODULES
 
 export default function AcessoModule() {
   const queryClient = useQueryClient()
@@ -96,6 +128,9 @@ export default function AcessoModule() {
   // ==========================================
   const [selectedMemberUserId, setSelectedMemberUserId] = useState('')
   const [selectedMemberLevel, setSelectedMemberLevel] = useState<'viewer' | 'editor' | 'admin'>('viewer')
+  const [selectedMemberModules, setSelectedMemberModules] = useState<ProjectModuleKey[]>([
+    ...DEFAULT_PROJECT_MODULES,
+  ])
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false)
 
   // Load members of the active project
@@ -108,13 +143,15 @@ export default function AcessoModule() {
         .select(`
           id,
           permission_level,
+          allowed_modules,
           ativo,
           criado_em,
           user_id,
           profiles (
             nome,
             email,
-            agency_role
+            agency_role,
+            role
           )
         `)
         .eq('project_id', activeProjectId)
@@ -122,7 +159,7 @@ export default function AcessoModule() {
         showToast('Erro ao carregar colaboradores do projeto', 'err')
         return []
       }
-      return data as any[]
+      return data as unknown as ProjectMember[]
     },
     enabled: !!activeProjectId,
   })
@@ -134,11 +171,11 @@ export default function AcessoModule() {
       if (!profile?.agency_id) return []
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, nome, email, agency_role')
+        .select('id, nome, email, agency_role, role')
         .eq('agency_id', profile.agency_id)
         .is('deleted_at', null)
       if (error) return []
-      return data as any[]
+      return data as AgencyProfile[]
     },
     enabled: !!profile?.agency_id,
   })
@@ -154,13 +191,17 @@ export default function AcessoModule() {
         .eq('project_id', activeProjectId)
         .order('criado_em', { ascending: false })
       if (error) return []
-      return data as any[]
+      return data as ProjectAccessAudit[]
     },
     enabled: !!activeProjectId,
   })
 
   const addProjectMemberMutation = useMutation({
-    mutationFn: async (vars: { userId: string; level: 'viewer' | 'editor' | 'admin' }) => {
+    mutationFn: async (vars: {
+      userId: string
+      level: 'viewer' | 'editor' | 'admin'
+      modules: ProjectModuleKey[]
+    }) => {
       if (!activeProjectId) return
       const { error } = await supabase
         .from('project_users')
@@ -168,7 +209,9 @@ export default function AcessoModule() {
           project_id: activeProjectId,
           user_id: vars.userId,
           permission_level: vars.level,
-          concedido_por: profile?.id
+          allowed_modules:
+            vars.level === 'admin' ? DEFAULT_PROJECT_MODULES : vars.modules,
+          concedido_por: profile?.id,
         })
       if (error) throw error
     },
@@ -176,6 +219,7 @@ export default function AcessoModule() {
       queryClient.invalidateQueries({ queryKey: ['project_members', activeProjectId] })
       queryClient.invalidateQueries({ queryKey: ['project_access_audit', activeProjectId] })
       setSelectedMemberUserId('')
+      setSelectedMemberModules([...DEFAULT_PROJECT_MODULES])
       showToast('Acesso concedido com sucesso!')
     },
     onError: (err) => {
@@ -184,9 +228,20 @@ export default function AcessoModule() {
   })
 
   const updateProjectMemberMutation = useMutation({
-    mutationFn: async (vars: { id: string; level?: 'viewer' | 'editor' | 'admin'; ativo?: boolean }) => {
-      const updateData: any = {}
+    mutationFn: async (vars: {
+      id: string
+      level?: 'viewer' | 'editor' | 'admin'
+      ativo?: boolean
+      modules?: ProjectModuleKey[]
+    }) => {
+      const updateData: {
+        permission_level?: 'viewer' | 'editor' | 'admin'
+        ativo?: boolean
+        revogado_em?: string | null
+        allowed_modules?: ProjectModuleKey[]
+      } = {}
       if (vars.level !== undefined) updateData.permission_level = vars.level
+      if (vars.modules !== undefined) updateData.allowed_modules = vars.modules
       if (vars.ativo !== undefined) {
         updateData.ativo = vars.ativo
         if (!vars.ativo) {
@@ -264,7 +319,7 @@ export default function AcessoModule() {
       showToast(editColabId ? 'Colaborador atualizado' : 'Colaborador adicionado')
       closeColabModal()
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       showToast('Erro ao salvar colaborador: ' + (err.message || 'Erro desconhecido'), 'err')
     },
   })
@@ -364,7 +419,7 @@ export default function AcessoModule() {
       showToast(editClientId ? 'Cliente atualizado' : 'Cliente adicionado')
       closeClientModal()
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       showToast('Erro ao salvar cliente: ' + (err.message || 'Erro desconhecido'), 'err')
     },
   })
@@ -950,7 +1005,7 @@ export default function AcessoModule() {
             <div>
               <span className="text-xs font-bold text-text-custom block">Acessos do Projeto</span>
               <span className="text-[10px] text-text3 mt-1 max-w-xl block">
-                Este acesso libera automaticamente todos os lançamentos e briefings deste projeto — não é possível liberar um lançamento ou briefing individualmente.
+                Defina quais funcionários e clientes podem entrar neste projeto e quais módulos ficam disponíveis para cada pessoa.
               </span>
             </div>
             
@@ -964,7 +1019,7 @@ export default function AcessoModule() {
 
           {/* Add member form */}
           <div className="p-4 bg-surface2/45 border border-border-custom rounded-xl space-y-3">
-            <span className="text-[10px] font-bold text-text-custom uppercase tracking-wider block">Conceder acesso a novo colaborador</span>
+            <span className="text-[10px] font-bold text-text-custom uppercase tracking-wider block">Conceder acesso a funcionário ou cliente</span>
             <div className="flex flex-col sm:flex-row gap-3 items-end text-xs">
               <div className="flex-1 w-full flex flex-col gap-1">
                 <span className="text-[9px] text-text2 uppercase font-bold">Colaborador</span>
@@ -973,7 +1028,7 @@ export default function AcessoModule() {
                   value={selectedMemberUserId}
                   onChange={(e) => setSelectedMemberUserId(e.target.value)}
                 >
-                  <option value="">Selecione um colaborador da agência...</option>
+                  <option value="">Selecione uma pessoa da agência...</option>
                   {agencyProfiles
                     .filter(ap => !projectMembers.some(pm => pm.user_id === ap.id))
                     .map(ap => (
@@ -990,7 +1045,11 @@ export default function AcessoModule() {
                 <select
                   className="w-full px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none cursor-pointer"
                   value={selectedMemberLevel}
-                  onChange={(e) => setSelectedMemberLevel(e.target.value as any)}
+                  onChange={(e) =>
+                    setSelectedMemberLevel(
+                      e.target.value as 'viewer' | 'editor' | 'admin',
+                    )
+                  }
                 >
                   <option value="viewer">Viewer (Leitura)</option>
                   <option value="editor">Editor (Edição)</option>
@@ -1006,13 +1065,62 @@ export default function AcessoModule() {
                   }
                   addProjectMemberMutation.mutate({
                     userId: selectedMemberUserId,
-                    level: selectedMemberLevel
+                    level: selectedMemberLevel,
+                    modules: selectedMemberModules,
                   })
                 }}
                 className="px-4 py-1.5 bg-text-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer w-full sm:w-auto shrink-0"
               >
                 Conceder Acesso
               </button>
+            </div>
+
+            <div className="space-y-2 border-t border-border-custom pt-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-[9px] text-text2 uppercase font-bold">Módulos liberados</span>
+                <div className="flex gap-3 text-[10px]">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMemberModules([...DEFAULT_PROJECT_MODULES])}
+                    className="text-purple-custom hover:underline cursor-pointer"
+                  >
+                    Marcar todos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMemberModules([])}
+                    className="text-text3 hover:text-text-custom cursor-pointer"
+                  >
+                    Limpar
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2">
+                {MODULE_PERMISSIONS.map((module) => (
+                  <label
+                    key={module.key}
+                    className="flex items-center gap-2 text-[11px] text-text2 cursor-pointer min-w-0"
+                  >
+                    <input
+                      type="checkbox"
+                      className="accent-purple-custom shrink-0"
+                      checked={
+                        selectedMemberLevel === 'admin'
+                        || selectedMemberModules.includes(module.key)
+                      }
+                      disabled={selectedMemberLevel === 'admin'}
+                      onChange={(event) => {
+                        setSelectedMemberModules((current) =>
+                          event.target.checked
+                            ? [...current, module.key]
+                            : current.filter((key) => key !== module.key),
+                        )
+                      }}
+                    />
+                    <span className="truncate">{module.name}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -1025,6 +1133,7 @@ export default function AcessoModule() {
                   <th className="p-3 text-text3 font-semibold text-[10px] uppercase">E-mail</th>
                   <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Papel na Agência</th>
                   <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Nível no Projeto</th>
+                  <th className="p-3 text-text3 font-semibold text-[10px] uppercase min-w-72">Módulos</th>
                   <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Data Concessão</th>
                   <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Status</th>
                   <th className="p-3 text-text3 font-semibold text-[10px] uppercase text-right">Revogar</th>
@@ -1033,8 +1142,8 @@ export default function AcessoModule() {
               <tbody className="divide-y divide-border-custom">
                 {projectMembers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="p-6 text-center text-text3">
-                      Nenhum colaborador vinculado a este projeto.
+                    <td colSpan={8} className="p-6 text-center text-text3">
+                      Nenhuma pessoa vinculada a este projeto.
                     </td>
                   </tr>
                 ) : (
@@ -1048,7 +1157,10 @@ export default function AcessoModule() {
                           className="px-2.5 py-1 border border-border2 rounded bg-surface text-text-custom text-xs outline-none cursor-pointer"
                           value={pm.permission_level}
                           onChange={(e) => {
-                            updateProjectMemberMutation.mutate({ id: pm.id, level: e.target.value as any })
+                            updateProjectMemberMutation.mutate({
+                              id: pm.id,
+                              level: e.target.value as 'viewer' | 'editor' | 'admin',
+                            })
                           }}
                           disabled={!pm.ativo}
                         >
@@ -1056,6 +1168,37 @@ export default function AcessoModule() {
                           <option value="editor">Editor</option>
                           <option value="admin">Admin</option>
                         </select>
+                      </td>
+                      <td className="p-3">
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 min-w-64">
+                          {MODULE_PERMISSIONS.map((module) => (
+                            <label
+                              key={module.key}
+                              className="flex items-center gap-1.5 text-[10px] text-text2 cursor-pointer min-w-0"
+                            >
+                              <input
+                                type="checkbox"
+                                className="accent-purple-custom shrink-0"
+                                checked={
+                                  pm.permission_level === 'admin'
+                                  || (pm.allowed_modules || []).includes(module.key)
+                                }
+                                disabled={!pm.ativo || pm.permission_level === 'admin'}
+                                onChange={(event) => {
+                                  const current = pm.allowed_modules || []
+                                  const modules = event.target.checked
+                                    ? [...current, module.key]
+                                    : current.filter((key) => key !== module.key)
+                                  updateProjectMemberMutation.mutate({
+                                    id: pm.id,
+                                    modules,
+                                  })
+                                }}
+                              />
+                              <span className="truncate">{module.name}</span>
+                            </label>
+                          ))}
+                        </div>
                       </td>
                       <td className="p-3 text-text3">
                         {pm.criado_em ? new Date(pm.criado_em).toLocaleDateString('pt-BR') : '-'}
@@ -1115,6 +1258,10 @@ export default function AcessoModule() {
                       if (log.acao === 'grant') msg = `Acesso concedido como ${log.nivel_novo}`
                       if (log.acao === 'revoke') msg = `Acesso revogado`
                       if (log.acao === 'update_level') msg = `Nível alterado de ${log.nivel_anterior} para ${log.nivel_novo}`
+                      if (log.acao === 'update_modules') {
+                        const enabled = log.modulos_novos?.length || 0
+                        msg = `Módulos atualizados: ${enabled} liberados`
+                      }
 
                       return (
                         <div key={log.id} className="p-3 bg-surface2/50 border border-border-custom rounded-lg text-xs space-y-1.5">

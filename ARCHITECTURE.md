@@ -56,7 +56,8 @@ A plataforma utiliza o **Zustand** (`store/useAppStore.ts`) para manter o estado
 
 ### Estado Armazenado:
 *   **Autenticação e Perfil (`profile`)**: Dados do perfil carregados do Supabase no login (role, plano, etc).
-*   **Projetos e Seleção (`projects`, `activeProjectId`)**: Lista de projetos ativos e ID do projeto selecionado como escopo atual.
+*   **Projetos e Seleção (`projects`, `activeProjectId`)**: Lista de projetos ativos e ID do projeto selecionado como escopo atual. O ID é salvo em `localStorage` e só é restaurado se continuar presente na lista autorizada.
+*   **Módulos Permitidos (`allowedModules`)**: Lista carregada de `project_users.allowed_modules`; controla menu, atalhos e retorno seguro ao Dashboard quando o acesso muda.
 *   **Nível de Maturidade (`currentLevel`)**: O nível do projeto ativo (Fundação, Estruturação, Tração, Expansão, Escala) mapeado a partir de valores do banco (`newbie`, `soft`, `hard`, `pro`, `master`).
 *   **Navegação Ativa (`activeModule`, `activeTab`)**: Identificador do módulo carregado no painel central e sub-aba correspondente.
 *   **Interface da Sidebar (`sidebarCollapsed`)**: Estado colapsado/expandido do menu de navegação lateral.
@@ -65,7 +66,36 @@ A plataforma utiliza o **Zustand** (`store/useAppStore.ts`) para manter o estado
 
 ---
 
-## 3. Integração e Segurança de Inteligência Artificial
+## 3. Autorização Por Projeto e Módulo
+
+O acesso possui duas camadas complementares:
+
+1. `project_users` define vínculo, nível (`viewer`, `editor`, `admin`) e
+   `allowed_modules`.
+2. Políticas RLS restritivas usam
+   `user_has_project_module_access(project_id, module, auth.uid())` para
+   proteger os dados mesmo quando a API do Supabase é chamada fora da
+   interface.
+
+Donos de projeto, administradores do sistema, administradores da agência e
+administradores do projeto têm acesso administrativo. Mudanças de nível,
+revogação e módulos são registradas em `project_access_audit`.
+
+## 4. Comunicação Por Produto/Curso
+
+`communication_products` é o primeiro nível do módulo Comunicação. Depois da
+seleção, todas as abas usam `communication_product_fields`, com chave única por
+produto. A migração cria `Produto principal` e copia os campos antigos de
+`text_fields`, sem apagar a origem.
+
+## 5. Histórico Operacional Dos Chips
+
+`chips` guarda o estado atual e as datas calculadas. `chip_events` é o log
+imutável de eventos automáticos e anotações manuais. Triggers registram o
+cadastro, toda transição de status e recargas; a entrada em `Restrição 24h`
+também agenda `restricao_24h_ate`.
+
+## 6. Integração e Segurança de Inteligência Artificial
 
 As chamadas para Inteligência Artificial utilizam a API oficial do Gemini de forma segura contra a exposição de chaves no frontend.
 
@@ -80,7 +110,7 @@ As chamadas para Inteligência Artificial utilizam a API oficial do Gemini de fo
 
 ---
 
-## 4. Sincronização de BI dos Lançamentos
+## 7. Sincronização de BI dos Lançamentos
 
 O módulo de Lançamentos possui um conector server-side dedicado para trazer
 dados do dashboard B16 para o Supabase sem depender de acesso direto ao banco
@@ -115,7 +145,7 @@ representem a mesma relação, inclusive em chamadas diretas à API do Supabase.
 Uma integração pertence a um único lançamento. Lançamentos sem integração não
 recebem URL nem snapshot de outro lançamento como valor padrão.
 
-## 5. UI Shell e Responsividade
+## 8. UI Shell e Responsividade
 
 Para atender aos padrões modernos de design e acessibilidade, a plataforma utiliza o padrão de **App Shell** responsivo:
 

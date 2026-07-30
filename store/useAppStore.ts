@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { AppModuleKey } from '@/utils/module-access'
 
 export type UserRole = 'admin' | 'client' | 'colab' | 'student'
 export type MaturityLevel = 'newbie' | 'soft' | 'hard' | 'pro' | 'master'
@@ -18,6 +19,9 @@ export interface UserProfile {
   plan: string
   max_projects: number
   agency_id?: string | null
+  agency_role?: 'admin' | 'gestor' | 'colaborador' | null
+  nome?: string | null
+  email?: string | null
 }
 
 interface ToastState {
@@ -36,14 +40,16 @@ interface AppState {
   activeProjectId: string | null
   setActiveProjectId: (id: string | null) => void
   getActiveProject: () => Project | undefined
+  allowedModules: AppModuleKey[]
+  setAllowedModules: (modules: AppModuleKey[]) => void
 
   // Level selector
   currentLevel: MaturityLevel
   setCurrentLevel: (level: MaturityLevel) => void
 
   // Navigation
-  activeModule: string
-  setActiveModule: (module: string) => void
+  activeModule: AppModuleKey
+  setActiveModule: (module: AppModuleKey) => void
   activeTab: string
   setActiveTab: (tab: string) => void
 
@@ -69,11 +75,26 @@ export const useAppStore = create<AppState>((set, get) => ({
   projects: [],
   setProjects: (projects) => set({ projects }),
   activeProjectId: null,
-  setActiveProjectId: (id) => set({ activeProjectId: id }),
+  setActiveProjectId: (id) => {
+    if (typeof window !== 'undefined') {
+      if (id) {
+        localStorage.setItem('clave_active_project_id', id)
+      } else {
+        localStorage.removeItem('clave_active_project_id')
+      }
+    }
+    set({
+      activeProjectId: id,
+      allowedModules: ['home'],
+      activeModule: 'home',
+    })
+  },
   getActiveProject: () => {
     const { projects, activeProjectId } = get()
     return projects.find((p) => p.id === activeProjectId) || projects[0]
   },
+  allowedModules: ['home'],
+  setAllowedModules: (allowedModules) => set({ allowedModules }),
 
   currentLevel: 'newbie',
   setCurrentLevel: (level) => set({ currentLevel: level }),

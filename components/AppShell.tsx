@@ -1,9 +1,15 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useAppStore, MaturityLevel } from '@/store/useAppStore'
 import { createClient } from '@/utils/supabase/client'
+import {
+  DEFAULT_PROJECT_MODULES,
+  type AppModuleKey,
+  type ProjectModuleKey,
+} from '@/utils/module-access'
 import ProjectSwitcher from './ProjectSwitcher'
 import LevelSelector from './LevelSelector'
 import Toast from './Toast'
@@ -68,14 +74,19 @@ const LEVEL_DETAILS: Record<
 
 export default function AppShell({ children }: AppShellProps) {
   const router = useRouter()
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
   const {
     sidebarCollapsed,
     toggleSidebar,
     activeModule,
     setActiveModule,
     currentLevel,
+    profile,
+    projects,
+    activeProjectId,
     setProfile,
+    allowedModules,
+    setAllowedModules,
     showToast,
     theme,
     setTheme,
@@ -156,6 +167,68 @@ export default function AppShell({ children }: AppShellProps) {
     getSession()
   }, [supabase, router, setProfile, showToast])
 
+  // 3. CARREGAR OS MÓDULOS LIBERADOS PARA O PROJETO ATIVO
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadAllowedModules() {
+      if (!profile || !activeProjectId) {
+        setAllowedModules(['home'])
+        return
+      }
+
+      if (profile.role === 'admin' || profile.agency_role === 'admin') {
+        setAllowedModules(['home', ...DEFAULT_PROJECT_MODULES])
+        return
+      }
+
+      const activeProject = projects.find(
+        (project) => project.id === activeProjectId,
+      )
+      if (activeProject?.user_id === profile.id) {
+        setAllowedModules(['home', ...DEFAULT_PROJECT_MODULES])
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('project_users')
+        .select('allowed_modules, ativo, permission_level')
+        .eq('project_id', activeProjectId)
+        .eq('user_id', profile.id)
+        .maybeSingle()
+
+      if (cancelled) return
+
+      if (error || !data?.ativo) {
+        setAllowedModules(['home'])
+        return
+      }
+
+      if (data.permission_level === 'admin') {
+        setAllowedModules(['home', ...DEFAULT_PROJECT_MODULES])
+        return
+      }
+
+      const modules = ((data.allowed_modules || []) as string[]).filter(
+        (module: string): module is ProjectModuleKey =>
+          DEFAULT_PROJECT_MODULES.includes(module as ProjectModuleKey),
+      )
+      setAllowedModules(['home', ...modules])
+    }
+
+    loadAllowedModules()
+    return () => {
+      cancelled = true
+    }
+  }, [activeProjectId, profile, projects, setAllowedModules, supabase])
+
+  useEffect(() => {
+    if (!allowedModules.includes(activeModule)) {
+      const timer = setTimeout(() => setActiveModule('home'), 0)
+      return () => clearTimeout(timer)
+    }
+  }, [activeModule, allowedModules, setActiveModule])
+
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut()
     if (error) {
@@ -170,7 +243,16 @@ export default function AppShell({ children }: AppShellProps) {
   const lvlDetail = LEVEL_DETAILS[currentLevel] || LEVEL_DETAILS.newbie
 
   // Menu items config
-  const navItems = [
+  type NavGroup = {
+    group: string
+    items: Array<{
+      id: AppModuleKey
+      name: string
+      icon: React.ComponentType<{ className?: string }>
+    }>
+  }
+
+  const allNavItems: NavGroup[] = [
     {
       group: 'INÍCIO',
       items: [
@@ -198,6 +280,11 @@ export default function AppShell({ children }: AppShellProps) {
       ],
     },
   ]
+
+  const navItems = allNavItems.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => allowedModules.includes(item.id)),
+  }))
 
   const getModuleTitle = () => {
     for (const group of navItems) {
@@ -229,15 +316,19 @@ export default function AppShell({ children }: AppShellProps) {
         {/* Top Header */}
         <div className="flex items-center gap-2.5 px-3 py-3.5 border-b border-border-custom h-14 shrink-0 min-w-0">
           {sidebarCollapsed && !mobileOpen ? (
-            <img
+            <Image
               src="/favicon.svg"
               alt="Clave"
+              width={28}
+              height={28}
               className="w-7 h-7 object-contain shrink-0"
             />
           ) : (
-            <img
+            <Image
               src={theme === 'dark' ? '/logo_white.svg' : '/logo_black.svg'}
               alt="B16 Clave"
+              width={120}
+              height={28}
               className="h-7 object-contain max-w-[120px] shrink-0"
             />
           )}

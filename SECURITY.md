@@ -21,3 +21,14 @@ production or another tenant without explicit authorization.
 Runtime secrets must stay in the deployment platform or a local ignored
 environment file. Never commit `.env*`, service-role keys, API keys, database
 passwords, access tokens, or production exports.
+
+## Project And Module Isolation
+
+Hiding a navigation item is not an authorization control. Project membership
+and module permissions must also be enforced by Supabase RLS. New
+project-scoped tables must use `user_has_project_module_access` or an
+equivalent hardened `SECURITY DEFINER` helper with an explicit `search_path`.
+
+Only project administrators may write `project_users`. A regular viewer or
+editor may read their own membership, but cannot grant access or change
+another user's modules.
