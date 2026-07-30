@@ -42,8 +42,8 @@ export default function ProjectSwitcher() {
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    setMounted(true)
-    return () => setMounted(false)
+    const timer = setTimeout(() => setMounted(true), 0)
+    return () => clearTimeout(timer)
   }, [])
 
   // 1. QUERY PROJECTS
@@ -90,7 +90,27 @@ export default function ProjectSwitcher() {
   useEffect(() => {
     if (dbProjects) {
       setProjects(dbProjects)
-      if (dbProjects.length > 0 && !activeProjectId) {
+      if (dbProjects.length === 0) {
+        setActiveProjectId(null)
+        return
+      }
+
+      const activeProjectIsAvailable = dbProjects.some(
+        (project) => project.id === activeProjectId,
+      )
+      if (activeProjectIsAvailable) return
+
+      const savedProjectId =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('clave_active_project_id')
+          : null
+      const savedProjectIsAvailable = dbProjects.some(
+        (project) => project.id === savedProjectId,
+      )
+
+      if (savedProjectIsAvailable && savedProjectId) {
+        setActiveProjectId(savedProjectId)
+      } else {
         setActiveProjectId(dbProjects[0].id)
       }
     }
@@ -339,7 +359,7 @@ export default function ProjectSwitcher() {
                 </div>
                 
                 <p className="text-xs text-text2 leading-relaxed">
-                  Tem certeza que deseja excluir o projeto <strong className="text-text-custom">"{projName}"</strong>? 
+                  Tem certeza que deseja excluir o projeto <strong className="text-text-custom">&quot;{projName}&quot;</strong>?
                   Todos os dados de lançamentos, cronogramas e P&L vinculados a este projeto serão excluídos permanentemente.
                 </p>
 

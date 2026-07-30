@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
-import { Trash } from 'lucide-react'
+import { ArrowLeft, HelpCircle, PackagePlus, Plus, Trash } from 'lucide-react'
 
 const VSL_S = [
   { id: 'promessa', l: 'Promessa QFD', must: true, kw: ['promessa', 'resultado', 'garanto', 'você vai', 'vou te mostrar', 'descubra', 'nesse vídeo'] },
@@ -35,13 +35,24 @@ interface PageStructure {
   l?: string
 }
 
+interface CommunicationProduct {
+  id: string
+  project_id: string
+  name: string
+  archived: boolean
+  created_at: string
+}
+
 export default function ComunicacaoModule() {
   const queryClient = useQueryClient()
   const supabase = createClient()
-  const { activeProjectId, showToast } = useAppStore()
+  const { activeProjectId, profile, showToast } = useAppStore()
 
   const [activeSubTab, setActiveSubTab] = useState<'id' | 'urg' | 'bloq' | 'vsl' | 'pag'>('id')
   const [activeIdTab, setActiveIdTab] = useState<'comm' | 'prod' | 'cons'>('comm')
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null)
+  const [newProductName, setNewProductName] = useState('')
+  const [isCreatingProduct, setIsCreatingProduct] = useState(false)
 
   // VSL analysis state locally to avoid heavy database calls on keypress
   const [vslTitle, setVslTitle] = useState('')
@@ -50,15 +61,80 @@ export default function ComunicacaoModule() {
   // Local state for all fields (including urgs, objs, faqs, pags arrays) to avoid keypress mutations
   const [localFields, setLocalFields] = useState<Record<string, string> | null>(null)
 
-  // 1. CARREGAR TODOS OS CAMPOS DO SUPABASE
-  const { data: fields } = useQuery({
-    queryKey: ['text_fields', activeProjectId],
+  const { data: products = [], isLoading: productsLoading } = useQuery({
+    queryKey: ['communication_products', activeProjectId],
     queryFn: async () => {
-      if (!activeProjectId) return {}
+      if (!activeProjectId) return []
       const { data, error } = await supabase
-        .from('text_fields')
-        .select('key, value')
+        .from('communication_products')
+        .select('id, project_id, name, archived, created_at')
         .eq('project_id', activeProjectId)
+        .eq('archived', false)
+        .order('created_at', { ascending: true })
+
+      if (error) throw error
+      return data as CommunicationProduct[]
+    },
+    enabled: !!activeProjectId,
+  })
+
+  const createProductMutation = useMutation({
+    mutationFn: async (name: string) => {
+      if (!activeProjectId || !profile?.id) {
+        throw new Error('Projeto ou usuário não identificado.')
+      }
+      const { data, error } = await supabase
+        .from('communication_products')
+        .insert({
+          project_id: activeProjectId,
+          name,
+          created_by: profile.id,
+        })
+        .select('id')
+        .single()
+
+      if (error) throw error
+      return data.id as string
+    },
+    onSuccess: (productId) => {
+      queryClient.invalidateQueries({ queryKey: ['communication_products', activeProjectId] })
+      setNewProductName('')
+      setIsCreatingProduct(false)
+      setSelectedProductId(productId)
+      showToast('Produto criado com sucesso')
+    },
+    onError: (error: Error) => {
+      showToast(error.message || 'Erro ao criar produto', 'err')
+    },
+  })
+
+  const archiveProductMutation = useMutation({
+    mutationFn: async (productId: string) => {
+      const { error } = await supabase
+        .from('communication_products')
+        .update({ archived: true })
+        .eq('id', productId)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['communication_products', activeProjectId] })
+      setSelectedProductId(null)
+      showToast('Produto arquivado')
+    },
+    onError: (error: Error) => {
+      showToast(error.message || 'Erro ao arquivar produto', 'err')
+    },
+  })
+
+  // 1. CARREGAR TODOS OS CAMPOS DO PRODUTO/CURSO
+  const { data: fields, isLoading: fieldsLoading } = useQuery({
+    queryKey: ['communication_product_fields', selectedProductId],
+    queryFn: async () => {
+      if (!selectedProductId) return {}
+      const { data, error } = await supabase
+        .from('communication_product_fields')
+        .select('key, value')
+        .eq('product_id', selectedProductId)
 
       if (error) {
         showToast('Erro ao carregar campos de texto', 'err')
@@ -71,16 +147,26 @@ export default function ComunicacaoModule() {
       })
       return map
     },
-    enabled: !!activeProjectId,
+    enabled: !!selectedProductId,
   })
 
   // Clear local states when switching projects so they reload for the new project
   useEffect(() => {
     const timer = setTimeout(() => {
       setLocalFields(null)
+      setSelectedProductId(null)
+      setActiveSubTab('id')
+      setActiveIdTab('comm')
     }, 0)
     return () => clearTimeout(timer)
   }, [activeProjectId])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLocalFields(null)
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [selectedProductId])
 
   // Sincronizar estado local (com setTimeout para evitar renderizações em cascata síncronas)
   useEffect(() => {
@@ -106,29 +192,19 @@ export default function ComunicacaoModule() {
   // 2. MUTATION SAVE FIELD
   const saveFieldMutation = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: string }) => {
-      if (!activeProjectId) return
-      const { data: existing } = await supabase
-        .from('text_fields')
-        .select('id')
-        .eq('project_id', activeProjectId)
-        .eq('key', key)
-        .maybeSingle()
-
-      if (existing) {
-        const { error } = await supabase
-          .from('text_fields')
-          .update({ value })
-          .eq('id', existing.id)
-        if (error) throw error
-      } else {
-        const { error } = await supabase
-          .from('text_fields')
-          .insert({ project_id: activeProjectId, key, value })
-        if (error) throw error
-      }
+      if (!selectedProductId) return
+      const { error } = await supabase
+        .from('communication_product_fields')
+        .upsert(
+          { product_id: selectedProductId, key, value },
+          { onConflict: 'product_id,key' },
+        )
+      if (error) throw error
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['text_fields', activeProjectId] })
+      queryClient.invalidateQueries({
+        queryKey: ['communication_product_fields', selectedProductId],
+      })
     },
   })
 
@@ -304,8 +380,162 @@ export default function ComunicacaoModule() {
     showToast('Página removida')
   }
 
+  const selectedProduct = products.find((product) => product.id === selectedProductId)
+
+  if (!activeProjectId) {
+    return (
+      <div className="py-10 text-center text-xs text-text3">
+        Selecione um projeto para configurar a Comunicação.
+      </div>
+    )
+  }
+
+  if (productsLoading) {
+    return (
+      <div className="py-10 text-center text-xs text-text3">
+        Carregando produtos e cursos...
+      </div>
+    )
+  }
+
+  if (!selectedProductId) {
+    return (
+      <div className="space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border-custom pb-4">
+          <div>
+            <h3 className="text-sm font-bold text-text-custom">Produtos e cursos</h3>
+            <p className="text-[11px] text-text3 mt-1">
+              Cada produto possui sua própria estratégia completa de Comunicação.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsCreatingProduct(true)}
+            className="inline-flex items-center justify-center gap-2 px-3 py-2 bg-purple-custom text-white rounded-lg text-xs font-semibold cursor-pointer hover:opacity-90"
+          >
+            <Plus className="w-4 h-4" />
+            Novo produto ou curso
+          </button>
+        </div>
+
+        {isCreatingProduct && (
+          <div className="border border-border-custom bg-surface p-4 rounded-lg flex flex-col sm:flex-row gap-3 sm:items-end">
+            <label className="flex-1 text-[10px] font-bold text-text2 uppercase">
+              Nome
+              <input
+                autoFocus
+                value={newProductName}
+                onChange={(event) => setNewProductName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && newProductName.trim()) {
+                    createProductMutation.mutate(newProductName.trim())
+                  }
+                }}
+                placeholder="Ex: Escola do Ouvido"
+                className="mt-1 w-full px-3 py-2 border border-border2 rounded-lg bg-surface text-xs text-text-custom outline-none focus:border-purple-custom"
+              />
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCreatingProduct(false)
+                  setNewProductName('')
+                }}
+                className="px-3 py-2 border border-border2 rounded-lg text-xs text-text2 cursor-pointer hover:bg-surface2"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={!newProductName.trim() || createProductMutation.isPending}
+                onClick={() => createProductMutation.mutate(newProductName.trim())}
+                className="px-3 py-2 bg-text-custom text-surface rounded-lg text-xs font-semibold cursor-pointer disabled:opacity-50"
+              >
+                Criar
+              </button>
+            </div>
+          </div>
+        )}
+
+        {products.length === 0 ? (
+          <div className="py-14 border border-dashed border-border2 rounded-lg text-center">
+            <PackagePlus className="w-7 h-7 text-text3 mx-auto mb-3" />
+            <p className="text-xs font-semibold text-text-custom">
+              Nenhum produto ou curso cadastrado
+            </p>
+            <p className="text-[11px] text-text3 mt-1">
+              Crie o primeiro para liberar as configurações de Comunicação.
+            </p>
+          </div>
+        ) : (
+          <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+            {products.map((product) => (
+              <div
+                key={product.id}
+                className="border border-border-custom bg-surface rounded-lg p-4 flex items-center gap-3"
+              >
+                <button
+                  type="button"
+                  onClick={() => setSelectedProductId(product.id)}
+                  className="flex-1 text-left min-w-0 cursor-pointer"
+                >
+                  <span className="block text-xs font-bold text-text-custom truncate">
+                    {product.name}
+                  </span>
+                  <span className="block text-[10px] text-text3 mt-1">
+                    Abrir estratégia de Comunicação
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`Arquivar "${product.name}"?`)) {
+                      archiveProductMutation.mutate(product.id)
+                    }
+                  }}
+                  title="Arquivar produto"
+                  className="p-2 text-text3 hover:text-red-t cursor-pointer"
+                >
+                  <Trash className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (fieldsLoading) {
+    return (
+      <div className="py-10 text-center text-xs text-text3">
+        Carregando Comunicação de {selectedProduct?.name || 'produto'}...
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-6">
+    <div key={selectedProductId} className="space-y-6">
+      <div className="flex items-center gap-3 border-b border-border-custom pb-3">
+        <button
+          type="button"
+          onClick={() => setSelectedProductId(null)}
+          title="Voltar para produtos e cursos"
+          className="p-2 border border-border2 rounded-lg text-text2 hover:text-text-custom cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <div className="min-w-0">
+          <span className="block text-[10px] uppercase font-bold text-text3">
+            Produto ou curso
+          </span>
+          <h3 className="text-sm font-bold text-text-custom truncate">
+            {selectedProduct?.name || 'Comunicação'}
+          </h3>
+        </div>
+      </div>
+
       {/* Sub-tabs header */}
       <div className="flex gap-1 border-b border-border-custom flex-wrap mb-4">
         {([
@@ -365,36 +595,63 @@ export default function ComunicacaoModule() {
           {activeIdTab === 'comm' && (
             <div className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-text-custom mb-1 block">
-                  Método (Furadeira)
-                </label>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <label className="text-xs font-bold text-text-custom">
+                    Mecanismo Único
+                  </label>
+                  <HelpCircle
+                    className="w-3.5 h-3.5 text-text3"
+                    aria-label="Ajuda sobre Mecanismo Único"
+                  />
+                </div>
+                <p className="text-[10px] text-text3 leading-relaxed mb-2">
+                  O mecanismo é o motivo pelo qual o seu método funciona e é diferente de tudo que já existe no mercado. O conceito vem da publicidade direto-resposta clássica. Eugene Schwartz já descrevia esse elemento central em Breakthrough Advertising, em 1966.
+                </p>
                 <textarea
                   className="w-full p-3 text-xs border border-border2 rounded bg-surface text-text-custom outline-none focus:border-text-custom h-20"
                   defaultValue={fields?.['id-met'] || ''}
                   onBlur={(e) => handleFieldBlur('id-met', e.target.value)}
-                  placeholder="Qual é a sua ferramenta/veículo único de transformação? Ex: Método Clave."
+                  placeholder="Qual é o seu processo, sistema ou algoritmo proprietário? Ex: Método Clave."
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-text-custom mb-1 block">
-                  Quadro na Parede (Resultado Visual)
-                </label>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <label className="text-xs font-bold text-text-custom">
+                    Resultado-Alvo
+                  </label>
+                  <HelpCircle
+                    className="w-3.5 h-3.5 text-text3"
+                    aria-label="Ajuda sobre Resultado-Alvo"
+                  />
+                </div>
+                <p className="text-[10px] text-text3 leading-relaxed mb-2">
+                  É o resultado específico que a metodologia entrega, não o método em si. A ideia se relaciona à formulação atribuída a Theodore Levitt sobre o cliente querer o resultado, não a ferramenta, e ao framework Jobs-to-be-Done difundido por Clayton Christensen.
+                </p>
                 <textarea
                   className="w-full p-3 text-xs border border-border2 rounded bg-surface text-text-custom outline-none focus:border-text-custom h-20"
                   defaultValue={fields?.['id-qd'] || ''}
                   onBlur={(e) => handleFieldBlur('id-qd', e.target.value)}
-                  placeholder="Descreva o resultado final que seu aluno ostenta na parede. Qual o troféu ou marco?"
+                  placeholder="Descreva o resultado final, específico e mensurável, que o seu cliente alcança. Qual o marco ou troféu?"
                 />
               </div>
               <div>
-                <label className="text-xs font-bold text-text-custom mb-1 block">
-                  Argumentos Estratégicos
-                </label>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <label className="text-xs font-bold text-text-custom">
+                    Benefício Estendido
+                  </label>
+                  <HelpCircle
+                    className="w-3.5 h-3.5 text-text3"
+                    aria-label="Ajuda sobre Benefício Estendido"
+                  />
+                </div>
+                <p className="text-[10px] text-text3 leading-relaxed mb-2">
+                  É o motivo emocional mais profundo por trás do resultado prometido. O conceito se relaciona à Means-End Chain Theory, de Jonathan Gutman (1982), usada para conectar atributos de produto a valores humanos.
+                </p>
                 <textarea
                   className="w-full p-3 text-xs border border-border2 rounded bg-surface text-text-custom outline-none focus:border-text-custom h-20"
                   defaultValue={fields?.['id-arg'] || ''}
                   onBlur={(e) => handleFieldBlur('id-arg', e.target.value)}
-                  placeholder="Seus principais diferenciais lógicos de autoridade e provas do mercado."
+                  placeholder="O que o cliente realmente busca por trás do resultado-alvo? (status, segurança, liberdade, pertencimento...)"
                 />
               </div>
             </div>

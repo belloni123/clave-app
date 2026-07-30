@@ -1,21 +1,23 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
 import { 
   Smartphone, Plus, Search, Trash2, Archive, History, 
-  AlertTriangle, CheckCircle2, ShieldAlert, Cpu, 
-  DollarSign, Activity, FileText, Lock, X, Edit2,
-  Eye, EyeOff
+  AlertTriangle, CheckCircle2, ShieldAlert,
+  DollarSign, Activity, X, Edit2,
+  Eye, EyeOff, TimerReset
 } from 'lucide-react'
 
-interface HistEntry {
-  data: string
-  evento: string
-  obs: string
-}
+type ChipStatus =
+  | 'Ativo'
+  | 'Ativo sem uso'
+  | 'Bloqueado'
+  | 'Restrição 24h'
+  | 'Quarentena'
+  | 'Perdeu número'
 
 interface Chip {
   id: string
@@ -25,30 +27,55 @@ interface Chip {
   operadora: string
   funcao: string | null
   responsavel: string | null
-  status: 'Ativo' | 'Ativo sem uso' | 'Bloqueado' | 'Quarentena' | 'Perdeu número'
+  status: ChipStatus
   arquivado: boolean
   ultima_recarga: string | null
+  proxima_recarga: string | null
+  restricao_24h_ate: string | null
   periodicidade: number
   valor: number | null
   senha_whatsapp: string | null
   senha_app: string | null
   aparelho: string | null
   obs: string | null
-  historico: HistEntry[]
   criado_em: string
   atualizado_em: string
+}
+
+interface ChipEvent {
+  id: string
+  chip_id: string
+  project_id: string
+  event_type:
+    | 'initial_status'
+    | 'status_changed'
+    | 'recharge_recorded'
+    | 'manual_note'
+    | 'legacy_event'
+  previous_status: string | null
+  new_status: string | null
+  note: string
+  occurred_at: string
+  actor_id: string | null
+  metadata: Record<string, unknown>
 }
 
 export default function ChipsModule() {
   const queryClient = useQueryClient()
   const supabase = createClient()
-  const { activeProjectId, showToast } = useAppStore()
+  const { activeProjectId, profile, showToast } = useAppStore()
 
   // State controls
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [showArchived, setShowArchived] = useState(false)
   const [hideNumbers, setHideNumbers] = useState(false)
+  const [currentTime, setCurrentTime] = useState(() => Date.now())
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setCurrentTime(Date.now()), 60_000)
+    return () => window.clearInterval(interval)
+  }, [])
 
   // Modals state
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -61,7 +88,7 @@ export default function ChipsModule() {
   const [fOperadora, setFOperadora] = useState('Vivo')
   const [fFuncao, setFFuncao] = useState('')
   const [fResponsavel, setFResponsavel] = useState('')
-  const [fStatus, setFStatus] = useState<'Ativo' | 'Ativo sem uso' | 'Bloqueado' | 'Quarentena' | 'Perdeu número'>('Ativo')
+  const [fStatus, setFStatus] = useState<ChipStatus>('Ativo')
   const [fUltRecarga, setFUltRecarga] = useState('')
   const [fPeriodicidade, setFPeriodicidade] = useState('60')
   const [fValor, setFValor] = useState('')
@@ -72,7 +99,7 @@ export default function ChipsModule() {
 
   // Form states (History log)
   const [hData, setHData] = useState(new Date().toISOString().slice(0, 10))
-  const [hEvento, setHEvento] = useState('Observação')
+  const [hEvento, setHEvento] = useState<'Observação' | 'Recarga confirmada'>('Observação')
   const [hObs, setHObs] = useState('')
 
   // 1. CARREGAR CHIPS
@@ -93,19 +120,34 @@ export default function ChipsModule() {
     enabled: !!activeProjectId,
   })
 
+  const { data: chipEvents = [] } = useQuery<ChipEvent[]>({
+    queryKey: ['chip_events', activeProjectId],
+    queryFn: async () => {
+      if (!activeProjectId) return []
+      const { data, error } = await supabase
+        .from('chip_events')
+        .select('*')
+        .eq('project_id', activeProjectId)
+        .order('occurred_at', { ascending: false })
+      if (error) throw error
+      return data as ChipEvent[]
+    },
+    enabled: !!activeProjectId,
+  })
+
   // 2. MUTATIONS
   const saveChipMutation = useMutation({
     mutationFn: async (chipData: Partial<Chip>) => {
       if (!activeProjectId) return
       if (chipData.id) {
+        const { id, ...updates } = chipData
         // Edit existing chip
         const { error } = await supabase
           .from('chips')
           .update({
-            ...chipData,
-            atualizado_em: new Date().toISOString()
+            ...updates,
           })
-          .eq('id', chipData.id)
+          .eq('id', id)
         if (error) throw error
       } else {
         // Create new chip
@@ -114,17 +156,13 @@ export default function ChipsModule() {
           .insert({
             ...chipData,
             project_id: activeProjectId,
-            historico: [{
-              data: new Date().toISOString().slice(0, 10),
-              evento: chipData.status || 'Ativo',
-              obs: 'Registro inicial do chip no sistema'
-            }]
           })
         if (error) throw error
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['chips', activeProjectId] })
+      queryClient.invalidateQueries({ queryKey: ['chip_events', activeProjectId] })
       showToast(selectedChip ? 'Chip atualizado com sucesso' : 'Chip criado com sucesso')
       closeModal()
     },
@@ -162,35 +200,56 @@ export default function ChipsModule() {
   })
 
   const addHistMutation = useMutation({
-    mutationFn: async ({ chip, entry }: { chip: Chip; entry: HistEntry }) => {
-      const newHistory = [...chip.historico, entry]
-      // Se for alteração de status, atualiza o status do chip também
-      const updateData: Partial<Chip> = {
-        historico: newHistory,
-        atualizado_em: new Date().toISOString()
-      }
-      const statusEvents = ['Ativo', 'Ativo sem uso', 'Bloqueado', 'Quarentena', 'Perdeu número']
-      if (statusEvents.includes(entry.evento)) {
-        updateData.status = entry.evento as Chip['status']
-      }
-      if (entry.evento === 'Recarga confirmada') {
-        updateData.ultima_recarga = entry.data
+    mutationFn: async ({
+      chip,
+      date,
+      event,
+      note,
+    }: {
+      chip: Chip
+      date: string
+      event: 'Observação' | 'Recarga confirmada'
+      note: string
+    }) => {
+      if (event === 'Recarga confirmada') {
+        const { error } = await supabase
+          .from('chips')
+          .update({ ultima_recarga: date })
+          .eq('id', chip.id)
+        if (error) throw error
+
+        if (!note.trim()) return
       }
 
+      const now = new Date()
+      const localTime = [
+        String(now.getHours()).padStart(2, '0'),
+        String(now.getMinutes()).padStart(2, '0'),
+        String(now.getSeconds()).padStart(2, '0'),
+      ].join(':')
+      const occurredAt = new Date(`${date}T${localTime}`).toISOString()
+      const description =
+        event === 'Recarga confirmada'
+          ? `Observação da recarga: ${note.trim()}`
+          : note.trim() || 'Observação registrada manualmente.'
+
       const { error } = await supabase
-        .from('chips')
-        .update(updateData)
-        .eq('id', chip.id)
+        .from('chip_events')
+        .insert({
+          chip_id: chip.id,
+          project_id: chip.project_id,
+          event_type: 'manual_note',
+          note: description,
+          occurred_at: occurredAt,
+          actor_id: profile?.id,
+        })
       if (error) throw error
     },
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['chips', activeProjectId] })
+      queryClient.invalidateQueries({ queryKey: ['chip_events', activeProjectId] })
       showToast('Evento registrado com sucesso')
       setHObs('')
-      // Update local hist modal content
-      const updated = chips.find(c => c.id === variables.chip.id)
-      if (updated) setSelectedChip(updated)
-      closeHistorico()
     },
     onError: (err) => {
       showToast('Erro ao registrar histórico: ' + err.message, 'err')
@@ -199,9 +258,8 @@ export default function ChipsModule() {
 
   // Help functions
   const diasAteVencer = (chip: Chip) => {
-    if (!chip.ultima_recarga || !chip.periodicidade) return null
-    const prox = new Date(chip.ultima_recarga)
-    prox.setDate(prox.setDate(prox.getDate()) + Number(chip.periodicidade))
+    if (!chip.proxima_recarga) return null
+    const prox = new Date(`${chip.proxima_recarga}T00:00:00`)
     const hoje = new Date()
     hoje.setHours(0, 0, 0, 0)
     const diffTime = prox.getTime() - hoje.getTime()
@@ -210,15 +268,26 @@ export default function ChipsModule() {
   }
 
   const getAlerta = (chip: Chip) => {
-    if (chip.status === 'Bloqueado') return { text: '🔴 Trocar chip', cls: 'bg-red-500/10 text-red-500 border border-red-500/20' }
-    if (chip.status === 'Quarentena') return { text: '🟠 Em quarentena', cls: 'bg-purple-500/10 text-purple-400 border border-purple-500/20' }
-    if (chip.status === 'Perdeu número') return { text: '⚪ Repor número', cls: 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20' }
+    if (chip.status === 'Bloqueado') return { text: 'Trocar chip', cls: 'bg-red-500/10 text-red-500 border border-red-500/20' }
+    if (chip.status === 'Restrição 24h') {
+      const dueAt = chip.restricao_24h_ate ? new Date(chip.restricao_24h_ate) : null
+      if (!dueAt || dueAt.getTime() <= currentTime) {
+        return { text: 'Verificar liberação', cls: 'bg-red-600/15 text-red-400 border border-red-600/30 animate-pulse' }
+      }
+      const remainingHours = Math.max(
+        1,
+        Math.ceil((dueAt.getTime() - currentTime) / (1000 * 60 * 60)),
+      )
+      return { text: `Verificar em ${remainingHours}h`, cls: 'bg-amber-500/10 text-amber-400 border border-amber-500/20' }
+    }
+    if (chip.status === 'Quarentena') return { text: 'Em quarentena', cls: 'bg-purple-500/10 text-purple-400 border border-purple-500/20' }
+    if (chip.status === 'Perdeu número') return { text: 'Repor número', cls: 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20' }
     
     const r = diasAteVencer(chip)
-    if (!r) return { text: '➖ Sem recarga', cls: 'bg-zinc-500/10 text-zinc-400' }
-    if (r.dias <= 0) return { text: '⚠️ Recarga vencida', cls: 'bg-red-600/15 text-red-400 border border-red-600/30 animate-pulse' }
-    if (r.dias <= 7) return { text: `🔶 Recarga em ${r.dias} dias`, cls: 'bg-amber-500/10 text-amber-400 border border-amber-500/20' }
-    return { text: '✅ OK', cls: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' }
+    if (!r) return { text: 'Sem recarga', cls: 'bg-zinc-500/10 text-zinc-400' }
+    if (r.dias <= 0) return { text: 'Recarga vencida', cls: 'bg-red-600/15 text-red-400 border border-red-600/30 animate-pulse' }
+    if (r.dias <= 7) return { text: `Recarga em ${r.dias} dias`, cls: 'bg-amber-500/10 text-amber-400 border border-amber-500/20' }
+    return { text: 'Em dia', cls: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' }
   }
 
   const getOperadoraColor = (op: string) => {
@@ -231,8 +300,17 @@ export default function ChipsModule() {
     }
   }
 
-  const getQtdBloqueios = (chip: Chip) => {
-    return (chip.historico || []).filter(h => h.evento === 'Bloqueado').length
+  const formatDateOnly = (date: string | null) => {
+    if (!date) return '-'
+    return new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR')
+  }
+
+  const eventName = (event: ChipEvent) => {
+    if (event.event_type === 'initial_status') return 'Cadastro'
+    if (event.event_type === 'status_changed') return 'Alteração de status'
+    if (event.event_type === 'recharge_recorded') return 'Recarga confirmada'
+    if (event.event_type === 'manual_note') return 'Anotação manual'
+    return String(event.metadata.legacy_event_name || 'Evento importado')
   }
 
   // Modals operations
@@ -326,12 +404,12 @@ export default function ChipsModule() {
 
   const handleAddHist = () => {
     if (!selectedChip) return
-    const entry: HistEntry = {
-      data: hData,
-      evento: hEvento,
-      obs: hObs.trim() || `Evento: ${hEvento} registrado`
-    }
-    addHistMutation.mutate({ chip: selectedChip, entry })
+    addHistMutation.mutate({
+      chip: selectedChip,
+      date: hData,
+      event: hEvento,
+      note: hObs,
+    })
   }
 
   // Filter chips
@@ -374,6 +452,9 @@ export default function ChipsModule() {
   const blockedCount = chips.filter(c => !c.arquivado && c.status === 'Bloqueado').length
   const quarentenaCount = chips.filter(c => !c.arquivado && c.status === 'Quarentena').length
   const reporCount = chips.filter(c => !c.arquivado && c.status === 'Perdeu número').length
+  const restrictionCount = chips.filter(
+    (chip) => !chip.arquivado && chip.status === 'Restrição 24h',
+  ).length
   
   const recargasVencidas = chips.filter(c => {
     if (c.arquivado || c.status === 'Bloqueado' || c.status === 'Perdeu número') return false
@@ -384,6 +465,10 @@ export default function ChipsModule() {
   const custoMensal = chips
     .filter(c => !c.arquivado && c.status !== 'Perdeu número')
     .reduce((acc, c) => acc + (Number(c.valor) || 0), 0)
+
+  const selectedChipEvents = selectedChip
+    ? chipEvents.filter((event) => event.chip_id === selectedChip.id)
+    : []
 
   if (!activeProjectId) {
     return <div className="text-center py-10 text-xs text-text3">Selecione um projeto para gerenciar os chips.</div>
@@ -396,10 +481,11 @@ export default function ChipsModule() {
   return (
     <div className="space-y-6">
       {/* KPIs Panel */}
-      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-4">
         {[
           { label: 'Ativos', value: activeCount, color: 'text-emerald-400', icon: CheckCircle2, bg: 'bg-emerald-500/5 border-emerald-500/10' },
           { label: 'Bloqueados', value: blockedCount, color: 'text-red-400', icon: ShieldAlert, bg: 'bg-red-500/5 border-red-500/10' },
+          { label: 'Restrição 24h', value: restrictionCount, color: 'text-amber-400', icon: TimerReset, bg: 'bg-amber-500/5 border-amber-500/10' },
           { label: 'Quarentena', value: quarentenaCount, color: 'text-purple-400', icon: Activity, bg: 'bg-purple-500/5 border-purple-500/10' },
           { label: 'Perderam número', value: reporCount, color: 'text-zinc-400', icon: Smartphone, bg: 'bg-zinc-500/5 border-zinc-500/10' },
           { label: 'Recargas Vencidas', value: recargasVencidas, color: recargasVencidas > 0 ? 'text-amber-400 animate-pulse' : 'text-text3', icon: AlertTriangle, bg: recargasVencidas > 0 ? 'bg-amber-500/5 border-amber-500/10' : 'bg-surface border-border-custom' },
@@ -447,6 +533,7 @@ export default function ChipsModule() {
               <option value="Ativo">Ativo</option>
               <option value="Ativo sem uso">Ativo sem uso</option>
               <option value="Bloqueado">Bloqueado</option>
+              <option value="Restrição 24h">Restrição 24h</option>
               <option value="Quarentena">Quarentena</option>
               <option value="Perdeu número">Perdeu número</option>
             </select>
@@ -494,13 +581,14 @@ export default function ChipsModule() {
                 <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Status</th>
                 <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Alertas</th>
                 <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Últ. Recarga</th>
+                <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Próx. Recarga</th>
                 <th className="p-3 text-text3 font-semibold text-[10px] uppercase text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-custom">
               {filteredChips.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="p-6 text-center text-text3">
+                  <td colSpan={11} className="p-6 text-center text-text3">
                     Nenhum chip encontrado.
                   </td>
                 </tr>
@@ -541,7 +629,10 @@ export default function ChipsModule() {
                         </span>
                       </td>
                       <td className="p-3 text-text3">
-                        {chip.ultima_recarga ? new Date(chip.ultima_recarga).toLocaleDateString('pt-BR') : '-'}
+                        {formatDateOnly(chip.ultima_recarga)}
+                      </td>
+                      <td className="p-3 text-text3">
+                        {formatDateOnly(chip.proxima_recarga)}
                       </td>
                       <td className="p-3 text-right">
                         <div className="flex items-center justify-end gap-1">
@@ -649,6 +740,7 @@ export default function ChipsModule() {
                   <option value="Ativo">Ativo</option>
                   <option value="Ativo sem uso">Ativo sem uso</option>
                   <option value="Bloqueado">Bloqueado</option>
+                  <option value="Restrição 24h">Restrição 24h</option>
                   <option value="Quarentena">Quarentena</option>
                   <option value="Perdeu número">Perdeu número</option>
                 </select>
@@ -793,18 +885,23 @@ export default function ChipsModule() {
 
             {/* Event list */}
             <div className="space-y-3 max-h-[300px] overflow-y-auto scrollbar-thin pr-1">
-              {(selectedChip.historico || []).length === 0 ? (
+              {selectedChipEvents.length === 0 ? (
                 <p className="text-xs text-text3 text-center py-6">Nenhum evento registrado no histórico.</p>
               ) : (
-                [...selectedChip.historico].reverse().map((entry, idx) => (
-                  <div key={idx} className="p-3 bg-surface2/60 border border-border-custom rounded-lg space-y-1 text-xs">
+                selectedChipEvents.map((event) => (
+                  <div key={event.id} className="p-3 bg-surface2/60 border border-border-custom rounded-lg space-y-1 text-xs">
                     <div className="flex justify-between items-center text-[10px] text-text3">
                       <span className="font-semibold px-1.5 py-0.5 rounded bg-surface border border-border-custom text-text-custom">
-                        {entry.evento}
+                        {eventName(event)}
                       </span>
-                      <span>{entry.data ? new Date(entry.data).toLocaleDateString('pt-BR') : '-'}</span>
+                      <span>{new Date(event.occurred_at).toLocaleString('pt-BR')}</span>
                     </div>
-                    <p className="text-text2 leading-normal">{entry.obs}</p>
+                    <p className="text-text2 leading-normal">{event.note}</p>
+                    {event.previous_status && event.new_status && (
+                      <p className="text-[10px] text-text3">
+                        {event.previous_status} → {event.new_status}
+                      </p>
+                    )}
                   </div>
                 ))
               )}
@@ -829,18 +926,21 @@ export default function ChipsModule() {
                   <select
                     className="px-3 py-2 border border-border2 rounded-lg bg-surface text-text-custom outline-none w-full cursor-pointer"
                     value={hEvento}
-                    onChange={(e) => setHEvento(e.target.value)}
+                    onChange={(e) =>
+                      setHEvento(
+                        e.target.value as 'Observação' | 'Recarga confirmada',
+                      )
+                    }
                   >
                     <option value="Observação">Observação</option>
                     <option value="Recarga confirmada">Recarga confirmada</option>
-                    <option value="Ativo">Ativo</option>
-                    <option value="Ativo sem uso">Ativo sem uso</option>
-                    <option value="Bloqueado">Bloqueado</option>
-                    <option value="Quarentena">Quarentena</option>
-                    <option value="Perdeu número">Perdeu número</option>
                   </select>
                 </div>
               </div>
+
+              <p className="text-[10px] text-text3">
+                Alterações de status são registradas automaticamente ao editar o chip.
+              </p>
 
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] font-bold text-text2 uppercase tracking-wider">Descrição / Nota</label>

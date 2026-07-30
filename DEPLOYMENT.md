@@ -27,6 +27,8 @@ As migrações da integração de BI devem existir no Supabase nesta ordem:
 5. `20260723110000_farol_e_forja_dashboard.sql`
 6. `20260723120000_auto_dashboard_discovery.sql`
 7. `20260723150322_launch_bi_standard_guardrails.sql`
+8. `20260730190000_project_modules_communication_products_chip_events.sql`
+9. `20260730200000_security_definer_hardening.sql`
 
 A terceira migração valida os registros existentes antes de criar constraints
 compostas. Se ela acusar referências inconsistentes, não faça o redeploy: corrija
@@ -90,7 +92,14 @@ própria fonte, e o Clave valida e descobre a integração no primeiro clique.
 - Dashboards em `suporteb16-collab.github.io` que seguem o contrato completo
   usam `auto_dashboard` e sincronizam automaticamente com leads, CPL e etapas.
 - URLs HTTPS fora do contrato ficam como `external_dashboard`: são salvas por
-  lançamento, mas não exibem métricas automáticas.
+lançamento, mas não exibem métricas automáticas.
+
+A oitava migração preserva os acessos existentes liberando inicialmente todos
+os módulos, copia a Comunicação antiga para `Produto principal`, importa o
+histórico JSON dos chips para `chip_events` e só então ativa os novos triggers.
+Ela deve ser aplicada antes de publicar a interface que consulta essas tabelas.
+A nona migração remove exposição RPC desnecessária de triggers e fixa o
+`search_path` das funções legadas apontadas pelo advisor de segurança.
 - O dashboard legado `dashboard-b16-cnp0426` é exclusivo do lançamento
   `CNP 2 - 2026` com código `0726`.
 - Lançamentos novos começam sem dashboard herdado. O gestor deve colar a URL
@@ -174,6 +183,11 @@ operação manual do responsável pelo ambiente.
 7. Em outro lançamento, salve uma URL HTTPS de dashboard externo e confirme que
    ela permanece vinculada somente a esse lançamento, sem mostrar métricas da CNP 2.
 8. Verifique os logs do container para erros `5xx` ou falhas de healthcheck.
+9. Atualize a página em um projeto diferente do primeiro e confirme que a seleção permanece.
+10. Em Central de acesso, limite um usuário de teste ao Controle de Chips e confirme menu e RLS.
+11. Em Comunicação, abra `Produto principal`, crie outro produto e confirme que os campos não se misturam.
+12. Em Chips, altere um status para `Restrição 24h`, volte para `Ativo` e confirme os dois eventos com horário.
+13. Informe última recarga e ciclo; confirme a data gerada em Próx. Recarga e o alerta correspondente.
 
 ## 7. Rollback
 
