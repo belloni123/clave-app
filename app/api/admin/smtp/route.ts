@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { RECOVERY_EMAIL_SUBJECT, RECOVERY_EMAIL_TEMPLATE } from '@/utils/supabase/auth-email-templates'
 
 export const runtime = 'nodejs'
 
@@ -270,6 +271,8 @@ async function syncSupabaseAuth(config: SmtpConfig, password: string) {
           smtp_user: config.smtpUser,
           smtp_pass: password,
           smtp_sender_name: config.smtpSenderName,
+          mailer_subjects_recovery: RECOVERY_EMAIL_SUBJECT,
+          mailer_templates_recovery_content: RECOVERY_EMAIL_TEMPLATE,
         }),
         cache: 'no-store',
       },
