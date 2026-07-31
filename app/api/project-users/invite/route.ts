@@ -220,40 +220,69 @@ export async function POST(request: NextRequest) {
       return jsonError('Este e-mail já pertence a outra agência.', 409)
     }
 
-    let targetUserId = existingProfile?.id ?? null
+    const existingAuthUser = await findAuthUserByEmail(parsed.email, admin)
+
+    if (
+      existingProfile
+      && existingAuthUser
+      && existingProfile.id !== existingAuthUser.id
+    ) {
+      return jsonError('O perfil e a conta de autenticação deste e-mail não correspondem.', 409)
+    }
+    if (existingProfile && !existingAuthUser) {
+      return jsonError(
+        'Este perfil não possui uma conta de autenticação válida. Use a redefinição de acesso.',
+        409,
+      )
+    }
+
+    let targetUserId = existingProfile?.id ?? existingAuthUser?.id ?? null
     let invited = false
     let temporaryPasswordForInvite: string | null = null
 
     if (!targetUserId) {
-      const existingAuthUser = await findAuthUserByEmail(parsed.email, admin)
+      temporaryPasswordForInvite = parsed.temporaryPassword ?? generateTemporaryPassword()
+      const { data: createData, error: createError } =
+        await admin.auth.admin.createUser({
+          email: parsed.email,
+          password: temporaryPasswordForInvite,
+          email_confirm: true,
+          user_metadata: { nome: parsed.name },
+        })
 
-      if (existingAuthUser) {
-        if (parsed.temporaryPassword) {
-          return jsonError(
-            'Este e-mail já possui uma conta. A senha temporária só pode ser definida em um novo convite.',
-            409,
-          )
-        }
-        targetUserId = existingAuthUser.id
-      } else {
-        temporaryPasswordForInvite = parsed.temporaryPassword ?? generateTemporaryPassword()
-        const { data: createData, error: createError } =
-          await admin.auth.admin.createUser({
-            email: parsed.email,
-            password: temporaryPasswordForInvite,
-            email_confirm: true,
-            user_metadata: { nome: parsed.name },
-          })
-
-        if (createError) throw createError
-        if (!createData.user) {
-          throw new Error('O provedor de autenticação não retornou o usuário.')
-        }
-
-        targetUserId = createData.user.id
-        invitedUserId = createData.user.id
-        invited = true
+      if (createError) throw createError
+      if (!createData.user) {
+        throw new Error('O provedor de autenticação não retornou o usuário.')
       }
+
+      targetUserId = createData.user.id
+      invitedUserId = createData.user.id
+      invited = true
+    } else if (
+      existingAuthUser
+      && !existingAuthUser.email_confirmed_at
+      && !existingAuthUser.last_sign_in_at
+    ) {
+      temporaryPasswordForInvite = parsed.temporaryPassword ?? generateTemporaryPassword()
+      const { error: updateAuthError } = await admin.auth.admin.updateUserById(
+        existingAuthUser.id,
+        {
+          password: temporaryPasswordForInvite,
+          email_confirm: true,
+          user_metadata: {
+            ...existingAuthUser.user_metadata,
+            nome: parsed.name,
+          },
+        },
+      )
+
+      if (updateAuthError) throw updateAuthError
+      invited = true
+    } else if (parsed.temporaryPassword) {
+      return jsonError(
+        'Este e-mail já possui uma conta ativa. Deixe a senha temporária vazia para apenas liberar o projeto, ou use Redefinir acesso.',
+        409,
+      )
     }
 
     const profileRole =

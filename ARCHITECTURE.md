@@ -93,9 +93,13 @@ O botão abre somente `/login`: o usuário entra com a senha temporária e o per
 com `must_change_password = true` direciona a primeira sessão para
 `/definir-senha?obrigatoria=1`. A senha temporária nunca é salva em tabela
 pública, metadata ou log. Contas existentes são apenas vinculadas ou reativadas.
-Para reenviar credenciais a uma conta existente, o administrador usa a ação
-explícita de chave: ela gera uma nova senha temporária, marca a troca como
-obrigatória e envia novamente o link simples de login.
+Se a conta ainda estiver pendente, sem e-mail confirmado e sem qualquer login,
+um novo convite conclui o cadastro: reaplica a senha temporária informada (ou
+gera outra), confirma o e-mail, mantém a troca obrigatória e reenvia as
+credenciais. O formulário de convite nunca sobrescreve a senha de uma conta já
+confirmada ou utilizada. Para reenviar credenciais a uma conta ativa, o
+administrador usa a ação explícita de chave: ela gera uma nova senha temporária,
+marca a troca como obrigatória e envia novamente o link simples de login.
 Ao concluir a troca, `POST /api/auth/complete-password-change` atualiza a senha
 pela própria sessão autenticada e usa `service_role` somente para limpar o
 marcador no perfil. O cliente não tem permissão de coluna para limpar esse
