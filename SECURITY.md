@@ -27,6 +27,12 @@ passwords, access tokens, or production exports.
 with `auth.getUser()` and perform an explicit authorization check before
 creating an admin client. The key must be runtime-only in Coolify.
 
+`SUPABASE_MANAGEMENT_ACCESS_TOKEN` is also server-only and runtime-only. It may
+only be used by `/api/admin/smtp` after validating an administrator and the
+explicit SMTP editor allowlist. SMTP passwords are stored in Supabase Vault;
+they must never be logged, returned to the browser, committed, or shared in
+chat.
+
 ## Project And Module Isolation
 
 Hiding a navigation item is not an authorization control. Project membership

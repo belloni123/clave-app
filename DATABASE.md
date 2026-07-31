@@ -17,6 +17,31 @@ Armazena as informações adicionais dos usuários autenticados da plataforma.
 *   `agency_id`: `uuid` (Agência à qual o perfil pertence).
 *   `agency_role`: `text` (`'admin'`, `'gestor'` ou `'colaborador'`).
 
+### `public.smtp_settings`
+Configuração global do SMTP usado pelo Clave e sincronizado com o Supabase Auth.
+Existe uma única linha (`id = true`) e ela não pertence a um projeto.
+*   `domain`, `support_whatsapp`, `tutorial_url`: metadados exibidos na área administrativa.
+*   `smtp_host`, `smtp_port`, `smtp_security`, `smtp_user`: conexão Google Workspace.
+*   `smtp_sender_name`, `smtp_sender_email`: identidade das mensagens enviadas.
+*   `smtp_password_secret_id`: referência ao segredo criptografado no Supabase Vault; nunca é a senha.
+*   `auth_configured_at`, `last_tested_at`, `last_test_status`, `last_test_error`: estado da sincronização e do teste.
+*   `updated_by`, `created_at`, `updated_at`: auditoria básica.
+
+RLS está habilitado sem políticas para `anon` ou `authenticated`. O acesso é
+exclusivo do backend com `service_role`; a senha é lida/escrita por funções
+`SECURITY DEFINER` cujo `EXECUTE` também é revogado para os papéis públicos.
+
+### `public.smtp_settings_audit`
+Histórico server-side das operações da configuração SMTP.
+*   `action`: `save` ou `test`.
+*   `actor_id`, `actor_email`: administrador responsável.
+*   `details`: host, porta, segurança e resultado sem credenciais.
+*   `created_at`: data e hora da operação.
+
+A área fica visível para administradores. Somente os e-mails
+`felipe@agenciab16.com.br` e `contato@agenciab16.com.br`, quando também possuem
+papel administrativo, podem salvar ou testar.
+
 ### `public.projects`
 Representa os projetos cadastrados. Cada projeto atua como um **Tenant** lógico isolado.
 *   `id`: `uuid` (Chave Primária).

@@ -88,6 +88,29 @@ Supabase para localizar ou convidar a conta. Em seguida sincroniza `profiles` e
 faz `upsert` do vínculo em `project_users`. Contas novas recebem o link para
 `/definir-senha`; contas existentes são apenas vinculadas ou reativadas.
 
+## 3.1 SMTP Global E Supabase Auth
+
+`AdminSmtpModule` é uma configuração global fora do escopo de projetos. O menu
+é liberado somente para administradores, e a rota `/api/admin/smtp` repete a
+validação no servidor. A edição exige a allowlist dos e-mails autorizados,
+portanto esconder o menu não é o controle de segurança.
+
+O fluxo de salvar é:
+
+1. A sessão é validada com Supabase Auth e o papel é consultado no backend.
+2. A senha de aplicativo do Google Workspace é armazenada no Supabase Vault;
+   a tabela pública guarda apenas a referência e os metadados.
+3. O servidor chama `PATCH /v1/projects/{project_ref}/config/auth` da
+   Supabase Management API usando `SUPABASE_MANAGEMENT_ACCESS_TOKEN` somente
+   no runtime.
+4. O Supabase Auth passa a usar esse SMTP para recuperação de senha, convites,
+   OTP/magic links e futuras notificações de Auth.
+5. O teste abre uma conexão SMTP com timeout, envia uma mensagem ao
+   administrador que executou a ação e registra somente dados não sensíveis.
+
+Nenhum token, senha ou segredo é enviado ao navegador, incluído no bundle,
+registrado na auditoria ou versionado no Git.
+
 ## 4. Comunicação Por Produto/Curso
 
 `communication_products` é o primeiro nível do módulo Comunicação. Depois da

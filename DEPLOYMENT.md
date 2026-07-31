@@ -12,6 +12,8 @@ uma imagem não aplica migrações no Supabase.
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Sim | Frontend e backend | Chave anônima pública; a autorização real é feita por Auth + RLS. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Sim | Somente backend/runtime | Chave administrativa usada exclusivamente para convidar usuários e sincronizar seus vínculos. |
 | `GEMINI_API_KEY` | Produção | Somente backend | Chave da API Gemini usada pela rota de IA. |
+| `SUPABASE_MANAGEMENT_ACCESS_TOKEN` | SMTP | Somente backend/runtime | Token da Supabase Management API usado exclusivamente para sincronizar o SMTP do Supabase Auth. Nunca use `NEXT_PUBLIC_`. |
+| `SUPABASE_PROJECT_REF` | Opcional | Somente backend/runtime | Referência do projeto Supabase. Se omitida, é derivada de `NEXT_PUBLIC_SUPABASE_URL`. |
 
 `SUPABASE_SERVICE_ROLE_KEY` nunca pode usar o prefixo `NEXT_PUBLIC_`, ficar
 disponível durante o build ou ser enviada ao navegador. A rota de convite
@@ -32,6 +34,7 @@ As migrações da integração de BI devem existir no Supabase nesta ordem:
 8. `20260730190000_project_modules_communication_products_chip_events.sql`
 9. `20260730200000_security_definer_hardening.sql`
 10. `20260730231015_user_invites_and_profile_contact_fields.sql`
+11. `20260731140337_smtp_settings_and_admin_controls.sql`
 
 A terceira migração valida os registros existentes antes de criar constraints
 compostas. Se ela acusar referências inconsistentes, não faça o redeploy: corrija
@@ -110,6 +113,32 @@ e preserva o ator da auditoria quando o vínculo é criado pela rota do servidor
 - Lançamentos novos começam sem dashboard herdado. O gestor deve colar a URL
   própria daquele lançamento no painel `Dados do BI`.
 
+### SMTP Global Do Clave
+
+A tela `Administração > Configurações` é global e só aparece para perfis
+administrativos. A leitura exige perfil `admin` (ou `agency_role = admin`) e a
+alteração/teste exige, além disso, o e-mail autenticado
+`felipe@agenciab16.com.br` ou `contato@agenciab16.com.br`.
+
+O campo de senha nunca é devolvido ao navegador nem salvo em texto aberto. A
+senha de aplicativo do Google Workspace é guardada no Supabase Vault, enquanto
+`public.smtp_settings` armazena apenas metadados e o identificador do segredo.
+Ao salvar, o backend sincroniza o SMTP no Supabase Auth pela Management API; isso
+é o que habilita recuperação de senha, convites e futuras mensagens de Auth.
+
+Antes de usar a tela, crie um token pessoal na conta Supabase e cadastre-o como
+segredo de runtime no Coolify:
+
+```text
+SUPABASE_MANAGEMENT_ACCESS_TOKEN=<token da Supabase Management API>
+SUPABASE_PROJECT_REF=qvmubgtwtaadepkghwny
+```
+
+Nunca coloque esse token, a senha de aplicativo ou qualquer variável secreta no
+Git, em `NEXT_PUBLIC_*` ou no chat. Para Google Workspace, prefira uma senha de
+aplicativo, use SSL na porta 465 ou STARTTLS na porta 587 e confira se o
+endereço remetente está autorizado como conta ou alias do usuário SMTP.
+
 ## 3. Checklist Antes Do Redeploy
 
 Execute em uma cópia limpa da branch que será publicada:
@@ -168,7 +197,7 @@ Resposta esperada: `{"status":"ok"}`.
 1. Confirme que o repositório é `belloni123/clave-app` e que a branch de
    produção é `main`.
 2. Faça merge do pull request somente depois dos checks verdes.
-3. Confirme as quatro variáveis de ambiente da seção 1.
+3. Confirme as variáveis de ambiente da seção 1.
 4. Marque `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` como
    disponíveis durante o build e durante o runtime.
 5. Mantenha `SUPABASE_SERVICE_ROLE_KEY` e `GEMINI_API_KEY` somente no runtime,
@@ -178,9 +207,11 @@ Resposta esperada: `{"status":"ok"}`.
    `https://clave.agenciab16.com.br/definir-senha` como URLs de
    redirecionamento e mantenha um SMTP apto a enviar convites aos usuários
    finais.
-7. Use o `Dockerfile` da raiz e porta `3000`.
-8. Dispare o redeploy manual no Coolify.
-9. Aguarde o healthcheck ficar saudável antes de encerrar a versão anterior.
+7. Cadastre `SUPABASE_MANAGEMENT_ACCESS_TOKEN` somente no runtime do Coolify;
+   mantenha `SUPABASE_PROJECT_REF` como runtime ou deixe o sistema derivá-lo.
+8. Use o `Dockerfile` da raiz e porta `3000`.
+9. Dispare o redeploy manual no Coolify.
+10. Aguarde o healthcheck ficar saudável antes de encerrar a versão anterior.
 
 Este repositório não executa ações no Coolify automaticamente. O redeploy é uma
 operação manual do responsável pelo ambiente.
@@ -203,6 +234,9 @@ operação manual do responsável pelo ambiente.
 12. Em Comunicação, abra `Produto principal`, crie outro produto e confirme que os campos não se misturam.
 13. Em Chips, altere um status para `Restrição 24h`, volte para `Ativo` e confirme os dois eventos com horário.
 14. Informe última recarga e ciclo; confirme a data gerada em Próx. Recarga e o alerta correspondente.
+15. Como administrador, abra `Administração > Configurações`, confirme que a senha aparece apenas como protegida e envie um teste para o e-mail autorizado.
+16. Salve uma alteração SMTP e confirme que recuperação de senha e convite chegam pelo Google Workspace.
+17. Acesse com um administrador fora da allowlist e confirme que a tela fica somente leitura; com um usuário comum, confirme que o menu e a API respondem sem acesso.
 
 ## 7. Rollback
 
