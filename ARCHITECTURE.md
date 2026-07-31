@@ -84,9 +84,17 @@ revogação e módulos são registradas em `project_access_audit`.
 O cadastro em `Central de acesso > Usuários e módulos` é uma operação única.
 A rota autenticada `POST /api/project-users/invite` valida se o operador pode
 administrar o projeto e, somente no servidor, usa a chave administrativa do
-Supabase para localizar ou convidar a conta. Em seguida sincroniza `profiles` e
-faz `upsert` do vínculo em `project_users`. Contas novas recebem o link para
-`/definir-senha`; contas existentes são apenas vinculadas ou reativadas.
+Supabase para localizar ou criar a conta. Em seguida sincroniza `profiles` e
+faz `upsert` do vínculo em `project_users`. Para uma conta nova, a senha
+temporária informada pelo administrador (ou uma senha forte gerada no servidor)
+é aplicada no Auth, e o convite personalizado é enviado pelo SMTP configurado
+com um link de ativação. O perfil recebe `must_change_password = true` e a
+primeira sessão é direcionada para `/definir-senha`; a senha temporária nunca é
+salva em tabela pública, metadata ou log. Contas existentes são apenas
+vinculadas ou reativadas.
+Ao concluir a troca, `POST /api/auth/complete-password-change` atualiza a senha
+com `service_role` e limpa o marcador no perfil. O cliente não tem permissão
+de coluna para limpar esse marcador diretamente.
 
 ## 3.1 SMTP Global E Supabase Auth
 

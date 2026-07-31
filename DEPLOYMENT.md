@@ -35,6 +35,7 @@ As migrações da integração de BI devem existir no Supabase nesta ordem:
 9. `20260730200000_security_definer_hardening.sql`
 10. `20260730231015_user_invites_and_profile_contact_fields.sql`
 11. `20260731141454_smtp_settings_and_admin_controls.sql`
+12. `20260731160000_temporary_password_invites.sql`
 
 A terceira migração valida os registros existentes antes de criar constraints
 compostas. Se ela acusar referências inconsistentes, não faça o redeploy: corrija
@@ -206,7 +207,10 @@ Resposta esperada: `{"status":"ok"}`.
    `https://clave.agenciab16.com.br/auth/callback` e
    `https://clave.agenciab16.com.br/definir-senha` como URLs de
    redirecionamento e mantenha um SMTP apto a enviar convites aos usuários
-   finais.
+   finais. A Central de acesso permite informar uma senha temporária ou deixar
+   o campo vazio para o servidor gerar uma senha forte. O convite personalizado
+   envia a senha e o link de ativação; a troca da senha é obrigatória no
+   primeiro acesso.
 7. Cadastre `SUPABASE_MANAGEMENT_ACCESS_TOKEN` somente no runtime do Coolify;
    mantenha `SUPABASE_PROJECT_REF` como runtime ou deixe o sistema derivá-lo.
 8. Use o `Dockerfile` da raiz e porta `3000`.
@@ -229,14 +233,15 @@ operação manual do responsável pelo ambiente.
 8. Verifique os logs do container para erros `5xx` ou falhas de healthcheck.
 9. Atualize a página em um projeto diferente do primeiro e confirme que a seleção permanece.
 10. Em Central de acesso, limite um usuário de teste ao Controle de Chips e confirme menu e RLS.
-11. Convide um e-mail de teste, abra o link recebido, defina a senha e confirme
-    que somente o Dashboard e o Controle de Chips ficam visíveis naquele projeto.
-12. Em Comunicação, abra `Produto principal`, crie outro produto e confirme que os campos não se misturam.
-13. Em Chips, altere um status para `Restrição 24h`, volte para `Ativo` e confirme os dois eventos com horário.
-14. Informe última recarga e ciclo; confirme a data gerada em Próx. Recarga e o alerta correspondente.
-15. Como administrador, abra `Administração > Configurações`, confirme que a senha aparece apenas como protegida e envie um teste para o e-mail autorizado.
-16. Salve uma alteração SMTP e confirme que recuperação de senha e convite chegam pelo Google Workspace.
-17. Acesse com um administrador fora da allowlist e confirme que a tela fica somente leitura; com um usuário comum, confirme que o menu e a API respondem sem acesso.
+11. Confirme que somente o Dashboard e o Controle de Chips ficam visíveis naquele projeto.
+12. Convide um e-mail de teste, verifique o recebimento da senha temporária e do
+   link de ativação, abra o link e defina a senha pessoal obrigatória.
+13. Em Comunicação, abra `Produto principal`, crie outro produto e confirme que os campos não se misturam.
+14. Em Chips, altere um status para `Restrição 24h`, volte para `Ativo` e confirme os dois eventos com horário.
+15. Informe última recarga e ciclo; confirme a data gerada em Próx. Recarga e o alerta correspondente.
+16. Como administrador, abra `Administração > Configurações`, confirme que a senha aparece apenas como protegida e envie um teste para o e-mail autorizado.
+17. Salve uma alteração SMTP e confirme que recuperação de senha e convite chegam pelo Google Workspace.
+18. Acesse com um administrador fora da allowlist e confirme que a tela fica somente leitura; com um usuário comum, confirme que o menu e a API respondem sem acesso.
 
 ## 7. Rollback
 

@@ -22,6 +22,7 @@ export interface UserProfile {
   agency_role?: 'admin' | 'gestor' | 'colaborador' | null
   nome?: string | null
   email?: string | null
+  must_change_password?: boolean
 }
 
 interface ToastState {

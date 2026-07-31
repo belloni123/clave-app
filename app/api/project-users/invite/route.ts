@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomBytes } from 'node:crypto'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { createConfiguredSmtpMailer } from '@/utils/supabase/smtp-mailer'
 import {
   DEFAULT_PROJECT_MODULES,
   isProjectModuleKey,
@@ -18,6 +20,7 @@ interface InviteProjectUserBody {
   accountRole?: unknown
   permissionLevel?: unknown
   modules?: unknown
+  temporaryPassword?: unknown
 }
 
 type ParsedInviteProjectUser =
@@ -30,6 +33,7 @@ type ParsedInviteProjectUser =
       accountRole: AccountRole
       permissionLevel: PermissionLevel
       modules: ProjectModuleKey[]
+      temporaryPassword: string | null
     }
 
 interface ProfileLookup {
@@ -59,6 +63,9 @@ function parseBody(body: InviteProjectUserBody): ParsedInviteProjectUser {
       typeof module === 'string' && isProjectModuleKey(module),
     ))]
     : []
+  const temporaryPassword = typeof body.temporaryPassword === 'string'
+    ? body.temporaryPassword
+    : ''
 
   if (!UUID_PATTERN.test(projectId)) {
     return { ok: false, error: 'Projeto inválido.' }
@@ -68,6 +75,9 @@ function parseBody(body: InviteProjectUserBody): ParsedInviteProjectUser {
   }
   if (email.length > 254 || !EMAIL_PATTERN.test(email)) {
     return { ok: false, error: 'Informe um e-mail válido.' }
+  }
+  if (temporaryPassword.length > 0 && (temporaryPassword.length < 8 || temporaryPassword.length > 72)) {
+    return { ok: false, error: 'A senha temporária deve ter entre 8 e 72 caracteres.' }
   }
   if (accountRole !== 'client' && accountRole !== 'colab') {
     return { ok: false, error: 'Tipo de usuário inválido.' }
@@ -97,6 +107,70 @@ function parseBody(body: InviteProjectUserBody): ParsedInviteProjectUser {
     accountRole: accountRole as AccountRole,
     permissionLevel: permissionLevel as PermissionLevel,
     modules,
+    temporaryPassword: temporaryPassword.length > 0 ? temporaryPassword : null,
+  }
+}
+
+function generateTemporaryPassword() {
+  return randomBytes(18).toString('base64url')
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (character) => {
+    const entities: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }
+    return entities[character]
+  })
+}
+
+async function sendInviteEmail(
+  admin: ReturnType<typeof createAdminClient>,
+  email: string,
+  name: string,
+  temporaryPassword: string,
+  actionLink: string,
+) {
+  const mailer = await createConfiguredSmtpMailer(admin)
+  const safeName = escapeHtml(name)
+  const safeEmail = escapeHtml(email)
+  const safePassword = escapeHtml(temporaryPassword)
+  const safeActionLink = escapeHtml(actionLink)
+
+  try {
+    await mailer.transport.sendMail({
+      from: { name: mailer.senderName, address: mailer.senderEmail },
+      to: email,
+      subject: 'Seu convite para o Clave',
+      text: [
+        `Olá, ${name}!`,
+        '',
+        'Sua conta no Clave foi criada.',
+        `E-mail: ${email}`,
+        `Senha temporária: ${temporaryPassword}`,
+        '',
+        `Ative sua conta por este link: ${actionLink}`,
+        '',
+        'Por segurança, o Clave exigirá a troca dessa senha no primeiro acesso.',
+      ].join('\n'),
+      html: `
+        <div style="font-family:Arial,sans-serif;line-height:1.6;color:#202124;max-width:560px">
+          <h2>Seu convite para o Clave</h2>
+          <p>Olá, ${safeName}!</p>
+          <p>Sua conta foi criada. Use os dados abaixo somente para o primeiro acesso:</p>
+          <p><strong>E-mail:</strong> ${safeEmail}<br />
+          <strong>Senha temporária:</strong> <code>${safePassword}</code></p>
+          <p><a href="${safeActionLink}" style="display:inline-block;background:#534ab7;color:#fff;padding:10px 16px;text-decoration:none;border-radius:6px">Ativar minha conta</a></p>
+          <p>Por segurança, o Clave exigirá a troca dessa senha no primeiro acesso.</p>
+        </div>
+      `,
+    })
+  } finally {
+    mailer.transport.close()
   }
 }
 
@@ -207,27 +281,35 @@ export async function POST(request: NextRequest) {
 
     let targetUserId = existingProfile?.id ?? null
     let invited = false
+    let temporaryPasswordForInvite: string | null = null
 
     if (!targetUserId) {
       const existingAuthUser = await findAuthUserByEmail(parsed.email, admin)
 
       if (existingAuthUser) {
+        if (parsed.temporaryPassword) {
+          return jsonError(
+            'Este e-mail já possui uma conta. A senha temporária só pode ser definida em um novo convite.',
+            409,
+          )
+        }
         targetUserId = existingAuthUser.id
       } else {
-        const redirectTo = `${request.nextUrl.origin}/definir-senha`
-        const { data: inviteData, error: inviteError } =
-          await admin.auth.admin.inviteUserByEmail(parsed.email, {
-            data: { nome: parsed.name },
-            redirectTo,
+        temporaryPasswordForInvite = parsed.temporaryPassword ?? generateTemporaryPassword()
+        const { data: createData, error: createError } =
+          await admin.auth.admin.createUser({
+            email: parsed.email,
+            password: temporaryPasswordForInvite,
+            user_metadata: { nome: parsed.name },
           })
 
-        if (inviteError) throw inviteError
-        if (!inviteData.user) {
+        if (createError) throw createError
+        if (!createData.user) {
           throw new Error('O provedor de autenticação não retornou o usuário.')
         }
 
-        targetUserId = inviteData.user.id
-        invitedUserId = inviteData.user.id
+        targetUserId = createData.user.id
+        invitedUserId = createData.user.id
         invited = true
       }
     }
@@ -250,6 +332,7 @@ export async function POST(request: NextRequest) {
         agency_role: agencyRole,
         agency_id: project.agency_id,
         deleted_at: null,
+        ...(temporaryPasswordForInvite ? { must_change_password: true } : {}),
       }, { onConflict: 'id' })
 
     if (profileError) throw profileError
@@ -272,6 +355,28 @@ export async function POST(request: NextRequest) {
       }, { onConflict: 'project_id,user_id' })
 
     if (accessError) throw accessError
+
+    if (invited && temporaryPasswordForInvite) {
+      const redirectTo = `${request.nextUrl.origin}/definir-senha`
+      const { data: linkData, error: linkError } =
+        await admin.auth.admin.generateLink({
+          type: 'invite',
+          email: parsed.email,
+          options: { redirectTo },
+        })
+
+      if (linkError) throw linkError
+      const actionLink = linkData.properties?.action_link
+      if (!actionLink) throw new Error('Não foi possível gerar o link de ativação.')
+
+      await sendInviteEmail(
+        admin,
+        parsed.email,
+        parsed.name,
+        temporaryPasswordForInvite,
+        actionLink,
+      )
+    }
 
     return NextResponse.json({
       invited,

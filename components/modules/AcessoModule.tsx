@@ -4,7 +4,17 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
-import { X, Trash, Search, CheckSquare, Square, UserPlus } from 'lucide-react'
+import {
+  X,
+  Trash,
+  Search,
+  CheckSquare,
+  Square,
+  UserPlus,
+  Eye,
+  EyeOff,
+  KeyRound,
+} from 'lucide-react'
 import {
   DEFAULT_PROJECT_MODULES,
   PROJECT_MODULES,
@@ -131,6 +141,8 @@ export default function AcessoModule() {
   const [memberAccountRole, setMemberAccountRole] = useState<'colab' | 'client'>('colab')
   const [memberName, setMemberName] = useState('')
   const [memberEmail, setMemberEmail] = useState('')
+  const [memberTemporaryPassword, setMemberTemporaryPassword] = useState('')
+  const [showMemberTemporaryPassword, setShowMemberTemporaryPassword] = useState(false)
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false)
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false)
 
@@ -204,6 +216,7 @@ export default function AcessoModule() {
       accountRole: 'colab' | 'client'
       level: 'viewer' | 'editor' | 'admin'
       modules: ProjectModuleKey[]
+      temporaryPassword: string
     }) => {
       if (!activeProjectId) throw new Error('Selecione um projeto.')
 
@@ -217,6 +230,7 @@ export default function AcessoModule() {
           accountRole: vars.accountRole,
           permissionLevel: vars.level,
           modules: vars.modules,
+          temporaryPassword: vars.temporaryPassword,
         }),
       })
       const data = await response.json() as {
@@ -237,6 +251,8 @@ export default function AcessoModule() {
       setIsMemberModalOpen(false)
       setMemberName('')
       setMemberEmail('')
+      setMemberTemporaryPassword('')
+      setShowMemberTemporaryPassword(false)
       setMemberAccountRole('colab')
       setSelectedMemberLevel('editor')
       setSelectedMemberModules([])
@@ -256,6 +272,10 @@ export default function AcessoModule() {
       showToast('Informe o nome e o e-mail.', 'err')
       return
     }
+    if (memberTemporaryPassword.length > 0 && memberTemporaryPassword.length < 8) {
+      showToast('A senha temporária deve ter no mínimo 8 caracteres.', 'err')
+      return
+    }
     if (selectedMemberLevel !== 'admin' && selectedMemberModules.length === 0) {
       showToast('Selecione pelo menos um módulo.', 'err')
       return
@@ -267,12 +287,15 @@ export default function AcessoModule() {
       accountRole: memberAccountRole,
       level: selectedMemberLevel,
       modules: selectedMemberModules,
+      temporaryPassword: memberTemporaryPassword,
     })
   }
 
   const openMemberModal = () => {
     setMemberName('')
     setMemberEmail('')
+    setMemberTemporaryPassword('')
+    setShowMemberTemporaryPassword(false)
     setMemberAccountRole('colab')
     setSelectedMemberLevel('editor')
     setSelectedMemberModules([])
@@ -1190,6 +1213,36 @@ export default function AcessoModule() {
                       autoComplete="off"
                     />
                   </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-[10px] font-bold text-text2 mb-1 block">
+                      Senha temporária (opcional)
+                    </label>
+                    <div className="relative">
+                      <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text3" />
+                      <input
+                        type={showMemberTemporaryPassword ? 'text' : 'password'}
+                        value={memberTemporaryPassword}
+                        onChange={(event) => setMemberTemporaryPassword(event.target.value)}
+                        className="w-full pl-9 pr-9 py-2 border border-border2 rounded-md bg-surface text-text-custom outline-none focus:border-text-custom"
+                        maxLength={72}
+                        autoComplete="new-password"
+                        placeholder="Em branco: gerar automaticamente"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowMemberTemporaryPassword((current) => !current)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-text3 hover:text-text-custom"
+                        aria-label={showMemberTemporaryPassword ? 'Ocultar senha temporária' : 'Mostrar senha temporária'}
+                      >
+                        {showMemberTemporaryPassword
+                          ? <EyeOff className="w-3.5 h-3.5" />
+                          : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-text3 mt-1">
+                      A senha será enviada no convite e a troca será obrigatória no primeiro acesso.
+                    </p>
+                  </div>
                   <div>
                     <label className="text-[10px] font-bold text-text2 mb-1 block">
                       Tipo de usuário
@@ -1743,9 +1796,9 @@ export default function AcessoModule() {
                           <div
                             className="h-full bg-green-custom rounded-full transition-all duration-300"
                             style={{ width: `${progressPct}%` }}
-                          />
-                        </div>
-                      </div>
+                    />
+                  </div>
+                </div>
                     )}
 
                     {/* Tasks checklist inside project */}
