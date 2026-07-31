@@ -4,6 +4,8 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
+import SourceCredit from '@/components/SourceCredit'
+import { SOURCE_CREDITS } from '@/utils/source-credits'
 import { Trash, AlertTriangle, Check, Plus, Sparkles } from 'lucide-react'
 
 interface Offer {
@@ -857,7 +859,7 @@ export default function FinanceiroModule() {
               />
             </div>
             <div>
-              <label className="text-[10px] font-bold text-text2 mb-1 block">Meta CPL (R$)</label>
+              <label className="text-[10px] font-bold text-text2 mb-1 flex items-center gap-1">Meta CPL — Custo por Lead (R$) <SourceCredit {...SOURCE_CREDITS.cplCusto} /></label>
               <input
                 type="number"
                 step="0.1"
@@ -1063,7 +1065,7 @@ export default function FinanceiroModule() {
                   {/* Outros / MMQ */}
                   <div className="flex flex-col gap-1.5 p-3 bg-surface2 border border-border2 rounded-lg">
                     <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-bold text-text2 uppercase">MMQ / Outros Custos</span>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-text2 uppercase">MMQ / Outros Custos <SourceCredit {...SOURCE_CREDITS.mmq} /></span>
                       <div className="flex items-center gap-1 bg-surface border border-border2 rounded p-0.5">
                         <button
                           type="button"
@@ -1239,7 +1241,7 @@ export default function FinanceiroModule() {
                   </span>
                 </div>
                 <div className="flex justify-between pb-1">
-                  <span className="text-text2">CPA Máximo Sustentável</span>
+                  <span className="inline-flex items-center gap-1 text-text2">CPA Máximo Sustentável <SourceCredit {...SOURCE_CREDITS.cpa} /></span>
                   <span className="text-amber-t font-mono font-semibold">{f.formatCurrency(cpaMax)}</span>
                 </div>
               </div>
@@ -1294,7 +1296,7 @@ export default function FinanceiroModule() {
                             </span>
                           </div>
                           <div>
-                            <span>CPA Max: </span>
+                            <span className="inline-flex items-center gap-1">CPA Máximo Sustentável <SourceCredit {...SOURCE_CREDITS.cpa} />: </span>
                             <span className="font-semibold text-amber-t">{f.formatCurrency(scCPA)}</span>
                           </div>
                         </div>
@@ -1759,7 +1761,7 @@ export default function FinanceiroModule() {
           <div className="p-4 bg-surface border border-border-custom rounded-xl">
             <p className="text-xs font-bold text-text-custom">Provisionamento de Leads</p>
             <p className="text-xs text-text2 mt-1">
-              Com base no orçamento de <strong>{f.formatCurrency((localFin || dbFin).params.verba)}</strong> e meta CPL de{' '}
+              Com base no orçamento de <strong>{f.formatCurrency((localFin || dbFin).params.verba)}</strong> e meta CPL — Custo por Lead de{' '}
               <strong>{f.formatCurrency((localFin || dbFin).params.cpl)}</strong>, a projeção é captar{' '}
               <strong>{Math.round(f.leadsProjected).toLocaleString('pt-BR')}</strong> leads.
             </p>
@@ -1942,9 +1944,10 @@ export default function FinanceiroModule() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-[fadeUp_0.15s_ease_both]">
           {/* Detailed Statement */}
           <div className="md:col-span-2 bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
-            <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
-              Demonstrativo de Resultados (DRE)
-            </h4>
+            <div className="flex items-center gap-2 border-b border-border-custom pb-2">
+              <h4 className="text-xs font-bold text-text-custom">Demonstrativo de Resultados (DRE)</h4>
+              <SourceCredit {...SOURCE_CREDITS.dre} />
+            </div>
 
             <div className="space-y-2 text-xs leading-normal">
               <div className="flex justify-between py-1.5 border-b border-border-custom font-semibold">

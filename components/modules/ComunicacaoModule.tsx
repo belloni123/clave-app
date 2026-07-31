@@ -4,18 +4,22 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
-import { ArrowLeft, HelpCircle, PackagePlus, Plus, Trash } from 'lucide-react'
+import SourceCredit from '@/components/SourceCredit'
+import { SOURCE_CREDITS } from '@/utils/source-credits'
+import { ArrowLeft, PackagePlus, Plus, Trash } from 'lucide-react'
 
 const VSL_S = [
-  { id: 'promessa', l: 'Promessa QFD', must: true, kw: ['promessa', 'resultado', 'garanto', 'você vai', 'vou te mostrar', 'descubra', 'nesse vídeo'] },
+  { id: 'promessa', l: 'Promessa / Lead', must: true, kw: ['promessa', 'resultado', 'garanto', 'você vai', 'vou te mostrar', 'descubra', 'nesse vídeo'] },
   { id: 'para_quem', l: 'Para quem é/não é', must: true, kw: ['esse vídeo é para', 'se você', 'não é para', 'você que', 'para quem'] },
   { id: 'historia', l: 'História/origem', must: true, kw: ['quando eu', 'história', 'lembro', 'antes de', 'eu era', 'tudo começou', 'passei por'] },
-  { id: 'contexto', l: 'Contexto de mercado', must: true, kw: ['mercado', 'cenário', 'por que agora', 'atualmente', 'a maioria', 'o problema é'] },
+  { id: 'problema_contexto', l: 'Problema + contexto de mercado', must: true, kw: ['problema', 'mercado', 'cenário', 'por que agora', 'atualmente', 'a maioria', 'o problema é'] },
+  { id: 'jeito', l: 'Jeito certo vs. errado (falsa solução)', must: true, kw: ['jeito certo', 'jeito errado', 'falsa solução', 'diferente', 'ao contrário', 'mito', 'erro comum'] },
   { id: 'metodo', l: 'Explicação do método', must: true, kw: ['método', 'técnica', 'sistema', 'processo', 'como funciona', 'estratégia', 'passo'] },
   { id: 'prova', l: 'Prova/resultados', must: true, kw: ['resultado', 'prova', 'depoimento', 'aluno', 'cliente', 'conquistou', 'conseguiu', 'cases'] },
-  { id: 'jeito', l: 'Jeito certo vs. errado', must: false, kw: ['jeito certo', 'jeito errado', 'diferente', 'ao contrário', 'mito', 'erro comum'] },
   { id: 'oferta', l: 'Apresentação da oferta', must: true, kw: ['curso', 'produto', 'programa', 'hoje', 'agora', 'estou abrindo', 'criamos'] },
-  { id: 'preco', l: 'Preço e ancoragem', must: false, kw: ['preço', 'valor', 'investimento', 'r$', 'reais', 'por apenas', 'estou oferecendo'] },
+  { id: 'preco', l: 'Preço e ancoragem', must: true, kw: ['preço', 'valor', 'investimento', 'r$', 'reais', 'por apenas', 'estou oferecendo'] },
+  { id: 'garantia', l: 'Reversão de risco / Garantia', must: true, kw: ['garantia', 'garanto', 'risco', 'reembolso', 'devolução', 'satisfação'] },
+  { id: 'escassez', l: 'Escassez / Urgência legítima', must: true, kw: ['escassez', 'urgência', 'últimas vagas', 'última chance', 'encerra', 'prazo', 'até hoje'] },
   { id: 'cta', l: 'Call to action', must: true, kw: ['clique', 'clica', 'acesse', 'botão', 'garanta', 'inscreva', 'aproveite', 'agora'] }
 ]
 
@@ -599,10 +603,7 @@ export default function ComunicacaoModule() {
                   <label className="text-xs font-bold text-text-custom">
                     Mecanismo Único
                   </label>
-                  <HelpCircle
-                    className="w-3.5 h-3.5 text-text3"
-                    aria-label="Ajuda sobre Mecanismo Único"
-                  />
+                  <SourceCredit {...SOURCE_CREDITS.mecanismoUnico} />
                 </div>
                 <p className="text-[10px] text-text3 leading-relaxed mb-2">
                   O mecanismo é o motivo pelo qual o seu método funciona e é diferente de tudo que já existe no mercado. O conceito vem da publicidade direto-resposta clássica. Eugene Schwartz já descrevia esse elemento central em Breakthrough Advertising, em 1966.
@@ -619,10 +620,7 @@ export default function ComunicacaoModule() {
                   <label className="text-xs font-bold text-text-custom">
                     Resultado-Alvo
                   </label>
-                  <HelpCircle
-                    className="w-3.5 h-3.5 text-text3"
-                    aria-label="Ajuda sobre Resultado-Alvo"
-                  />
+                  <SourceCredit {...SOURCE_CREDITS.resultadoAlvo} />
                 </div>
                 <p className="text-[10px] text-text3 leading-relaxed mb-2">
                   É o resultado específico que a metodologia entrega, não o método em si. A ideia se relaciona à formulação atribuída a Theodore Levitt sobre o cliente querer o resultado, não a ferramenta, e ao framework Jobs-to-be-Done difundido por Clayton Christensen.
@@ -639,10 +637,7 @@ export default function ComunicacaoModule() {
                   <label className="text-xs font-bold text-text-custom">
                     Benefício Estendido
                   </label>
-                  <HelpCircle
-                    className="w-3.5 h-3.5 text-text3"
-                    aria-label="Ajuda sobre Benefício Estendido"
-                  />
+                  <SourceCredit {...SOURCE_CREDITS.beneficioEstendido} />
                 </div>
                 <p className="text-[10px] text-text3 leading-relaxed mb-2">
                   É o motivo emocional mais profundo por trás do resultado prometido. O conceito se relaciona à Means-End Chain Theory, de Jonathan Gutman (1982), usada para conectar atributos de produto a valores humanos.
@@ -912,7 +907,10 @@ export default function ComunicacaoModule() {
           <div className="md:col-span-2 space-y-4">
             <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-3.5">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-text-custom">Roteiro / Copy do VSL</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-text-custom">Roteiro / Copy do VSL</span>
+                  <SourceCredit {...SOURCE_CREDITS.vsl} />
+                </div>
                 <span className="text-[11px] text-text3">
                   {vslCopy.trim().split(/\s+/).filter(Boolean).length.toLocaleString('pt-BR')}{' '}
                   palavras
@@ -992,7 +990,10 @@ export default function ComunicacaoModule() {
                       {res.status === 'ok' ? '✓' : res.status === 'partial' ? '~' : '?'}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold">{res.l}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="font-semibold">{res.l}</p>
+                        <SourceCredit {...SOURCE_CREDITS.vsl} />
+                      </div>
                       <p className="text-[9px] mt-0.5">{labelText[res.status]}</p>
                     </div>
                   </div>

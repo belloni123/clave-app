@@ -5,6 +5,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
 import BiSyncPanel from '@/components/launches/BiSyncPanel'
+import SourceCredit from '@/components/SourceCredit'
+import { SOURCE_CREDITS } from '@/utils/source-credits'
 import type { LaunchBiSyncResponse } from '@/types/launch-bi'
 import { 
   ChevronLeft, Plus, Calendar, DollarSign, Target, Award, BarChart3, 
@@ -605,7 +607,7 @@ export default function LancamentosModule() {
       { nome: 'Captação', pct_verba: 70, dias: 21, inicio: adjustDate(anchor, -22), fim: adjustDate(anchor, -2) },
       { nome: 'Aquecimento', pct_verba: 5, dias: 7, inicio: adjustDate(anchor, -8), fim: adjustDate(anchor, -2) },
       { nome: 'Lembrete', pct_verba: 5, dias: 3, inicio: adjustDate(anchor, -4), fim: adjustDate(anchor, -2) },
-      { nome: 'CPLs', pct_verba: 0, dias: cpls, inicio: anchor, fim: adjustDate(anchor, cpls - 1) },
+      { nome: 'CPL — Conteúdo de Pré-Lançamento', pct_verba: 0, dias: cpls, inicio: anchor, fim: adjustDate(anchor, cpls - 1) },
       { nome: 'Inscrições abertas / Carrinho', pct_verba: 20, dias: 7, inicio: adjustDate(anchor, cpls), fim: adjustDate(anchor, cpls + 6) },
     ]
 
@@ -643,7 +645,7 @@ export default function LancamentosModule() {
       { nome: 'LP de Vendas pronta', regra: '7 dias antes do Carrinho abrir', data: dataLpVendas },
       { nome: 'Equipe pronta p/ Aquecimento', regra: '7 dias após Criativos prontos', data: adjustDate(dataCriativos, 7) },
       { nome: 'Equipe pronta p/ Lembrete', regra: '7 dias após Aquecimento', data: adjustDate(dataCriativos, 14) },
-      { nome: 'Equipe pronta p/ CPLs', regra: '7 dias após Lembrete', data: adjustDate(dataCriativos, 21) },
+      { nome: 'Equipe pronta p/ CPL', regra: '7 dias após Lembrete', data: adjustDate(dataCriativos, 21) },
       { nome: 'Equipe pronta p/ Inscrições abertas', regra: '7 dias antes do Carrinho abrir', data: dataLpVendas },
     ]
   }
@@ -1222,7 +1224,7 @@ export default function LancamentosModule() {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-text2 uppercase block">Data 1º CPL / Data-âncora</label>
+                <label className="text-[10px] font-bold text-text2 uppercase block">Data 1º CPL — Conteúdo de Pré-Lançamento / Data-âncora</label>
                 <input
                   type="date"
                   className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none"
@@ -1400,7 +1402,7 @@ function CronogramaTab({ crono, onSave }: CronogramaTabProps) {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-text2 uppercase tracking-wider">Data do 1º CPL (Âncora)</label>
+              <label className="text-[10px] font-bold text-text2 uppercase tracking-wider">Data do 1º CPL — Conteúdo de Pré-Lançamento (âncora)</label>
               <input
                 type="date"
                 className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
@@ -1409,7 +1411,7 @@ function CronogramaTab({ crono, onSave }: CronogramaTabProps) {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-text2 uppercase tracking-wider">Quantidade de CPLs</label>
+              <label className="text-[10px] font-bold text-text2 uppercase tracking-wider">Quantidade de CPLs (conteúdos)</label>
               <input
                 type="number"
                 className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
@@ -1429,14 +1431,18 @@ function CronogramaTab({ crono, onSave }: CronogramaTabProps) {
 
         {/* Display Stages calculated */}
         <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
-          <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
-            Etapas do Cronograma
-          </h4>
+          <div className="flex items-center gap-2 border-b border-border-custom pb-2">
+            <h4 className="text-xs font-bold text-text-custom">Etapas do Cronograma</h4>
+            <SourceCredit {...SOURCE_CREDITS.cplConteudo} />
+          </div>
           <div className="divide-y divide-border-custom">
             {crono.etapas.map((e, idx) => (
               <div key={idx} className="flex justify-between items-center py-2.5">
                 <div>
-                  <span className="font-bold text-text-custom text-xs">{e.nome}</span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-bold text-text-custom text-xs">{e.nome === 'CPLs' ? 'CPL — Conteúdo de Pré-Lançamento' : e.nome}</span>
+                    {e.nome === 'CPLs' && <SourceCredit {...SOURCE_CREDITS.cplConteudo} />}
+                  </div>
                   <span className="text-[10px] text-text3 block mt-0.5 font-mono">
                     {e.inicio !== 'Sem data de fim' ? `${new Date(e.inicio).toLocaleDateString('pt-BR')} até ${new Date(e.fim).toLocaleDateString('pt-BR')}` : e.fim}
                   </span>
@@ -1723,7 +1729,7 @@ function RealizadoTab({ real, verba, provisionamento, template, onSave }: Realiz
               <span className="font-bold text-text-custom">{Math.round(totalLeads)}</span>
             </div>
             <div className="flex justify-between py-1 border-b border-border-custom">
-              <span>CPL Real:</span>
+              <span className="inline-flex items-center gap-1">CPL Real — Custo por Lead <SourceCredit {...SOURCE_CREDITS.cplCusto} /></span>
               <span className="font-bold text-text-custom">R$ {cpl.toFixed(2)}</span>
             </div>
             <div className="flex justify-between py-1">
@@ -1819,7 +1825,7 @@ function ProvisionamentoTab({ provisionamento, verba, template, briefingTicket, 
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[9px] text-text3 uppercase font-bold">Custo por Lead (CPL)</span>
+                      <span className="inline-flex items-center gap-1 text-[9px] text-text3 uppercase font-bold">CPL — Custo por Lead <SourceCredit {...SOURCE_CREDITS.cplCusto} /></span>
                       <input
                         type="number"
                         className="px-2 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
@@ -1948,7 +1954,7 @@ function ProvisionamentoTab({ provisionamento, verba, template, briefingTicket, 
             <div className="p-3 bg-surface2/50 border border-border-custom rounded-lg space-y-1 text-[11px] text-text3">
               <div>Vendas necessárias: <strong className="text-text-custom">{Math.round(ingressosVendas)}</strong></div>
               <div>Leads necessários: <strong className="text-text-custom">{Math.round(ingressosLeads)}</strong></div>
-              <div>CPL Resultante máximo: <strong className="text-emerald-400">R$ {cplResultante.toFixed(2)}</strong></div>
+              <div className="flex items-center gap-1">CPL — Custo por Lead resultante máximo <SourceCredit {...SOURCE_CREDITS.cplCusto} />: <strong className="text-emerald-400">R$ {cplResultante.toFixed(2)}</strong></div>
             </div>
           </div>
         </div>
