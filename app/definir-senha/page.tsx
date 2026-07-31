@@ -10,7 +10,7 @@ import { useAppStore } from '@/store/useAppStore'
 export default function DefinirSenhaPage() {
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
-  const { showToast } = useAppStore()
+  const { profile, setProfile, showToast } = useAppStore()
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -77,7 +77,12 @@ export default function DefinirSenhaPage() {
       return
     }
 
+    if (profile) {
+      setProfile({ ...profile, must_change_password: false })
+    }
+
     showToast('Senha definida. Bem-vindo ao Clave!')
+    router.refresh()
     router.replace('/')
   }
 
