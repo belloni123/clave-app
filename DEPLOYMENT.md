@@ -34,7 +34,7 @@ As migrações da integração de BI devem existir no Supabase nesta ordem:
 8. `20260730190000_project_modules_communication_products_chip_events.sql`
 9. `20260730200000_security_definer_hardening.sql`
 10. `20260730231015_user_invites_and_profile_contact_fields.sql`
-11. `20260731140337_smtp_settings_and_admin_controls.sql`
+11. `20260731141454_smtp_settings_and_admin_controls.sql`
 
 A terceira migração valida os registros existentes antes de criar constraints
 compostas. Se ela acusar referências inconsistentes, não faça o redeploy: corrija
