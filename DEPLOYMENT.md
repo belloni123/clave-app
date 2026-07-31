@@ -206,14 +206,16 @@ Resposta esperada: `{"status":"ok"}`.
    disponíveis durante o build e durante o runtime.
 5. Mantenha `SUPABASE_SERVICE_ROLE_KEY` e `GEMINI_API_KEY` somente no runtime,
    com a opção de build desmarcada.
-6. No Supabase Auth, permita
+6. No Supabase Auth > URL Configuration, defina a **Site URL** como
+   `https://clave.agenciab16.com.br` e permita
    `https://clave.agenciab16.com.br/auth/callback` e
    `https://clave.agenciab16.com.br/definir-senha` como URLs de
-   redirecionamento e mantenha um SMTP apto a enviar convites aos usuários
-   finais. A Central de acesso permite informar uma senha temporária ou deixar
-   o campo vazio para o servidor gerar uma senha forte. O convite personalizado
-   envia a senha e o link de ativação; a troca da senha é obrigatória no
-   primeiro acesso.
+   redirecionamento. Não mantenha `0.0.0.0`, `localhost` ou a porta interna do
+   container como Site URL de produção. Mantenha também um SMTP apto a enviar
+   convites aos usuários finais. A Central de acesso permite informar uma senha
+   temporária ou deixar o campo vazio para o servidor gerar uma senha forte. O
+   convite personalizado envia a senha e o link de ativação; a troca da senha é
+   obrigatória no primeiro acesso.
 7. Cadastre `SUPABASE_MANAGEMENT_ACCESS_TOKEN` somente no runtime do Coolify;
    mantenha `SUPABASE_PROJECT_REF` como runtime ou deixe o sistema derivá-lo.
 8. Use o `Dockerfile` da raiz e porta `3000`.
