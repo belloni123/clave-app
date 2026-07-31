@@ -246,7 +246,9 @@ operação manual do responsável pelo ambiente.
 15. Informe última recarga e ciclo; confirme a data gerada em Próx. Recarga e o alerta correspondente.
 16. Como administrador, abra `Administração > Configurações`, confirme que a senha aparece apenas como protegida e envie um teste para o e-mail autorizado.
 17. Salve uma alteração SMTP e confirme que recuperação de senha e convite chegam pelo Google Workspace.
-18. Acesse com um administrador fora da allowlist e confirme que a tela fica somente leitura; com um usuário comum, confirme que o menu e a API respondem sem acesso.
+18. Em Central de acesso, use a ação de chave de um usuário ativo e confirme o
+    recebimento das novas credenciais e a troca obrigatória de senha no próximo login.
+19. Acesse com um administrador fora da allowlist e confirme que a tela fica somente leitura; com um usuário comum, confirme que o menu e a API respondem sem acesso.
 
 ## 7. Rollback
 

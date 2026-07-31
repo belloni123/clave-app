@@ -91,7 +91,10 @@ temporária informada pelo administrador (ou uma senha forte gerada no servidor)
 com um link de ativação. O perfil recebe `must_change_password = true` e a
 primeira sessão é direcionada para `/definir-senha`; a senha temporária nunca é
 salva em tabela pública, metadata ou log. Contas existentes são apenas
-vinculadas ou reativadas.
+vinculadas ou reativadas. Para reenviar credenciais a uma conta existente, o
+administrador usa a ação explícita de chave: ela gera uma nova senha temporária,
+marca a troca como obrigatória e envia um link de redefinição para o mesmo
+e-mail.
 Ao concluir a troca, `POST /api/auth/complete-password-change` atualiza a senha
 com `service_role` e limpa o marcador no perfil. O cliente não tem permissão
 de coluna para limpar esse marcador diretamente.
