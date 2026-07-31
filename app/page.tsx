@@ -17,6 +17,7 @@ import PlanejadorModule from '@/components/modules/PlanejadorModule'
 import UrlBuilderModule from '@/components/modules/UrlBuilderModule'
 import AcessoModule from '@/components/modules/AcessoModule'
 import ChipsModule from '@/components/modules/ChipsModule'
+import AdminSmtpModule from '@/components/modules/AdminSmtpModule'
 
 export default function Home() {
   const { activeModule } = useAppStore()
@@ -45,6 +46,8 @@ export default function Home() {
         return <ChipsModule />
       case 'acesso':
         return <AcessoModule />
+      case 'configuracoes':
+        return <AdminSmtpModule />
       default:
         return <DashboardModule />
     }

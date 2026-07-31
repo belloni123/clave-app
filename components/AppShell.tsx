@@ -30,6 +30,7 @@ import {
   Sun,
   Moon,
   Smartphone,
+  Settings,
 } from 'lucide-react'
 
 interface AppShellProps {
@@ -172,13 +173,18 @@ export default function AppShell({ children }: AppShellProps) {
     let cancelled = false
 
     async function loadAllowedModules() {
-      if (!profile || !activeProjectId) {
+      if (!profile) {
         setAllowedModules(['home'])
         return
       }
 
       if (profile.role === 'admin' || profile.agency_role === 'admin') {
-        setAllowedModules(['home', ...DEFAULT_PROJECT_MODULES])
+        setAllowedModules(['home', ...DEFAULT_PROJECT_MODULES, 'configuracoes'])
+        return
+      }
+
+      if (!activeProjectId) {
+        setAllowedModules(['home'])
         return
       }
 
@@ -277,6 +283,12 @@ export default function AppShell({ children }: AppShellProps) {
         { id: 'urlbuilder', name: 'Links & QR Code', icon: Link2 },
         { id: 'chips', name: 'Controle de Chips', icon: Smartphone },
         { id: 'acesso', name: 'Central de acesso', icon: Users },
+      ],
+    },
+    {
+      group: 'ADMINISTRAÇÃO',
+      items: [
+        { id: 'configuracoes', name: 'Configurações', icon: Settings },
       ],
     },
   ]
@@ -422,6 +434,7 @@ export default function AppShell({ children }: AppShellProps) {
                 {activeModule === 'urlbuilder' && 'Gere tags UTM, links de WhatsApp e QR Codes'}
                 {activeModule === 'chips' && 'Status, vínculos e alertas de recarga dos chips de WhatsApp'}
                 {activeModule === 'acesso' && 'Permissões e equipe'}
+                {activeModule === 'configuracoes' && 'Configurações globais e integrações administrativas'}
               </p>
             </div>
           </div>
