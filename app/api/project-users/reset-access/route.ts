@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { sendAccessCredentialsEmail } from '@/utils/supabase/access-mailer'
+import { createAuthConfirmationLink } from '@/utils/supabase/auth-confirmation-link'
 
 interface ResetAccessBody {
   projectId?: unknown
@@ -94,8 +95,13 @@ export async function POST(request: NextRequest) {
     })
     if (linkError) throw linkError
 
-    const actionLink = linkData.properties?.action_link
-    if (!actionLink) throw new Error('Não foi possível gerar o link de redefinição.')
+    const tokenHash = linkData.properties?.hashed_token
+    if (!tokenHash) throw new Error('Não foi possível gerar o link de redefinição.')
+    const actionLink = createAuthConfirmationLink(
+      request.nextUrl.origin,
+      tokenHash,
+      'recovery',
+    )
 
     await sendAccessCredentialsEmail({
       admin,

@@ -4,6 +4,7 @@ import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { sendAccessCredentialsEmail } from '@/utils/supabase/access-mailer'
+import { createAuthConfirmationLink } from '@/utils/supabase/auth-confirmation-link'
 import {
   DEFAULT_PROJECT_MODULES,
   isProjectModuleKey,
@@ -307,8 +308,13 @@ export async function POST(request: NextRequest) {
         })
 
       if (linkError) throw linkError
-      const actionLink = linkData.properties?.action_link
-      if (!actionLink) throw new Error('Não foi possível gerar o link de ativação.')
+      const tokenHash = linkData.properties?.hashed_token
+      if (!tokenHash) throw new Error('Não foi possível gerar o link de ativação.')
+      const actionLink = createAuthConfirmationLink(
+        request.nextUrl.origin,
+        tokenHash,
+        'invite',
+      )
 
       await sendAccessCredentialsEmail({
         admin,

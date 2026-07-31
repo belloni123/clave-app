@@ -94,7 +94,9 @@ salva em tabela pública, metadata ou log. Contas existentes são apenas
 vinculadas ou reativadas. Para reenviar credenciais a uma conta existente, o
 administrador usa a ação explícita de chave: ela gera uma nova senha temporária,
 marca a troca como obrigatória e envia um link de redefinição para o mesmo
-e-mail.
+e-mail. O botão desses e-mails aponta para `/auth/confirm`, que confirma no
+servidor o token gerado pelo Supabase e só então abre `/definir-senha`; assim o
+fluxo não depende do verificador PKCE do navegador que disparou a ação.
 Ao concluir a troca, `POST /api/auth/complete-password-change` atualiza a senha
 com `service_role` e limpa o marcador no perfil. O cliente não tem permissão
 de coluna para limpar esse marcador diretamente.
