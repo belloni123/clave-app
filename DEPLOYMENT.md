@@ -242,18 +242,21 @@ operação manual do responsável pelo ambiente.
 12. Convide um e-mail de teste, verifique o recebimento da senha temporária,
    abra o login pelo botão, entre com essa senha e confirme que a troca
    obrigatória termina no dashboard e no projeto concedido.
-13. Em Comunicação, abra `Produto principal`, crie outro produto e confirme que os campos não se misturam.
-14. Em Chips, altere um status para `Restrição 24h`, volte para `Ativo` e confirme os dois eventos com horário.
-15. Informe última recarga e ciclo; confirme a data gerada em Próx. Recarga e o alerta correspondente.
-16. Como administrador, abra `Administração > Configurações`, confirme que a senha aparece apenas como protegida e envie um teste para o e-mail autorizado.
-17. Salve uma alteração SMTP e confirme que recuperação de senha e convite chegam pelo Google Workspace.
-18. Em Central de acesso, use a ação de chave de um usuário ativo e confirme o
+13. Repita o convite para uma conta pendente, não confirmada e sem login, e
+   confirme que a nova senha temporária funciona. Para uma conta já ativa,
+   confirme que o formulário exige deixar a senha vazia ou usar Redefinir acesso.
+14. Em Comunicação, abra `Produto principal`, crie outro produto e confirme que os campos não se misturam.
+15. Em Chips, altere um status para `Restrição 24h`, volte para `Ativo` e confirme os dois eventos com horário.
+16. Informe última recarga e ciclo; confirme a data gerada em Próx. Recarga e o alerta correspondente.
+17. Como administrador, abra `Administração > Configurações`, confirme que a senha aparece apenas como protegida e envie um teste para o e-mail autorizado.
+18. Salve uma alteração SMTP e confirme que recuperação de senha e convite chegam pelo Google Workspace.
+19. Em Central de acesso, use a ação de chave de um usuário ativo e confirme o
     recebimento das novas credenciais e a troca obrigatória de senha no próximo login.
-19. Acesse com um administrador fora da allowlist e confirme que a tela fica somente leitura; com um usuário comum, confirme que o menu e a API respondem sem acesso.
-20. Solicite recuperação de senha, abra o link, defina a nova senha e confirme
+20. Acesse com um administrador fora da allowlist e confirme que a tela fica somente leitura; com um usuário comum, confirme que o menu e a API respondem sem acesso.
+21. Solicite recuperação de senha, abra o link, defina a nova senha e confirme
     que a sessão temporária é encerrada e a tela de login é exibida. Entre com a
     nova senha e confirme o acesso apenas aos projetos e módulos concedidos.
-21. Acesse com uma conta sem vínculo ativo e confirme que nenhum “Projeto padrão”
+22. Acesse com uma conta sem vínculo ativo e confirme que nenhum “Projeto padrão”
     é criado automaticamente.
 
 ## 7. Rollback
