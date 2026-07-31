@@ -266,7 +266,7 @@ async function syncSupabaseAuth(config: SmtpConfig, password: string) {
           external_email_enabled: true,
           smtp_admin_email: config.smtpSenderEmail,
           smtp_host: config.smtpHost,
-          smtp_port: config.smtpPort,
+          smtp_port: String(config.smtpPort),
           smtp_user: config.smtpUser,
           smtp_pass: password,
           smtp_sender_name: config.smtpSenderName,
