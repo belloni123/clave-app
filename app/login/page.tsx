@@ -6,7 +6,7 @@ import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
 import { Star, ArrowLeft, Lock, Mail, Eye, EyeOff } from 'lucide-react'
 
-type LoginState = 'login' | 'esqueci' | 'ativar' | 'clave'
+type LoginState = 'login' | 'esqueci' | 'clave'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -23,12 +23,6 @@ export default function LoginPage() {
   const [recoveryEmail, setRecoveryEmail] = useState('')
   const [recoverySent, setRecoverySent] = useState(false)
 
-  // Activation State
-  const [actEmail, setActEmail] = useState('')
-  const [actCode, setActCode] = useState('')
-  const [actPass1, setActPass1] = useState('')
-  const [actPass2, setActPass2] = useState('')
-
   const [theme, setTheme] = useState<'light' | 'dark'>('dark')
 
   useEffect(() => {
@@ -43,8 +37,6 @@ export default function LoginPage() {
       }
     }
   }, [])
-  const [actSuccess, setActSuccess] = useState(false)
-
   // Redireciona se o usuário já estiver logado
   useEffect(() => {
     async function checkUser() {
@@ -63,7 +55,7 @@ export default function LoginPage() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search)
       const stateParam = params.get('state')
-      if (stateParam === 'ativar' || stateParam === 'login' || stateParam === 'esqueci' || stateParam === 'clave') {
+      if (stateParam === 'login' || stateParam === 'esqueci' || stateParam === 'clave') {
         setTimeout(() => setState(stateParam as LoginState), 0)
       }
     }
@@ -120,55 +112,6 @@ export default function LoginPage() {
     } catch (err: unknown) {
       setLoading(false)
       const errMsg = err instanceof Error ? err.message : 'Erro inesperado na recuperação'
-      showToast(errMsg, 'err')
-    }
-  }
-
-  const handleActivation = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      if (!actEmail || !actCode || !actPass1 || !actPass2) {
-        showToast('Todos os campos são obrigatórios.', 'err')
-        return
-      }
-
-      if (actPass1 !== actPass2) {
-        showToast('As senhas não coincidem.', 'err')
-        return
-      }
-
-      if (actPass1.length < 8) {
-        showToast('A senha precisa ter no mínimo 8 caracteres.', 'err')
-        return
-      }
-
-      // Mock validation do código de ativação
-      if (!actCode.startsWith('CLAVE-')) {
-        showToast('Código de ativação inválido. Deve começar com CLAVE-', 'err')
-        return
-      }
-
-      setLoading(true)
-      const { error } = await supabase.auth.signUp({
-        email: actEmail,
-        password: actPass1,
-      })
-
-      setLoading(false)
-      if (error) {
-        showToast(error.message || 'Erro ao criar conta', 'err')
-      } else {
-        setActSuccess(true)
-        showToast('Conta ativada com sucesso!')
-        setTimeout(() => {
-          setState('login')
-          setEmail(actEmail)
-          setPassword(actPass1)
-        }, 1500)
-      }
-    } catch (err: unknown) {
-      setLoading(false)
-      const errMsg = err instanceof Error ? err.message : 'Erro inesperado na ativação'
       showToast(errMsg, 'err')
     }
   }
@@ -269,20 +212,13 @@ export default function LoginPage() {
               </div>
 
               {/* Login Footer links */}
-              <div className="flex justify-between border-t border-border-custom mt-6 pt-4 text-xs">
+              <div className="border-t border-border-custom mt-6 pt-4 text-xs">
                 <button
                   type="button"
                   onClick={() => setState('clave')}
-                  className="text-text2 hover:text-text-custom underline text-left"
+                  className="text-text2 hover:text-text-custom underline"
                 >
                   O método Clave
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setState('ativar')}
-                  className="text-text2 hover:text-text-custom underline text-right font-medium"
-                >
-                  Ativar minha conta
                 </button>
               </div>
             </form>
@@ -334,95 +270,6 @@ export default function LoginPage() {
               >
                 <ArrowLeft className="w-3 h-3" />
                 <span>Voltar para o login</span>
-              </button>
-            </form>
-          )}
-
-          {/* STATE: ATIVAR CONTA */}
-          {state === 'ativar' && (
-            <form onSubmit={handleActivation} className="space-y-4 animate-[fadeUp_0.2s_ease_both]">
-              <div>
-                <p className="text-sm font-semibold text-text-custom">Ativar conta</p>
-                <p className="text-[11px] text-text2 mt-0.5">
-                  Use o código enviado por e-mail ou WhatsApp
-                </p>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-semibold text-text2 mb-1 block">E-mail</label>
-                  <input
-                    type="email"
-                    className="w-full px-3 py-1.5 text-xs border border-border2 rounded-md bg-surface text-text-custom outline-none focus:border-text-custom transition-colors"
-                    value={actEmail}
-                    onChange={(e) => setActEmail(e.target.value)}
-                    placeholder="seu@email.com"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-text2 mb-1 block">
-                    Código de ativação
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full px-3 py-1.5 text-xs border border-border2 rounded-md bg-surface text-text-custom font-mono outline-none focus:border-text-custom transition-colors uppercase"
-                    value={actCode}
-                    onChange={(e) => setActCode(e.target.value)}
-                    placeholder="CLAVE-XXXX-XXXX"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-text2 mb-1 block">Criar senha</label>
-                  <input
-                    type="password"
-                    className="w-full px-3 py-1.5 text-xs border border-border2 rounded-md bg-surface text-text-custom outline-none focus:border-text-custom transition-colors"
-                    value={actPass1}
-                    onChange={(e) => setActPass1(e.target.value)}
-                    placeholder="Mínimo 8 caracteres"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-text2 mb-1 block">
-                    Confirmar senha
-                  </label>
-                  <input
-                    type="password"
-                    className="w-full px-3 py-1.5 text-xs border border-border2 rounded-md bg-surface text-text-custom outline-none focus:border-text-custom transition-colors"
-                    value={actPass2}
-                    onChange={(e) => setActPass2(e.target.value)}
-                    placeholder="Repita a senha"
-                    required
-                  />
-                </div>
-              </div>
-
-              {actSuccess && (
-                <div className="p-3 bg-green-bg text-green-t rounded-md text-xs">
-                  Conta ativada com sucesso! Redirecionando...
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-2 bg-purple-custom text-white rounded-md text-xs font-semibold hover:opacity-90 transition-opacity disabled:opacity-55 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Ativando...' : 'Ativar conta'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setState('login')}
-                className="w-full text-center text-xs text-text2 hover:text-text-custom underline mt-2 flex items-center justify-center gap-1"
-              >
-                <ArrowLeft className="w-3 h-3" />
-                <span>Já tenho conta</span>
               </button>
             </form>
           )}
@@ -481,14 +328,6 @@ export default function LoginPage() {
                   </p>
                 </div>
               </div>
-
-              <button
-                type="button"
-                onClick={() => setState('ativar')}
-                className="w-full py-2 bg-purple-custom text-white rounded-md text-xs font-semibold hover:opacity-90 transition-opacity"
-              >
-                Quero ativar minha conta
-              </button>
 
               <button
                 type="button"
