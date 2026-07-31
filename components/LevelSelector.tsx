@@ -4,6 +4,8 @@ import React, { useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore, MaturityLevel } from '@/store/useAppStore'
+import SourceCredit from '@/components/SourceCredit'
+import { SOURCE_CREDITS } from '@/utils/source-credits'
 
 const LEVELS: { key: MaturityLevel; name: string; color: string }[] = [
   { key: 'newbie', name: 'Fundação', color: '#888780' },
@@ -69,8 +71,9 @@ export default function LevelSelector() {
   return (
     <div className="border-t border-border-custom p-2 shrink-0">
       {!sidebarCollapsed && (
-        <div className="text-[10px] font-semibold tracking-wider uppercase text-text3 px-2 mb-1.5">
-          MEU NÍVEL
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold tracking-wider uppercase text-text3 px-2 mb-1.5">
+          <span>MEU NÍVEL</span>
+          <SourceCredit {...SOURCE_CREDITS.maturityLevels} />
         </div>
       )}
       <div className="flex flex-col gap-0.5">

@@ -46,6 +46,12 @@ Todos os campos das abas de Comunicação, isolados por produto.
 *   `product_id`: referencia `communication_products`.
 *   `key`, `value`: identificador estável e conteúdo do campo.
 *   A combinação `(product_id, key)` é única.
+*   A estrutura da VSL usa `vsl-tt` e `vsl-copy`; a validação dos 12 blocos é
+    calculada na interface e não exige alteração de schema.
+
+Os créditos de fontes, classificações `[S]`, `[C]`, `[P]` e `[O]` são catálogo
+estático da aplicação. Portanto, esta padronização não cria uma migração do
+Supabase nem altera dados já salvos nos cursos/produtos.
 
 ### `public.chips`
 Estado atual de cada chip do projeto.

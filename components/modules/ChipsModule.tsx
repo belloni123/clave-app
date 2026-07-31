@@ -4,6 +4,8 @@ import React, { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
+import SourceCredit from '@/components/SourceCredit'
+import { SOURCE_CREDITS } from '@/utils/source-credits'
 import { 
   Smartphone, Plus, Search, Trash2, Archive, History, 
   AlertTriangle, CheckCircle2, ShieldAlert,
@@ -578,7 +580,7 @@ export default function ChipsModule() {
                 <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Função</th>
                 <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Responsável</th>
                 <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Aparelho</th>
-                <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Status</th>
+                <th className="p-3 text-text3 font-semibold text-[10px] uppercase"><span className="inline-flex items-center gap-1">Status <SourceCredit {...SOURCE_CREDITS.chipStatus} /></span></th>
                 <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Alertas</th>
                 <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Últ. Recarga</th>
                 <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Próx. Recarga</th>
@@ -731,7 +733,7 @@ export default function ChipsModule() {
                 </select>
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-text2 uppercase tracking-wider">Status do Chip</label>
+                <label className="text-[10px] font-bold text-text2 uppercase tracking-wider flex items-center gap-1">Status do Chip <SourceCredit {...SOURCE_CREDITS.chipStatus} /></label>
                 <select
                   className="px-3 py-2 border border-border2 rounded-lg bg-surface text-text-custom outline-none w-full cursor-pointer"
                   value={fStatus}

@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore, MaturityLevel } from '@/store/useAppStore'
+import SourceCredit from '@/components/SourceCredit'
+import { SOURCE_CREDITS } from '@/utils/source-credits'
 import { Plus, Trash, ArrowUp, ArrowDown, Sparkles } from 'lucide-react'
 
 // PERGUNTAS DA MATRIZ DO PERPÉTUO
@@ -321,7 +323,7 @@ export default function ConcepcaoModule() {
               : 'border-transparent text-text2 hover:text-text-custom'
           }`}
         >
-          Matriz do perpétuo
+          <span className="inline-flex items-center gap-1.5">Matriz do perpétuo <SourceCredit {...SOURCE_CREDITS.matriz} /></span>
         </button>
         <button
           onClick={() => setActiveSubTab('bench')}
@@ -331,7 +333,7 @@ export default function ConcepcaoModule() {
               : 'border-transparent text-text2 hover:text-text-custom'
           }`}
         >
-          Benchmarking
+          <span className="inline-flex items-center gap-1.5">Benchmarking <SourceCredit {...SOURCE_CREDITS.benchmarking} /></span>
         </button>
       </div>
 

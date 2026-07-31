@@ -95,6 +95,23 @@ seleção, todas as abas usam `communication_product_fields`, com chave única p
 produto. A migração cria `Produto principal` e copia os campos antigos de
 `text_fields`, sem apagar a origem.
 
+### 4.1 Padronização de fontes e créditos
+
+Os conceitos exibidos pela interface usam `components/SourceCredit.tsx` para
+mostrar a classificação e a origem por meio de um popover acessível:
+
+* `[S]`: fonte clássica rastreável, com autor, obra e ano;
+* `[C]`: convenção de mercado, sem um único autor;
+* `[P]`: definição ainda pendente de validação humana;
+* `[O]`: organização própria do Clave.
+
+O catálogo de créditos fica em `utils/source-credits.ts`. A estrutura VSL é
+analisada em 12 blocos operacionais, com os cinco passos centrais de Jon Benson
+preservados dentro da sequência. O rótulo `CPL` é sempre contextualizado:
+`CPL — Conteúdo de Pré-Lançamento` em Lançamentos e `CPL — Custo por Lead` em
+Provisão/Financeiro. A sigla `MMQ` permanece marcada como `[P]` até que sua
+expansão seja definida pelo negócio.
+
 ## 5. Histórico Operacional Dos Chips
 
 `chips` guarda o estado atual e as datas calculadas. `chip_events` é o log
