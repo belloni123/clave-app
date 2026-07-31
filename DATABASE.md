@@ -13,6 +13,7 @@ Armazena as informações adicionais dos usuários autenticados da plataforma.
 *   `plan`: `text` (Plano de cobrança: `'free'`, `'pro'`, etc).
 *   `max_projects`: `integer` (Limite histórico de projetos associados. O sistema agora ignora esse limite no client-side para permitir projetos ilimitados).
 *   `nome`, `email`: identificação sincronizada com `auth.users` e usada no cadastro de acessos por projeto.
+*   `must_change_password`: marcador interno que impede o uso normal da conta até a troca da senha temporária; a alteração é feita somente pelo backend.
 *   `created_at`, `updated_at`: `timestamp`.
 *   `agency_id`: `uuid` (Agência à qual o perfil pertence).
 *   `agency_role`: `text` (`'admin'`, `'gestor'` ou `'colaborador'`).
@@ -279,6 +280,9 @@ As migrações devem ser aplicadas em ordem crescente:
    execução anônima das funções administrativas e de trigger.
 6. `20260730231015_user_invites_and_profile_contact_fields.sql`: normaliza
    nome/e-mail dos perfis e auditoria dos convites por projeto.
+7. `20260731160000_temporary_password_invites.sql`: adiciona o marcador
+   `profiles.must_change_password` para exigir a troca da senha temporária no
+   primeiro acesso. A senha em texto aberto não é armazenada no banco.
 
 O deploy da aplicação não executa essas migrações. Consulte
 [DEPLOYMENT.md](./DEPLOYMENT.md) para o procedimento de produção.

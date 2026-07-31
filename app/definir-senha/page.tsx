@@ -16,9 +16,15 @@ export default function DefinirSenhaPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [checkingSession, setCheckingSession] = useState(true)
+  const [requiredChange, setRequiredChange] = useState(false)
 
   useEffect(() => {
     async function checkSession() {
+      const requiresChange =
+        typeof window !== 'undefined'
+        && new URLSearchParams(window.location.search).get('obrigatoria') === '1'
+      setRequiredChange(requiresChange)
+
       const code =
         typeof window === 'undefined'
           ? null
@@ -58,11 +64,16 @@ export default function DefinirSenhaPage() {
     }
 
     setLoading(true)
-    const { error } = await supabase.auth.updateUser({ password })
+    const response = await fetch('/api/auth/complete-password-change', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    })
+    const data = await response.json() as { error?: string }
     setLoading(false)
 
-    if (error) {
-      showToast(error.message || 'Não foi possível definir a senha.', 'err')
+    if (!response.ok) {
+      showToast(data.error || 'Não foi possível definir a senha.', 'err')
       return
     }
 
@@ -100,9 +111,13 @@ export default function DefinirSenhaPage() {
           onSubmit={handleSubmit}
           className="bg-surface border border-border-custom rounded-lg p-6 shadow-xl"
         >
-          <h1 className="text-lg font-bold text-text-custom">Defina sua senha</h1>
+          <h1 className="text-lg font-bold text-text-custom">
+            {requiredChange ? 'Troque sua senha temporária' : 'Defina sua senha'}
+          </h1>
           <p className="text-xs text-text2 mt-1 mb-5">
-            Use esta senha para os próximos acessos ao Clave.
+            {requiredChange
+              ? 'Por segurança, escolha uma senha pessoal para continuar.'
+              : 'Use esta senha para os próximos acessos ao Clave.'}
           </p>
 
           <div className="space-y-4">

@@ -168,6 +168,16 @@ export default function AppShell({ children }: AppShellProps) {
     getSession()
   }, [supabase, router, setProfile, showToast])
 
+  useEffect(() => {
+    if (
+      profile?.must_change_password
+      && typeof window !== 'undefined'
+      && window.location.pathname !== '/definir-senha'
+    ) {
+      router.replace('/definir-senha?obrigatoria=1')
+    }
+  }, [profile, router])
+
   // 3. CARREGAR OS MÓDULOS LIBERADOS PARA O PROJETO ATIVO
   useEffect(() => {
     let cancelled = false
