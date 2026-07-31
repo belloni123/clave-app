@@ -10,6 +10,8 @@ import {
   type ProjectModuleKey,
 } from '@/utils/module-access'
 
+export const runtime = 'nodejs'
+
 type AccountRole = 'client' | 'colab'
 type PermissionLevel = 'viewer' | 'editor' | 'admin'
 
