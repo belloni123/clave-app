@@ -46,7 +46,8 @@ export async function sendAccessCredentialsEmail({
   const intro = isReset
     ? 'Seu acesso ao Clave foi redefinido por um administrador.'
     : 'Sua conta no Clave foi criada.'
-  const buttonLabel = isReset ? 'Definir nova senha' : 'Ativar minha conta'
+  const heading = isReset ? 'Seu acesso foi redefinido' : 'Seu acesso ao Clave'
+  const buttonLabel = isReset ? 'Definir nova senha' : 'Criar senha e entrar'
 
   try {
     await mailer.transport.sendMail({
@@ -65,15 +66,54 @@ export async function sendAccessCredentialsEmail({
         'Por segurança, o Clave exigirá a troca dessa senha no próximo acesso.',
       ].join('\n'),
       html: `
-        <div style="font-family:Arial,sans-serif;line-height:1.6;color:#202124;max-width:560px">
-          <h2>${isReset ? 'Seu acesso foi redefinido' : 'Seu convite para o Clave'}</h2>
-          <p>Olá, ${safeName}!</p>
-          <p>${escapeHtml(intro)} Use os dados abaixo somente para o próximo acesso:</p>
-          <p><strong>E-mail:</strong> ${safeEmail}<br />
-          <strong>Senha temporária:</strong> <code>${safePassword}</code></p>
-          <p><a href="${safeActionLink}" style="display:inline-block;background:#534ab7;color:#fff;padding:10px 16px;text-decoration:none;border-radius:6px">${buttonLabel}</a></p>
-          <p>Por segurança, o Clave exigirá a troca dessa senha no próximo acesso.</p>
-        </div>
+        <!doctype html>
+        <html lang="pt-BR">
+          <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <title>${heading}</title>
+          </head>
+          <body style="margin:0;padding:0;background:#f5f5f3;font-family:Arial,Helvetica,sans-serif;color:#171717;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f5f5f3;padding:32px 16px;">
+              <tr>
+                <td align="center">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background:#ffffff;border:1px solid #e5e5e5;border-radius:10px;overflow:hidden;">
+                    <tr>
+                      <td style="height:5px;background:#f4c400;line-height:5px;font-size:5px;">&nbsp;</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:34px 36px 16px;font-size:24px;font-weight:700;letter-spacing:0;color:#171717;">CLAVE</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:8px 36px 32px;">
+                        <h1 style="margin:0 0 16px;font-size:24px;line-height:1.25;font-weight:700;color:#171717;">${heading}</h1>
+                        <p style="margin:0 0 16px;font-size:16px;line-height:1.55;color:#454545;">Olá, ${safeName}!</p>
+                        <p style="margin:0 0 20px;font-size:16px;line-height:1.55;color:#454545;">${escapeHtml(intro)} Use os dados abaixo somente para o próximo acesso.</p>
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 24px;background:#f5f5f3;border:1px solid #e5e5e5;border-radius:6px;">
+                          <tr>
+                            <td style="padding:16px;">
+                              <p style="margin:0 0 8px;font-size:13px;line-height:1.4;color:#6b6b6b;"><strong style="color:#454545;">E-mail</strong><br />${safeEmail}</p>
+                              <p style="margin:0;font-size:13px;line-height:1.4;color:#6b6b6b;"><strong style="color:#454545;">Senha temporária</strong><br /><span style="display:inline-block;margin-top:4px;padding:6px 8px;background:#ffffff;border:1px solid #dedede;border-radius:4px;font-family:monospace;font-size:14px;color:#171717;">${safePassword}</span></p>
+                            </td>
+                          </tr>
+                        </table>
+                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 28px;">
+                          <tr>
+                            <td style="border-radius:6px;background:#1f6fbd;">
+                              <a href="${safeActionLink}" style="display:inline-block;padding:13px 20px;border-radius:6px;color:#ffffff;font-size:15px;font-weight:700;line-height:1;text-decoration:none;">${buttonLabel}</a>
+                            </td>
+                          </tr>
+                        </table>
+                        <p style="margin:0;font-size:14px;line-height:1.55;color:#6b6b6b;">Por seguran&ccedil;a, o Clave exigir&aacute; a troca desta senha no pr&oacute;ximo acesso.</p>
+                      </td>
+                    </tr>
+                  </table>
+                  <p style="margin:18px 0 0;font-size:12px;line-height:1.5;color:#8a8a8a;">Clave &middot; Plataforma de gest&atilde;o de marketing</p>
+                </td>
+              </tr>
+            </table>
+          </body>
+        </html>
       `,
     })
   } finally {

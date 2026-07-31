@@ -87,8 +87,9 @@ administrar o projeto e, somente no servidor, usa a chave administrativa do
 Supabase para localizar ou criar a conta. Em seguida sincroniza `profiles` e
 faz `upsert` do vínculo em `project_users`. Para uma conta nova, a senha
 temporária informada pelo administrador (ou uma senha forte gerada no servidor)
-é aplicada no Auth, e o convite personalizado é enviado pelo SMTP configurado
-com um link de ativação. O perfil recebe `must_change_password = true` e a
+é aplicada no Auth, e o convite personalizado, com o mesmo padrão visual do
+e-mail de recuperação, é enviado pelo SMTP configurado com um link de ativação.
+O perfil recebe `must_change_password = true` e a
 primeira sessão é direcionada para `/definir-senha`; a senha temporária nunca é
 salva em tabela pública, metadata ou log. Contas existentes são apenas
 vinculadas ou reativadas. Para reenviar credenciais a uma conta existente, o
