@@ -62,25 +62,6 @@ export default function ProjectSwitcher() {
         return []
       }
 
-      // Se não houver projetos, criar o "Projeto padrão"
-      if (data.length === 0) {
-        const { data: newProj, error: createError } = await supabase
-          .from('projects')
-          .insert({
-            user_id: profile.id,
-            name: 'Projeto padrão',
-            color: PROJ_COLORS[0],
-          })
-          .select()
-          .single()
-
-        if (createError) {
-          showToast('Erro ao inicializar projeto padrão', 'err')
-          return []
-        }
-        return [newProj]
-      }
-
       return data as Project[]
     },
     enabled: !!profile?.id,
@@ -259,7 +240,7 @@ export default function ProjectSwitcher() {
           <>
             <div className="flex-1 min-w-0 text-left">
               <div className="text-xs font-medium text-text-custom truncate">
-                {activeProj?.name || 'Carregando...'}
+                {activeProj?.name || 'Nenhum projeto'}
               </div>
               <div className="text-[10px] text-text3 mt-0.5">Projeto ativo</div>
             </div>

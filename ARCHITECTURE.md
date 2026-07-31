@@ -87,20 +87,27 @@ administrar o projeto e, somente no servidor, usa a chave administrativa do
 Supabase para localizar ou criar a conta. Em seguida sincroniza `profiles` e
 faz `upsert` do vínculo em `project_users`. Para uma conta nova, a senha
 temporária informada pelo administrador (ou uma senha forte gerada no servidor)
-é aplicada no Auth, e o convite personalizado, com o mesmo padrão visual do
-e-mail de recuperação, é enviado pelo SMTP configurado com um link de ativação.
-O perfil recebe `must_change_password = true` e a
-primeira sessão é direcionada para `/definir-senha`; a senha temporária nunca é
-salva em tabela pública, metadata ou log. Contas existentes são apenas
-vinculadas ou reativadas. Para reenviar credenciais a uma conta existente, o
-administrador usa a ação explícita de chave: ela gera uma nova senha temporária,
-marca a troca como obrigatória e envia um link de redefinição para o mesmo
-e-mail. O botão desses e-mails aponta para `/auth/confirm`, que confirma no
-servidor o token gerado pelo Supabase e só então abre `/definir-senha`; assim o
-fluxo não depende do verificador PKCE do navegador que disparou a ação.
+é aplicada no Auth com o e-mail já confirmado, e o convite personalizado, com
+o mesmo padrão visual do e-mail de recuperação, é enviado pelo SMTP configurado.
+O botão abre somente `/login`: o usuário entra com a senha temporária e o perfil
+com `must_change_password = true` direciona a primeira sessão para
+`/definir-senha?obrigatoria=1`. A senha temporária nunca é salva em tabela
+pública, metadata ou log. Contas existentes são apenas vinculadas ou reativadas.
+Para reenviar credenciais a uma conta existente, o administrador usa a ação
+explícita de chave: ela gera uma nova senha temporária, marca a troca como
+obrigatória e envia novamente o link simples de login.
 Ao concluir a troca, `POST /api/auth/complete-password-change` atualiza a senha
-com `service_role` e limpa o marcador no perfil. O cliente não tem permissão
-de coluna para limpar esse marcador diretamente.
+pela própria sessão autenticada e usa `service_role` somente para limpar o
+marcador no perfil. O cliente não tem permissão de coluna para limpar esse
+marcador diretamente. A troca obrigatória mantém a sessão e abre o dashboard
+autorizado; a recuperação de senha encerra a sessão temporária do Supabase e
+retorna ao login para a entrada com a nova senha.
+
+O link de recuperação aponta para `/auth/confirm`, confirma o `TokenHash` no
+servidor e abre `/definir-senha?recuperacao=1`. Enquanto um template antigo do
+Supabase ainda estiver em cache, o `redirectTo` usa `/auth/callback` e preserva
+o mesmo destino. Nenhum desses fluxos cria projetos automaticamente: sem um
+vínculo ativo, a conta permanece sem projeto até um administrador concedê-lo.
 
 ## 3.1 SMTP Global E Supabase Auth
 

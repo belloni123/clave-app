@@ -17,27 +17,33 @@ export default function DefinirSenhaPage() {
   const [loading, setLoading] = useState(false)
   const [checkingSession, setCheckingSession] = useState(true)
   const [requiredChange, setRequiredChange] = useState(false)
+  const [recoveryChange, setRecoveryChange] = useState(false)
 
   useEffect(() => {
     async function checkSession() {
-      const requiresChange =
-        typeof window !== 'undefined'
-        && new URLSearchParams(window.location.search).get('obrigatoria') === '1'
+      const params = typeof window === 'undefined'
+        ? new URLSearchParams()
+        : new URLSearchParams(window.location.search)
+      const requiresChange = params.get('obrigatoria') === '1'
+      const recoversPassword = params.get('recuperacao') === '1'
       setRequiredChange(requiresChange)
+      setRecoveryChange(recoversPassword)
 
-      const code =
-        typeof window === 'undefined'
-          ? null
-          : new URLSearchParams(window.location.search).get('code')
+      const code = params.get('code')
 
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code)
         if (error) {
-          showToast('O convite expirou ou já foi utilizado.', 'err')
+          showToast('O link expirou ou já foi utilizado.', 'err')
           router.replace('/login')
           return
         }
-        window.history.replaceState({}, '', '/definir-senha')
+        const cleanPath = recoversPassword
+          ? '/definir-senha?recuperacao=1'
+          : requiresChange
+            ? '/definir-senha?obrigatoria=1'
+            : '/definir-senha'
+        window.history.replaceState({}, '', cleanPath)
       }
 
       const { data } = await supabase.auth.getUser()
@@ -77,9 +83,15 @@ export default function DefinirSenhaPage() {
       return
     }
 
-    if (profile) {
-      setProfile({ ...profile, must_change_password: false })
+    if (recoveryChange) {
+      await supabase.auth.signOut()
+      setProfile(null)
+      showToast('Senha redefinida. Entre com seu e-mail e a nova senha.')
+      router.replace('/login?senha=alterada')
+      return
     }
+
+    if (profile) setProfile({ ...profile, must_change_password: false })
 
     showToast('Senha definida. Bem-vindo ao Clave!')
     router.refresh()
@@ -117,12 +129,18 @@ export default function DefinirSenhaPage() {
           className="bg-surface border border-border-custom rounded-lg p-6 shadow-xl"
         >
           <h1 className="text-lg font-bold text-text-custom">
-            {requiredChange ? 'Troque sua senha temporária' : 'Defina sua senha'}
+            {requiredChange
+              ? 'Troque sua senha temporária'
+              : recoveryChange
+                ? 'Redefina sua senha'
+                : 'Defina sua senha'}
           </h1>
           <p className="text-xs text-text2 mt-1 mb-5">
             {requiredChange
               ? 'Por segurança, escolha uma senha pessoal para continuar.'
-              : 'Use esta senha para os próximos acessos ao Clave.'}
+              : recoveryChange
+                ? 'Escolha uma nova senha. Depois, você voltará à tela de login.'
+                : 'Use esta senha para os próximos acessos ao Clave.'}
           </p>
 
           <div className="space-y-4">
@@ -174,7 +192,11 @@ export default function DefinirSenhaPage() {
             disabled={loading}
             className="mt-6 w-full py-2 bg-text-custom text-surface rounded-md text-xs font-semibold disabled:opacity-50"
           >
-            {loading ? 'Salvando...' : 'Definir senha e entrar'}
+            {loading
+              ? 'Salvando...'
+              : recoveryChange
+                ? 'Redefinir senha'
+                : 'Definir senha e entrar'}
           </button>
         </form>
       </section>

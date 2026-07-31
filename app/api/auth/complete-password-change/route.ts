@@ -32,14 +32,11 @@ export async function POST(request: NextRequest) {
   if (userError || !user) return jsonError('Não autorizado.', 401)
 
   try {
-    const admin = createAdminClient()
-    const { error: passwordError } = await admin.auth.admin.updateUserById(
-      user.id,
-      { password },
-    )
+    const { error: passwordError } = await supabase.auth.updateUser({ password })
 
     if (passwordError) throw passwordError
 
+    const admin = createAdminClient()
     const { error: profileError } = await admin
       .from('profiles')
       .update({ must_change_password: false })

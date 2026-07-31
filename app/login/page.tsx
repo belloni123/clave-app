@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
@@ -10,7 +10,7 @@ type LoginState = 'login' | 'esqueci' | 'clave'
 
 export default function LoginPage() {
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const { showToast } = useAppStore()
 
   const [state, setState] = useState<LoginState>('login')
@@ -58,8 +58,11 @@ export default function LoginPage() {
       if (stateParam === 'login' || stateParam === 'esqueci' || stateParam === 'clave') {
         setTimeout(() => setState(stateParam as LoginState), 0)
       }
+      if (params.get('senha') === 'alterada') {
+        showToast('Senha redefinida. Entre com seu e-mail e a nova senha.')
+      }
     }
-  }, [])
+  }, [showToast])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -98,8 +101,10 @@ export default function LoginPage() {
       }
 
       setLoading(true)
+      const callbackUrl = new URL('/auth/callback', window.location.origin)
+      callbackUrl.searchParams.set('next', '/definir-senha?recuperacao=1')
       const { error } = await supabase.auth.resetPasswordForEmail(recoveryEmail, {
-        redirectTo: `${window.location.origin}/definir-senha`,
+        redirectTo: callbackUrl.toString(),
       })
 
       setLoading(false)

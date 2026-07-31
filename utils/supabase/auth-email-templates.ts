@@ -26,7 +26,7 @@ export const RECOVERY_EMAIL_TEMPLATE = `<!doctype html>
                 <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 28px;">
                   <tr>
                     <td style="border-radius:6px;background:#1f6fbd;">
-                      <a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:13px 20px;border-radius:6px;color:#ffffff;font-size:15px;font-weight:700;line-height:1;text-decoration:none;">Criar nova senha</a>
+                      <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=recovery&amp;next=%2Fdefinir-senha%3Frecuperacao%3D1" style="display:inline-block;padding:13px 20px;border-radius:6px;color:#ffffff;font-size:15px;font-weight:700;line-height:1;text-decoration:none;">Criar nova senha</a>
                     </td>
                   </tr>
                 </table>
