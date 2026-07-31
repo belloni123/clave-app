@@ -65,6 +65,16 @@ interface SmtpConfig {
   smtpSenderEmail: string
 }
 
+class SmtpOperationError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'SmtpOperationError'
+    this.status = status
+  }
+}
+
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status })
 }
@@ -236,35 +246,57 @@ async function syncSupabaseAuth(config: SmtpConfig, password: string) {
   const projectRef = projectRefFromEnvironment()
 
   if (!accessToken || !projectRef) {
-    throw new Error(
+    throw new SmtpOperationError(
       'Configure SUPABASE_MANAGEMENT_ACCESS_TOKEN no Coolify antes de sincronizar o SMTP do Supabase Auth. Não envie esse token pelo chat.',
+      503,
     )
   }
 
-  const response = await fetch(
-    `https://api.supabase.com/v1/projects/${encodeURIComponent(projectRef)}/config/auth`,
-    {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
+  let response: Response
+  try {
+    response = await fetch(
+      `https://api.supabase.com/v1/projects/${encodeURIComponent(projectRef)}/config/auth`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          external_email_enabled: true,
+          smtp_admin_email: config.smtpSenderEmail,
+          smtp_host: config.smtpHost,
+          smtp_port: config.smtpPort,
+          smtp_user: config.smtpUser,
+          smtp_pass: password,
+          smtp_sender_name: config.smtpSenderName,
+        }),
+        cache: 'no-store',
       },
-      body: JSON.stringify({
-        external_email_enabled: true,
-        smtp_admin_email: config.smtpSenderEmail,
-        smtp_host: config.smtpHost,
-        smtp_port: config.smtpPort,
-        smtp_user: config.smtpUser,
-        smtp_pass: password,
-        smtp_sender_name: config.smtpSenderName,
-      }),
-      cache: 'no-store',
-    },
-  )
+    )
+  } catch {
+    throw new SmtpOperationError(
+      'Não foi possível acessar a Supabase Management API. Verifique a conexão do Coolify e tente novamente.',
+      502,
+    )
+  }
 
   if (!response.ok) {
-    throw new Error(
+    if (response.status === 401 || response.status === 403) {
+      throw new SmtpOperationError(
+        'O token SUPABASE_MANAGEMENT_ACCESS_TOKEN é inválido ou não tem acesso a este projeto.',
+        503,
+      )
+    }
+    if (response.status === 404) {
+      throw new SmtpOperationError(
+        'O projeto Supabase informado não foi encontrado. Confira SUPABASE_PROJECT_REF no Coolify.',
+        503,
+      )
+    }
+    throw new SmtpOperationError(
       `O Supabase Auth recusou a configuração SMTP (HTTP ${response.status}).`,
+      502,
     )
   }
 }
@@ -554,6 +586,9 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error('SMTP settings POST failed', error)
+    if (error instanceof SmtpOperationError) {
+      return jsonError(error.message, error.status)
+    }
     const message = error instanceof Error && error.message.includes('SUPABASE_MANAGEMENT_ACCESS_TOKEN')
       ? error.message
       : 'Não foi possível concluir a operação SMTP.'
