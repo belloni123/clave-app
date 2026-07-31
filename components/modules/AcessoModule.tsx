@@ -145,6 +145,7 @@ export default function AcessoModule() {
   const [showMemberTemporaryPassword, setShowMemberTemporaryPassword] = useState(false)
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false)
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false)
+  const [memberForAccessReset, setMemberForAccessReset] = useState<ProjectMember | null>(null)
 
   // Load members of the active project
   const { data: projectMembers = [] } = useQuery({
@@ -339,6 +340,29 @@ export default function AcessoModule() {
     onError: (err) => {
       showToast('Erro ao atualizar: ' + err.message, 'err')
     }
+  })
+
+  const resetProjectMemberAccessMutation = useMutation({
+    mutationFn: async (member: ProjectMember) => {
+      if (!activeProjectId) throw new Error('Selecione um projeto.')
+
+      const response = await fetch('/api/project-users/reset-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: activeProjectId, userId: member.user_id }),
+      })
+      const data = await response.json() as { error?: string }
+      if (!response.ok) {
+        throw new Error(data.error || 'Não foi possível reenviar o acesso.')
+      }
+    },
+    onSuccess: () => {
+      setMemberForAccessReset(null)
+      showToast('Novas credenciais enviadas por e-mail.')
+    },
+    onError: (error: Error) => {
+      showToast(error.message || 'Não foi possível reenviar o acesso.', 'err')
+    },
   })
 
   // Modals local states
@@ -1065,7 +1089,7 @@ export default function AcessoModule() {
                   <th className="p-3 text-text3 font-semibold text-[10px] uppercase min-w-72">Módulos</th>
                   <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Data Concessão</th>
                   <th className="p-3 text-text3 font-semibold text-[10px] uppercase">Status</th>
-                  <th className="p-3 text-text3 font-semibold text-[10px] uppercase text-right">Revogar</th>
+                  <th className="p-3 text-text3 font-semibold text-[10px] uppercase text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-custom">
@@ -1145,20 +1169,33 @@ export default function AcessoModule() {
                           {pm.ativo ? 'Ativo' : 'Revogado'}
                         </span>
                       </td>
-                      <td className="p-3 text-right">
-                        <button
-                          onClick={() => {
-                            updateProjectMemberMutation.mutate({ id: pm.id, ativo: !pm.ativo })
-                          }}
-                          disabled={!canManageProject}
-                          className={`px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                            pm.ativo
-                              ? 'border border-red-t/30 text-red-t hover:bg-red-bg'
-                              : 'border border-border2 text-text2 hover:bg-surface'
-                          } disabled:opacity-40 disabled:cursor-not-allowed`}
-                        >
-                          {pm.ativo ? 'Revogar' : 'Reativar'}
-                        </button>
+                      <td className="p-3">
+                        <div className="flex justify-end gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setMemberForAccessReset(pm)}
+                            disabled={!canManageProject || !pm.ativo || !pm.profiles?.email}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded border border-border2 text-text2 transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
+                            title="Reenviar acesso"
+                            aria-label={`Reenviar acesso para ${pm.profiles?.nome || pm.profiles?.email || 'usuário'}`}
+                          >
+                            <KeyRound className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updateProjectMemberMutation.mutate({ id: pm.id, ativo: !pm.ativo })
+                            }}
+                            disabled={!canManageProject}
+                            className={`px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-colors ${
+                              pm.ativo
+                                ? 'border border-red-t/30 text-red-t hover:bg-red-bg'
+                                : 'border border-border2 text-text2 hover:bg-surface'
+                            } disabled:opacity-40 disabled:cursor-not-allowed`}
+                          >
+                            {pm.ativo ? 'Revogar' : 'Reativar'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -1346,6 +1383,46 @@ export default function AcessoModule() {
                     {inviteProjectMemberMutation.isPending
                       ? 'Adicionando...'
                       : 'Adicionar usuário'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {memberForAccessReset && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px] animate-fadeIn">
+              <div className="w-full max-w-md rounded-lg border border-border-custom bg-surface p-5 shadow-2xl">
+                <div className="flex items-center gap-3 border-b border-border-custom pb-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-purple-bg text-purple-custom">
+                    <KeyRound className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-text-custom">Reenviar acesso</h3>
+                    <p className="mt-0.5 text-[10px] text-text3">
+                      {memberForAccessReset.profiles?.email || 'E-mail não informado'}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-4 text-xs leading-relaxed text-text2">
+                  Uma nova senha temporária será criada e enviada por e-mail. A senha atual deixará de funcionar e a pessoa deverá definir outra senha no próximo acesso.
+                </p>
+                <div className="mt-5 flex justify-end gap-2 border-t border-border-custom pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setMemberForAccessReset(null)}
+                    disabled={resetProjectMemberAccessMutation.isPending}
+                    className="rounded-md border border-border2 px-3 py-2 text-xs text-text2 hover:bg-surface2 disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => resetProjectMemberAccessMutation.mutate(memberForAccessReset)}
+                    disabled={resetProjectMemberAccessMutation.isPending}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-text-custom px-3 py-2 text-xs font-semibold text-surface disabled:opacity-50"
+                  >
+                    <KeyRound className="h-3.5 w-3.5" />
+                    {resetProjectMemberAccessMutation.isPending ? 'Enviando...' : 'Reenviar acesso'}
                   </button>
                 </div>
               </div>

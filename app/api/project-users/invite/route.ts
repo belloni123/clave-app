@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
-import { createConfiguredSmtpMailer } from '@/utils/supabase/smtp-mailer'
+import { sendAccessCredentialsEmail } from '@/utils/supabase/access-mailer'
 import {
   DEFAULT_PROJECT_MODULES,
   isProjectModuleKey,
@@ -113,65 +113,6 @@ function parseBody(body: InviteProjectUserBody): ParsedInviteProjectUser {
 
 function generateTemporaryPassword() {
   return randomBytes(18).toString('base64url')
-}
-
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (character) => {
-    const entities: Record<string, string> = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;',
-    }
-    return entities[character]
-  })
-}
-
-async function sendInviteEmail(
-  admin: ReturnType<typeof createAdminClient>,
-  email: string,
-  name: string,
-  temporaryPassword: string,
-  actionLink: string,
-) {
-  const mailer = await createConfiguredSmtpMailer(admin)
-  const safeName = escapeHtml(name)
-  const safeEmail = escapeHtml(email)
-  const safePassword = escapeHtml(temporaryPassword)
-  const safeActionLink = escapeHtml(actionLink)
-
-  try {
-    await mailer.transport.sendMail({
-      from: { name: mailer.senderName, address: mailer.senderEmail },
-      to: email,
-      subject: 'Seu convite para o Clave',
-      text: [
-        `Olá, ${name}!`,
-        '',
-        'Sua conta no Clave foi criada.',
-        `E-mail: ${email}`,
-        `Senha temporária: ${temporaryPassword}`,
-        '',
-        `Ative sua conta por este link: ${actionLink}`,
-        '',
-        'Por segurança, o Clave exigirá a troca dessa senha no primeiro acesso.',
-      ].join('\n'),
-      html: `
-        <div style="font-family:Arial,sans-serif;line-height:1.6;color:#202124;max-width:560px">
-          <h2>Seu convite para o Clave</h2>
-          <p>Olá, ${safeName}!</p>
-          <p>Sua conta foi criada. Use os dados abaixo somente para o primeiro acesso:</p>
-          <p><strong>E-mail:</strong> ${safeEmail}<br />
-          <strong>Senha temporária:</strong> <code>${safePassword}</code></p>
-          <p><a href="${safeActionLink}" style="display:inline-block;background:#534ab7;color:#fff;padding:10px 16px;text-decoration:none;border-radius:6px">Ativar minha conta</a></p>
-          <p>Por segurança, o Clave exigirá a troca dessa senha no primeiro acesso.</p>
-        </div>
-      `,
-    })
-  } finally {
-    mailer.transport.close()
-  }
 }
 
 async function findAuthUserByEmail(
@@ -369,13 +310,14 @@ export async function POST(request: NextRequest) {
       const actionLink = linkData.properties?.action_link
       if (!actionLink) throw new Error('Não foi possível gerar o link de ativação.')
 
-      await sendInviteEmail(
+      await sendAccessCredentialsEmail({
         admin,
-        parsed.email,
-        parsed.name,
-        temporaryPasswordForInvite,
+        email: parsed.email,
+        name: parsed.name,
+        temporaryPassword: temporaryPasswordForInvite,
         actionLink,
-      )
+        kind: 'invite',
+      })
     }
 
     return NextResponse.json({
