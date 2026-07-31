@@ -126,6 +126,9 @@ senha de aplicativo do Google Workspace é guardada no Supabase Vault, enquanto
 `public.smtp_settings` armazena apenas metadados e o identificador do segredo.
 Ao salvar, o backend sincroniza o SMTP no Supabase Auth pela Management API; isso
 é o que habilita recuperação de senha, convites e futuras mensagens de Auth.
+O mesmo salvamento aplica o modelo de recuperação de senha do Clave em PT-BR.
+Depois de publicar uma mudança nesse modelo, salve novamente o SMTP para que o
+Supabase Auth receba a atualização.
 
 Antes de usar a tela, crie um token pessoal na conta Supabase e cadastre-o como
 segredo de runtime no Coolify:
