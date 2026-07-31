@@ -214,8 +214,8 @@ Resposta esperada: `{"status":"ok"}`.
    container como Site URL de produção. Mantenha também um SMTP apto a enviar
    convites aos usuários finais. A Central de acesso permite informar uma senha
    temporária ou deixar o campo vazio para o servidor gerar uma senha forte. O
-   convite personalizado envia a senha e o link de ativação; a troca da senha é
-   obrigatória no primeiro acesso.
+   convite personalizado envia a senha e um link simples para o login; a troca
+   da senha é obrigatória no primeiro acesso e termina no dashboard autorizado.
 7. Cadastre `SUPABASE_MANAGEMENT_ACCESS_TOKEN` somente no runtime do Coolify;
    mantenha `SUPABASE_PROJECT_REF` como runtime ou deixe o sistema derivá-lo.
 8. Use o `Dockerfile` da raiz e porta `3000`.
@@ -239,8 +239,9 @@ operação manual do responsável pelo ambiente.
 9. Atualize a página em um projeto diferente do primeiro e confirme que a seleção permanece.
 10. Em Central de acesso, limite um usuário de teste ao Controle de Chips e confirme menu e RLS.
 11. Confirme que somente o Dashboard e o Controle de Chips ficam visíveis naquele projeto.
-12. Convide um e-mail de teste, verifique o recebimento da senha temporária e do
-   link de ativação, abra o link e defina a senha pessoal obrigatória.
+12. Convide um e-mail de teste, verifique o recebimento da senha temporária,
+   abra o login pelo botão, entre com essa senha e confirme que a troca
+   obrigatória termina no dashboard e no projeto concedido.
 13. Em Comunicação, abra `Produto principal`, crie outro produto e confirme que os campos não se misturam.
 14. Em Chips, altere um status para `Restrição 24h`, volte para `Ativo` e confirme os dois eventos com horário.
 15. Informe última recarga e ciclo; confirme a data gerada em Próx. Recarga e o alerta correspondente.
@@ -249,6 +250,11 @@ operação manual do responsável pelo ambiente.
 18. Em Central de acesso, use a ação de chave de um usuário ativo e confirme o
     recebimento das novas credenciais e a troca obrigatória de senha no próximo login.
 19. Acesse com um administrador fora da allowlist e confirme que a tela fica somente leitura; com um usuário comum, confirme que o menu e a API respondem sem acesso.
+20. Solicite recuperação de senha, abra o link, defina a nova senha e confirme
+    que a sessão temporária é encerrada e a tela de login é exibida. Entre com a
+    nova senha e confirme o acesso apenas aos projetos e módulos concedidos.
+21. Acesse com uma conta sem vínculo ativo e confirme que nenhum “Projeto padrão”
+    é criado automaticamente.
 
 ## 7. Rollback
 

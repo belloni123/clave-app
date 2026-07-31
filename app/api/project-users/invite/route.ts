@@ -4,7 +4,6 @@ import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { sendAccessCredentialsEmail } from '@/utils/supabase/access-mailer'
-import { createAuthConfirmationLink } from '@/utils/supabase/auth-confirmation-link'
 import {
   DEFAULT_PROJECT_MODULES,
   isProjectModuleKey,
@@ -242,6 +241,7 @@ export async function POST(request: NextRequest) {
           await admin.auth.admin.createUser({
             email: parsed.email,
             password: temporaryPasswordForInvite,
+            email_confirm: true,
             user_metadata: { nome: parsed.name },
           })
 
@@ -299,29 +299,12 @@ export async function POST(request: NextRequest) {
     if (accessError) throw accessError
 
     if (invited && temporaryPasswordForInvite) {
-      const redirectTo = `${request.nextUrl.origin}/definir-senha`
-      const { data: linkData, error: linkError } =
-        await admin.auth.admin.generateLink({
-          type: 'invite',
-          email: parsed.email,
-          options: { redirectTo },
-        })
-
-      if (linkError) throw linkError
-      const tokenHash = linkData.properties?.hashed_token
-      if (!tokenHash) throw new Error('Não foi possível gerar o link de ativação.')
-      const actionLink = createAuthConfirmationLink(
-        request.nextUrl.origin,
-        tokenHash,
-        'invite',
-      )
-
       await sendAccessCredentialsEmail({
         admin,
         email: parsed.email,
         name: parsed.name,
         temporaryPassword: temporaryPasswordForInvite,
-        actionLink,
+        actionLink: new URL('/login', request.nextUrl.origin).toString(),
         kind: 'invite',
       })
     }

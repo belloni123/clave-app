@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { sendAccessCredentialsEmail } from '@/utils/supabase/access-mailer'
-import { createAuthConfirmationLink } from '@/utils/supabase/auth-confirmation-link'
 
 interface ResetAccessBody {
   projectId?: unknown
@@ -87,28 +86,12 @@ export async function POST(request: NextRequest) {
       .eq('id', userId)
     if (changeFlagError) throw changeFlagError
 
-    const redirectTo = `${request.nextUrl.origin}/definir-senha`
-    const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
-      type: 'recovery',
-      email: profile.email,
-      options: { redirectTo },
-    })
-    if (linkError) throw linkError
-
-    const tokenHash = linkData.properties?.hashed_token
-    if (!tokenHash) throw new Error('Não foi possível gerar o link de redefinição.')
-    const actionLink = createAuthConfirmationLink(
-      request.nextUrl.origin,
-      tokenHash,
-      'recovery',
-    )
-
     await sendAccessCredentialsEmail({
       admin,
       email: profile.email,
       name: profile.nome?.trim() || profile.email,
       temporaryPassword,
-      actionLink,
+      actionLink: new URL('/login', request.nextUrl.origin).toString(),
       kind: 'reset',
     })
 

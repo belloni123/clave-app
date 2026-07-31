@@ -44,10 +44,10 @@ export async function sendAccessCredentialsEmail({
     ? 'Novas credenciais de acesso ao Clave'
     : 'Seu convite para o Clave'
   const intro = isReset
-    ? 'Seu acesso ao Clave foi redefinido por um administrador.'
-    : 'Sua conta no Clave foi criada.'
+    ? 'Seu acesso ao Clave foi redefinido por um administrador. Entre com a senha temporária abaixo.'
+    : 'Sua conta no Clave foi criada. Entre com a senha temporária abaixo.'
   const heading = isReset ? 'Seu acesso foi redefinido' : 'Seu acesso ao Clave'
-  const buttonLabel = isReset ? 'Definir nova senha' : 'Criar senha e entrar'
+  const buttonLabel = 'Entrar no Clave'
 
   try {
     await mailer.transport.sendMail({
@@ -63,7 +63,7 @@ export async function sendAccessCredentialsEmail({
         '',
         `${buttonLabel}: ${actionLink}`,
         '',
-        'Por segurança, o Clave exigirá a troca dessa senha no próximo acesso.',
+        'No primeiro acesso, o Clave pedirá que você crie uma senha pessoal.',
       ].join('\n'),
       html: `
         <!doctype html>
@@ -88,7 +88,7 @@ export async function sendAccessCredentialsEmail({
                       <td style="padding:8px 36px 32px;">
                         <h1 style="margin:0 0 16px;font-size:24px;line-height:1.25;font-weight:700;color:#171717;">${heading}</h1>
                         <p style="margin:0 0 16px;font-size:16px;line-height:1.55;color:#454545;">Olá, ${safeName}!</p>
-                        <p style="margin:0 0 20px;font-size:16px;line-height:1.55;color:#454545;">${escapeHtml(intro)} Use os dados abaixo somente para o próximo acesso.</p>
+                        <p style="margin:0 0 20px;font-size:16px;line-height:1.55;color:#454545;">${escapeHtml(intro)}</p>
                         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin:0 0 24px;background:#f5f5f3;border:1px solid #e5e5e5;border-radius:6px;">
                           <tr>
                             <td style="padding:16px;">
@@ -104,7 +104,7 @@ export async function sendAccessCredentialsEmail({
                             </td>
                           </tr>
                         </table>
-                        <p style="margin:0;font-size:14px;line-height:1.55;color:#6b6b6b;">Por seguran&ccedil;a, o Clave exigir&aacute; a troca desta senha no pr&oacute;ximo acesso.</p>
+                        <p style="margin:0;font-size:14px;line-height:1.55;color:#6b6b6b;">No primeiro acesso, o Clave pedir&aacute; que voc&ecirc; crie uma senha pessoal antes de abrir o dashboard.</p>
                       </td>
                     </tr>
                   </table>

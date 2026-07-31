@@ -190,7 +190,7 @@ export default function DashboardModule() {
       <div className="p-4 bg-surface border border-border-custom rounded-xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h3 className="text-sm font-semibold text-text-custom">
-            Projeto: {activeProj?.name || 'Projeto padrão'}
+            Projeto: {activeProj?.name || 'Nenhum projeto disponível'}
           </h3>
           <p className="text-xs text-text2 mt-1">
             Status geral do workspace. Mude o seu nível de maturidade na barra lateral para adaptar as recomendações.
