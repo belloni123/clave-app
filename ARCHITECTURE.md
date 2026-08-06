@@ -92,14 +92,24 @@ o mesmo padrão visual do e-mail de recuperação, é enviado pelo SMTP configur
 O botão abre somente `/login`: o usuário entra com a senha temporária e o perfil
 com `must_change_password = true` direciona a primeira sessão para
 `/definir-senha?obrigatoria=1`. A senha temporária nunca é salva em tabela
-pública, metadata ou log. Contas existentes são apenas vinculadas ou reativadas.
+pública, metadata ou log. Ela é devolvida uma única vez ao administrador
+autorizado para permitir copiar o convite e enviá-lo por WhatsApp.
 Se a conta ainda estiver pendente, sem e-mail confirmado e sem qualquer login,
 um novo convite conclui o cadastro: reaplica a senha temporária informada (ou
 gera outra), confirma o e-mail, mantém a troca obrigatória e reenvia as
-credenciais. O formulário de convite nunca sobrescreve a senha de uma conta já
-confirmada ou utilizada. Para reenviar credenciais a uma conta ativa, o
-administrador usa a ação explícita de chave: ela gera uma nova senha temporária,
-marca a troca como obrigatória e envia novamente o link simples de login.
+credenciais. Uma conta sem qualquer vínculo ativo também recebe novas
+credenciais ao ser readicionada. Quando a conta já possui outro acesso ativo,
+a concessão preserva a senha atual e envia somente o link de login. Para
+gerenciar uma conta ativa, o administrador usa a
+ação explícita de chave. Nela pode definir uma nova senha temporária, escolher
+se deseja enviá-la por e-mail e reenviar apenas o link simples de login sem
+alterar a senha. Toda senha alterada por um administrador marca a troca como
+obrigatória no próximo acesso. A revogação mantém o vínculo e a auditoria no
+banco, mas remove a pessoa da lista ativa; uma nova concessão é feita por
+`Adicionar usuário`, que reativa o mesmo vínculo por `upsert`.
+Os links de e-mail usam `APP_URL` quando configurada. Em produção, o domínio
+canônico `https://clave.agenciab16.com.br` é o fallback, impedindo que o
+endereço interno `0.0.0.0:3000` seja exposto ao usuário.
 Ao concluir a troca, `POST /api/auth/complete-password-change` atualiza a senha
 pela própria sessão autenticada e usa `service_role` somente para limpar o
 marcador no perfil. O cliente não tem permissão de coluna para limpar esse

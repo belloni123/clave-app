@@ -14,6 +14,8 @@ import {
   Eye,
   EyeOff,
   KeyRound,
+  Mail,
+  Copy,
 } from 'lucide-react'
 import {
   DEFAULT_PROJECT_MODULES,
@@ -110,6 +112,13 @@ interface AgencyProfile {
   role: string | null
 }
 
+interface ProjectInviteResult {
+  invited: boolean
+  email: string
+  temporaryPassword: string | null
+  accessLink: string
+}
+
 interface ProjectAccessAudit {
   id: string
   target_user_id: string
@@ -144,8 +153,12 @@ export default function AcessoModule() {
   const [memberTemporaryPassword, setMemberTemporaryPassword] = useState('')
   const [showMemberTemporaryPassword, setShowMemberTemporaryPassword] = useState(false)
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false)
+  const [projectInviteResult, setProjectInviteResult] = useState<ProjectInviteResult | null>(null)
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false)
   const [memberForAccessReset, setMemberForAccessReset] = useState<ProjectMember | null>(null)
+  const [memberAccessPassword, setMemberAccessPassword] = useState('')
+  const [showMemberAccessPassword, setShowMemberAccessPassword] = useState(false)
+  const [sendMemberPasswordByEmail, setSendMemberPasswordByEmail] = useState(true)
 
   // Load members of the active project
   const { data: projectMembers = [] } = useQuery({
@@ -169,6 +182,7 @@ export default function AcessoModule() {
           )
         `)
         .eq('project_id', activeProjectId)
+        .eq('ativo', true)
       if (error) {
         showToast('Erro ao carregar colaboradores do projeto', 'err')
         return []
@@ -236,7 +250,10 @@ export default function AcessoModule() {
       })
       const data = await response.json() as {
         error?: string
-        invited?: boolean
+        invited: boolean
+        email: string
+        temporaryPassword: string | null
+        accessLink: string
       }
 
       if (!response.ok) {
@@ -250,6 +267,7 @@ export default function AcessoModule() {
       queryClient.invalidateQueries({ queryKey: ['project_access_audit', activeProjectId] })
       queryClient.invalidateQueries({ queryKey: ['agency_profiles', profile?.agency_id] })
       setIsMemberModalOpen(false)
+      setProjectInviteResult(data)
       setMemberName('')
       setMemberEmail('')
       setMemberTemporaryPassword('')
@@ -260,7 +278,7 @@ export default function AcessoModule() {
       showToast(
         data.invited
           ? 'Convite enviado e módulos liberados!'
-          : 'Usuário vinculado e módulos liberados!',
+          : 'Usuário vinculado e link de acesso enviado!',
       )
     },
     onError: (err: Error) => {
@@ -293,6 +311,7 @@ export default function AcessoModule() {
   }
 
   const openMemberModal = () => {
+    setProjectInviteResult(null)
     setMemberName('')
     setMemberEmail('')
     setMemberTemporaryPassword('')
@@ -301,6 +320,40 @@ export default function AcessoModule() {
     setSelectedMemberLevel('editor')
     setSelectedMemberModules([])
     setIsMemberModalOpen(true)
+  }
+
+  const copyText = async (text: string, successMessage: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      showToast(successMessage)
+    } catch {
+      showToast('Não foi possível copiar. Tente novamente pelo navegador.', 'err')
+    }
+  }
+
+  const copyProjectInvite = () => {
+    if (!projectInviteResult) return
+
+    const message = [
+      `Seu acesso ao Clave${activeProject?.name ? ` para o projeto ${activeProject.name}` : ''} foi liberado.`,
+      '',
+      `E-mail: ${projectInviteResult.email}`,
+      projectInviteResult.temporaryPassword
+        ? `Senha temporária: ${projectInviteResult.temporaryPassword}`
+        : 'Use a senha que você já cadastrou no Clave.',
+      '',
+      `Acessar: ${projectInviteResult.accessLink}`,
+      projectInviteResult.temporaryPassword
+        ? 'No primeiro acesso, você deverá criar uma senha pessoal.'
+        : '',
+    ].filter(Boolean).join('\n')
+
+    void copyText(message, 'Convite copiado. Já pode enviar pelo WhatsApp.')
+  }
+
+  const copyCurrentLoginLink = () => {
+    const loginLink = new URL('/login', window.location.origin).toString()
+    void copyText(loginLink, 'Link de acesso copiado.')
   }
 
   const updateProjectMemberMutation = useMutation({
@@ -332,38 +385,91 @@ export default function AcessoModule() {
         .eq('id', vars.id)
       if (error) throw error
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['project_members', activeProjectId] })
       queryClient.invalidateQueries({ queryKey: ['project_access_audit', activeProjectId] })
-      showToast('Acesso atualizado!')
+      showToast(
+        vars.ativo === false
+          ? 'Acesso revogado. Para liberar novamente, adicione o usuário.'
+          : 'Acesso atualizado!',
+      )
     },
     onError: (err) => {
       showToast('Erro ao atualizar: ' + err.message, 'err')
     }
   })
 
-  const resetProjectMemberAccessMutation = useMutation({
-    mutationFn: async (member: ProjectMember) => {
+  const manageProjectMemberAccessMutation = useMutation({
+    mutationFn: async (vars: {
+      member: ProjectMember
+      action: 'change_password' | 'resend_link'
+      temporaryPassword?: string
+      sendEmail?: boolean
+    }) => {
       if (!activeProjectId) throw new Error('Selecione um projeto.')
 
       const response = await fetch('/api/project-users/reset-access', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectId: activeProjectId, userId: member.user_id }),
+        body: JSON.stringify({
+          projectId: activeProjectId,
+          userId: vars.member.user_id,
+          action: vars.action,
+          temporaryPassword: vars.temporaryPassword,
+          sendEmail: vars.sendEmail,
+        }),
       })
-      const data = await response.json() as { error?: string }
+      const data = await response.json() as { error?: string; passwordChanged?: boolean }
       if (!response.ok) {
         throw new Error(data.error || 'Não foi possível reenviar o acesso.')
       }
     },
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       setMemberForAccessReset(null)
-      showToast('Novas credenciais enviadas por e-mail.')
+      setMemberAccessPassword('')
+      setShowMemberAccessPassword(false)
+      setSendMemberPasswordByEmail(true)
+      showToast(
+        vars.action === 'change_password'
+          ? vars.sendEmail
+            ? 'Senha alterada e enviada por e-mail.'
+            : 'Senha alterada. A troca será exigida no próximo login.'
+          : 'Link de acesso reenviado por e-mail.',
+      )
     },
     onError: (error: Error) => {
-      showToast(error.message || 'Não foi possível reenviar o acesso.', 'err')
+      showToast(error.message || 'Não foi possível gerenciar o acesso.', 'err')
     },
   })
+
+  const openMemberAccessModal = (member: ProjectMember) => {
+    setMemberAccessPassword('')
+    setShowMemberAccessPassword(false)
+    setSendMemberPasswordByEmail(true)
+    setMemberForAccessReset(member)
+  }
+
+  const closeMemberAccessModal = () => {
+    if (manageProjectMemberAccessMutation.isPending) return
+    setMemberForAccessReset(null)
+    setMemberAccessPassword('')
+    setShowMemberAccessPassword(false)
+    setSendMemberPasswordByEmail(true)
+  }
+
+  const handleChangeMemberPassword = () => {
+    if (!memberForAccessReset) return
+    if (memberAccessPassword.length < 8 || memberAccessPassword.length > 72) {
+      showToast('A nova senha deve ter entre 8 e 72 caracteres.', 'err')
+      return
+    }
+    manageProjectMemberAccessMutation.mutate({
+      member: memberForAccessReset,
+      action: 'change_password',
+      temporaryPassword: memberAccessPassword,
+      sendEmail: sendMemberPasswordByEmail,
+    })
+  }
 
   // Modals local states
   const [colabModalOpen, setColabModalOpen] = useState(false)
@@ -1101,7 +1207,7 @@ export default function AcessoModule() {
                   </tr>
                 ) : (
                   projectMembers.map((pm) => (
-                    <tr key={pm.id} className={`hover:bg-surface2/20 transition-colors ${!pm.ativo ? 'opacity-40' : ''}`}>
+                    <tr key={pm.id} className="hover:bg-surface2/20 transition-colors">
                       <td className="p-3 font-bold text-text-custom">{pm.profiles?.nome || 'Convidado'}</td>
                       <td className="p-3 text-text2">{pm.profiles?.email || '-'}</td>
                       <td className="p-3 text-text3 capitalize">{pm.profiles?.agency_role || '-'}</td>
@@ -1115,7 +1221,7 @@ export default function AcessoModule() {
                               level: e.target.value as 'viewer' | 'editor' | 'admin',
                             })
                           }}
-                          disabled={!pm.ativo || !canManageProject}
+                          disabled={!canManageProject}
                         >
                           <option value="viewer">Viewer</option>
                           <option value="editor">Editor</option>
@@ -1137,8 +1243,7 @@ export default function AcessoModule() {
                                   || (pm.allowed_modules || []).includes(module.key)
                                 }
                                 disabled={
-                                  !pm.ativo
-                                  || !canManageProject
+                                  !canManageProject
                                   || pm.permission_level === 'admin'
                                 }
                                 onChange={(event) => {
@@ -1161,39 +1266,33 @@ export default function AcessoModule() {
                         {pm.criado_em ? new Date(pm.criado_em).toLocaleDateString('pt-BR') : '-'}
                       </td>
                       <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          pm.ativo 
-                            ? 'bg-emerald-500/10 text-emerald-400' 
-                            : 'bg-zinc-500/10 text-zinc-400'
-                        }`}>
-                          {pm.ativo ? 'Ativo' : 'Revogado'}
+                        <span className="rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                          Ativo
                         </span>
                       </td>
                       <td className="p-3">
                         <div className="flex justify-end gap-1.5">
                           <button
                             type="button"
-                            onClick={() => setMemberForAccessReset(pm)}
-                            disabled={!canManageProject || !pm.ativo || !pm.profiles?.email}
+                            onClick={() => openMemberAccessModal(pm)}
+                            disabled={!canManageProject || !pm.profiles?.email}
                             className="inline-flex h-7 w-7 items-center justify-center rounded border border-border2 text-text2 transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-40"
-                            title="Reenviar acesso"
-                            aria-label={`Reenviar acesso para ${pm.profiles?.nome || pm.profiles?.email || 'usuário'}`}
+                            title="Gerenciar acesso"
+                            aria-label={`Gerenciar acesso de ${pm.profiles?.nome || pm.profiles?.email || 'usuário'}`}
                           >
                             <KeyRound className="h-3.5 w-3.5" />
                           </button>
                           <button
                             type="button"
                             onClick={() => {
-                              updateProjectMemberMutation.mutate({ id: pm.id, ativo: !pm.ativo })
+                              if (confirm('Revogar este acesso? A pessoa sairá da lista e precisará ser adicionada novamente.')) {
+                                updateProjectMemberMutation.mutate({ id: pm.id, ativo: false })
+                              }
                             }}
                             disabled={!canManageProject}
-                            className={`px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-colors ${
-                              pm.ativo
-                                ? 'border border-red-t/30 text-red-t hover:bg-red-bg'
-                                : 'border border-border2 text-text2 hover:bg-surface'
-                            } disabled:opacity-40 disabled:cursor-not-allowed`}
+                            className="cursor-pointer rounded border border-red-t/30 px-2 py-1 text-[10px] font-bold text-red-t transition-colors hover:bg-red-bg disabled:cursor-not-allowed disabled:opacity-40"
                           >
-                            {pm.ativo ? 'Revogar' : 'Reativar'}
+                            Revogar
                           </button>
                         </div>
                       </td>
@@ -1389,41 +1488,171 @@ export default function AcessoModule() {
             </div>
           )}
 
+          {projectInviteResult && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px] animate-fadeIn">
+              <div className="w-full max-w-md rounded-lg border border-border-custom bg-surface p-5 shadow-2xl">
+                <div className="flex items-center justify-between gap-3 border-b border-border-custom pb-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-text-custom">Acesso liberado</h3>
+                    <p className="mt-0.5 text-[10px] text-text3">{projectInviteResult.email}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setProjectInviteResult(null)}
+                    className="p-1 text-text3 hover:text-text-custom"
+                    aria-label="Fechar"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <p className="mt-4 text-xs leading-relaxed text-text2">
+                  O acesso foi enviado por e-mail. Copie também a mensagem abaixo para encaminhar pelo WhatsApp caso seja necessário.
+                </p>
+                <div className="mt-4">
+                  <label className="mb-1 block text-[10px] font-bold uppercase text-text3">
+                    Link de acesso
+                  </label>
+                  <div className="break-all rounded-md border border-border2 bg-surface2 px-3 py-2 font-mono text-[10px] text-text2">
+                    {projectInviteResult.accessLink}
+                  </div>
+                </div>
+                <p className="mt-3 text-[10px] leading-relaxed text-text3">
+                  {projectInviteResult.temporaryPassword
+                    ? 'A mensagem copiada inclui o e-mail, a senha temporária e o link.'
+                    : 'A mensagem copiada inclui o e-mail e o link para usar com a senha atual.'}
+                </p>
+                <div className="mt-5 grid grid-cols-1 gap-2 border-t border-border-custom pt-4 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={copyProjectInvite}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-md bg-text-custom px-3 py-2 text-xs font-semibold text-surface"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    Copiar convite
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProjectInviteResult(null)}
+                    className="rounded-md border border-border2 px-3 py-2 text-xs text-text2 hover:bg-surface2"
+                  >
+                    Concluir
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {memberForAccessReset && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px] animate-fadeIn">
               <div className="w-full max-w-md rounded-lg border border-border-custom bg-surface p-5 shadow-2xl">
-                <div className="flex items-center gap-3 border-b border-border-custom pb-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-md bg-purple-bg text-purple-custom">
-                    <KeyRound className="h-4 w-4" />
+                <div className="flex items-center justify-between gap-3 border-b border-border-custom pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-md bg-purple-bg text-purple-custom">
+                      <KeyRound className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-text-custom">Gerenciar acesso</h3>
+                      <p className="mt-0.5 text-[10px] text-text3">
+                        {memberForAccessReset.profiles?.email || 'E-mail não informado'}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-text-custom">Reenviar acesso</h3>
-                    <p className="mt-0.5 text-[10px] text-text3">
-                      {memberForAccessReset.profiles?.email || 'E-mail não informado'}
-                    </p>
-                  </div>
-                </div>
-                <p className="mt-4 text-xs leading-relaxed text-text2">
-                  Uma nova senha temporária será criada e enviada por e-mail. A senha atual deixará de funcionar e a pessoa deverá definir outra senha no próximo acesso.
-                </p>
-                <div className="mt-5 flex justify-end gap-2 border-t border-border-custom pt-4">
                   <button
                     type="button"
-                    onClick={() => setMemberForAccessReset(null)}
-                    disabled={resetProjectMemberAccessMutation.isPending}
-                    className="rounded-md border border-border2 px-3 py-2 text-xs text-text2 hover:bg-surface2 disabled:opacity-50"
+                    onClick={closeMemberAccessModal}
+                    disabled={manageProjectMemberAccessMutation.isPending}
+                    className="p-1 text-text3 hover:text-text-custom disabled:opacity-40"
+                    aria-label="Fechar"
                   >
-                    Cancelar
+                    <X className="h-4 w-4" />
                   </button>
+                </div>
+
+                <div className="mt-4">
+                  <label className="mb-1 block text-[10px] font-bold text-text2">
+                    Nova senha temporária
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text3" />
+                    <input
+                      type={showMemberAccessPassword ? 'text' : 'password'}
+                      value={memberAccessPassword}
+                      onChange={(event) => setMemberAccessPassword(event.target.value)}
+                      minLength={8}
+                      maxLength={72}
+                      autoComplete="new-password"
+                      placeholder="Entre 8 e 72 caracteres"
+                      className="w-full rounded-md border border-border2 bg-surface py-2 pl-9 pr-9 text-xs text-text-custom outline-none focus:border-text-custom"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowMemberAccessPassword((current) => !current)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text3 hover:text-text-custom"
+                      aria-label={showMemberAccessPassword ? 'Ocultar nova senha' : 'Mostrar nova senha'}
+                    >
+                      {showMemberAccessPassword
+                        ? <EyeOff className="h-3.5 w-3.5" />
+                        : <Eye className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                  <p className="mt-1.5 text-[10px] leading-relaxed text-text3">
+                    A senha atual deixará de funcionar e a troca será obrigatória no próximo login.
+                  </p>
+                  <label className="mt-3 flex cursor-pointer items-center gap-2 text-[11px] text-text2">
+                    <input
+                      type="checkbox"
+                      checked={sendMemberPasswordByEmail}
+                      onChange={(event) => setSendMemberPasswordByEmail(event.target.checked)}
+                      className="accent-purple-custom"
+                    />
+                    Enviar a nova senha por e-mail
+                  </label>
                   <button
                     type="button"
-                    onClick={() => resetProjectMemberAccessMutation.mutate(memberForAccessReset)}
-                    disabled={resetProjectMemberAccessMutation.isPending}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-text-custom px-3 py-2 text-xs font-semibold text-surface disabled:opacity-50"
+                    onClick={handleChangeMemberPassword}
+                    disabled={manageProjectMemberAccessMutation.isPending || memberAccessPassword.length < 8}
+                    className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-text-custom px-3 py-2 text-xs font-semibold text-surface disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <KeyRound className="h-3.5 w-3.5" />
-                    {resetProjectMemberAccessMutation.isPending ? 'Enviando...' : 'Reenviar acesso'}
+                    {manageProjectMemberAccessMutation.isPending
+                      && manageProjectMemberAccessMutation.variables?.action === 'change_password'
+                      ? 'Alterando...'
+                      : 'Alterar senha'}
                   </button>
+                </div>
+
+                <div className="mt-5 border-t border-border-custom pt-4">
+                  <p className="text-xs font-semibold text-text-custom">Reenviar link de acesso</p>
+                  <p className="mt-1 text-[10px] leading-relaxed text-text3">
+                    Envia somente o caminho para o login. A senha atual não será modificada.
+                  </p>
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={copyCurrentLoginLink}
+                      disabled={manageProjectMemberAccessMutation.isPending}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border2 px-3 py-2 text-xs font-semibold text-text2 hover:bg-surface2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      Copiar link
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => manageProjectMemberAccessMutation.mutate({
+                        member: memberForAccessReset,
+                        action: 'resend_link',
+                      })}
+                      disabled={manageProjectMemberAccessMutation.isPending}
+                      className="inline-flex items-center justify-center gap-1.5 rounded-md border border-border2 px-3 py-2 text-xs font-semibold text-text2 hover:bg-surface2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Mail className="h-3.5 w-3.5" />
+                      {manageProjectMemberAccessMutation.isPending
+                        && manageProjectMemberAccessMutation.variables?.action === 'resend_link'
+                        ? 'Enviando...'
+                        : 'Reenviar link'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

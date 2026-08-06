@@ -14,6 +14,7 @@ uma imagem não aplica migrações no Supabase.
 | `GEMINI_API_KEY` | Produção | Somente backend | Chave da API Gemini usada pela rota de IA. |
 | `SUPABASE_MANAGEMENT_ACCESS_TOKEN` | SMTP | Somente backend/runtime | Token da Supabase Management API usado exclusivamente para sincronizar o SMTP do Supabase Auth. Nunca use `NEXT_PUBLIC_`. |
 | `SUPABASE_PROJECT_REF` | Opcional | Somente backend/runtime | Referência do projeto Supabase. Se omitida, é derivada de `NEXT_PUBLIC_SUPABASE_URL`. |
+| `APP_URL` | Recomendado | Somente backend/runtime | Origem pública usada nos e-mails, por exemplo `https://clave.agenciab16.com.br`. Em produção, o Clave usa esse domínio como fallback e nunca publica `0.0.0.0`. |
 
 `SUPABASE_SERVICE_ROLE_KEY` nunca pode usar o prefixo `NEXT_PUBLIC_`, ficar
 disponível durante o build ou ser enviada ao navegador. A rota de convite
@@ -216,6 +217,9 @@ Resposta esperada: `{"status":"ok"}`.
    temporária ou deixar o campo vazio para o servidor gerar uma senha forte. O
    convite personalizado envia a senha e um link simples para o login; a troca
    da senha é obrigatória no primeiro acesso e termina no dashboard autorizado.
+   Após adicionar, a interface permite copiar uma mensagem com link e
+   credenciais temporárias para envio por WhatsApp. O link deve começar com
+   `https://clave.agenciab16.com.br`, nunca com o endereço interno do container.
 7. Cadastre `SUPABASE_MANAGEMENT_ACCESS_TOKEN` somente no runtime do Coolify;
    mantenha `SUPABASE_PROJECT_REF` como runtime ou deixe o sistema derivá-lo.
 8. Use o `Dockerfile` da raiz e porta `3000`.
@@ -244,19 +248,26 @@ operação manual do responsável pelo ambiente.
    obrigatória termina no dashboard e no projeto concedido.
 13. Repita o convite para uma conta pendente, não confirmada e sem login, e
    confirme que a nova senha temporária funciona. Para uma conta já ativa,
-   confirme que o formulário exige deixar a senha vazia ou usar Redefinir acesso.
-14. Em Comunicação, abra `Produto principal`, crie outro produto e confirme que os campos não se misturam.
-15. Em Chips, altere um status para `Restrição 24h`, volte para `Ativo` e confirme os dois eventos com horário.
-16. Informe última recarga e ciclo; confirme a data gerada em Próx. Recarga e o alerta correspondente.
-17. Como administrador, abra `Administração > Configurações`, confirme que a senha aparece apenas como protegida e envie um teste para o e-mail autorizado.
-18. Salve uma alteração SMTP e confirme que recuperação de senha e convite chegam pelo Google Workspace.
-19. Em Central de acesso, use a ação de chave de um usuário ativo e confirme o
-    recebimento das novas credenciais e a troca obrigatória de senha no próximo login.
-20. Acesse com um administrador fora da allowlist e confirme que a tela fica somente leitura; com um usuário comum, confirme que o menu e a API respondem sem acesso.
-21. Solicite recuperação de senha, abra o link, defina a nova senha e confirme
+   confirme que o formulário exige deixar a senha vazia ou usar Gerenciar acesso.
+14. Depois de adicionar uma pessoa, use `Copiar convite`, cole a mensagem em um
+    editor e confirme e-mail, senha temporária e o link público do Clave.
+15. Em Comunicação, abra `Produto principal`, crie outro produto e confirme que os campos não se misturam.
+16. Em Chips, altere um status para `Restrição 24h`, volte para `Ativo` e confirme os dois eventos com horário.
+17. Informe última recarga e ciclo; confirme a data gerada em Próx. Recarga e o alerta correspondente.
+18. Como administrador, abra `Administração > Configurações`, confirme que a senha aparece apenas como protegida e envie um teste para o e-mail autorizado.
+19. Salve uma alteração SMTP e confirme que recuperação de senha e convite chegam pelo Google Workspace.
+20. Em Central de acesso, use a ação de chave de um usuário ativo, defina uma
+    senha temporária e confirme a troca obrigatória no próximo login. Repita com
+    o envio por e-mail marcado e confirme o recebimento das credenciais.
+21. No mesmo modal, reenvie somente o link de acesso e confirme que a senha
+    atual continua válida.
+22. Revogue um usuário e confirme que ele some da lista ativa e perde acesso ao
+    projeto. Use `Adicionar usuário` com o mesmo e-mail e confirme a nova concessão.
+23. Acesse com um administrador fora da allowlist e confirme que a tela fica somente leitura; com um usuário comum, confirme que o menu e a API respondem sem acesso.
+24. Solicite recuperação de senha, abra o link, defina a nova senha e confirme
     que a sessão temporária é encerrada e a tela de login é exibida. Entre com a
     nova senha e confirme o acesso apenas aos projetos e módulos concedidos.
-22. Acesse com uma conta sem vínculo ativo e confirme que nenhum “Projeto padrão”
+25. Acesse com uma conta sem vínculo ativo e confirme que nenhum “Projeto padrão”
     é criado automaticamente.
 
 ## 7. Rollback
