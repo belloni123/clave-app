@@ -2,18 +2,27 @@ import { randomBytes } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
-import { sendAccessCredentialsEmail } from '@/utils/supabase/access-mailer'
+import {
+  sendAccessCredentialsEmail,
+  sendAccessLinkEmail,
+} from '@/utils/supabase/access-mailer'
+import { getPublicAppOrigin } from '@/utils/http/public-app-origin'
 
 interface ResetAccessBody {
   projectId?: unknown
   userId?: unknown
+  action?: unknown
+  temporaryPassword?: unknown
+  sendEmail?: unknown
 }
+
+type AccessAction = 'change_password' | 'resend_link' | 'legacy_reset'
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
-function jsonError(message: string, status: number) {
-  return NextResponse.json({ error: message }, { status })
+function jsonError(message: string, status: number, details?: Record<string, unknown>) {
+  return NextResponse.json({ error: message, ...details }, { status })
 }
 
 function generateTemporaryPassword() {
@@ -33,6 +42,27 @@ export async function POST(request: NextRequest) {
   if (!UUID_PATTERN.test(projectId) || !UUID_PATTERN.test(userId)) {
     return jsonError('Usuário ou projeto inválido.', 400)
   }
+
+  let action: AccessAction
+  if (body.action === 'change_password' || body.action === 'resend_link') {
+    action = body.action
+  } else if (body.action === undefined) {
+    // Compatibilidade com a interface anterior durante um deploy gradual.
+    action = 'legacy_reset'
+  } else {
+    return jsonError('Ação de acesso inválida.', 400)
+  }
+
+  const requestedPassword = typeof body.temporaryPassword === 'string'
+    ? body.temporaryPassword
+    : ''
+  if (
+    action === 'change_password'
+    && (requestedPassword.length < 8 || requestedPassword.length > 72)
+  ) {
+    return jsonError('A senha temporária deve ter entre 8 e 72 caracteres.', 400)
+  }
+  const sendEmail = action === 'legacy_reset' || body.sendEmail === true
 
   const supabase = await createClient()
   const {
@@ -74,7 +104,21 @@ export async function POST(request: NextRequest) {
       return jsonError('Este usuário ativo não possui um e-mail de acesso.', 404)
     }
 
-    const temporaryPassword = generateTemporaryPassword()
+    const actionLink = new URL('/login', getPublicAppOrigin(request)).toString()
+
+    if (action === 'resend_link') {
+      await sendAccessLinkEmail({
+        admin,
+        email: profile.email,
+        name: profile.nome?.trim() || profile.email,
+        actionLink,
+      })
+      return NextResponse.json({ ok: true, action })
+    }
+
+    const temporaryPassword = action === 'legacy_reset'
+      ? generateTemporaryPassword()
+      : requestedPassword
     const { error: passwordError } = await admin.auth.admin.updateUserById(userId, {
       password: temporaryPassword,
     })
@@ -86,21 +130,40 @@ export async function POST(request: NextRequest) {
       .eq('id', userId)
     if (changeFlagError) throw changeFlagError
 
-    await sendAccessCredentialsEmail({
-      admin,
-      email: profile.email,
-      name: profile.nome?.trim() || profile.email,
-      temporaryPassword,
-      actionLink: new URL('/login', request.nextUrl.origin).toString(),
-      kind: 'reset',
-    })
+    if (sendEmail) {
+      try {
+        await sendAccessCredentialsEmail({
+          admin,
+          email: profile.email,
+          name: profile.nome?.trim() || profile.email,
+          temporaryPassword,
+          actionLink,
+          kind: 'reset',
+        })
+      } catch (emailError) {
+        console.error(
+          'Project access password email failed',
+          emailError instanceof Error ? emailError.message : 'unknown error',
+        )
+        return jsonError(
+          'A senha foi alterada, mas o e-mail não pôde ser enviado. Reenvie o link de acesso separadamente.',
+          502,
+          { passwordChanged: true },
+        )
+      }
+    }
 
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, action })
   } catch (error) {
     console.error(
-      'Project access reset failed',
+      'Project access management failed',
       error instanceof Error ? error.message : 'unknown error',
     )
-    return jsonError('Não foi possível reenviar o acesso. Verifique o SMTP e tente novamente.', 500)
+    return jsonError(
+      action === 'resend_link'
+        ? 'Não foi possível reenviar o link. Verifique o SMTP e tente novamente.'
+        : 'Não foi possível alterar a senha. Tente novamente.',
+      500,
+    )
   }
 }

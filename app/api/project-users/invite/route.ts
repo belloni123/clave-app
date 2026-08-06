@@ -3,7 +3,11 @@ import { randomBytes } from 'node:crypto'
 import type { User } from '@supabase/supabase-js'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
-import { sendAccessCredentialsEmail } from '@/utils/supabase/access-mailer'
+import {
+  sendAccessCredentialsEmail,
+  sendAccessLinkEmail,
+} from '@/utils/supabase/access-mailer'
+import { getPublicAppOrigin } from '@/utils/http/public-app-origin'
 import {
   DEFAULT_PROJECT_MODULES,
   isProjectModuleKey,
@@ -239,6 +243,20 @@ export async function POST(request: NextRequest) {
     let targetUserId = existingProfile?.id ?? existingAuthUser?.id ?? null
     let invited = false
     let temporaryPasswordForInvite: string | null = null
+    let hasActiveProjectAccess = false
+
+    if (targetUserId) {
+      const { data: activeAccess, error: activeAccessError } = await admin
+        .from('project_users')
+        .select('id')
+        .eq('user_id', targetUserId)
+        .eq('ativo', true)
+        .limit(1)
+        .maybeSingle()
+
+      if (activeAccessError) throw activeAccessError
+      hasActiveProjectAccess = Boolean(activeAccess)
+    }
 
     if (!targetUserId) {
       temporaryPasswordForInvite = parsed.temporaryPassword ?? generateTemporaryPassword()
@@ -278,9 +296,25 @@ export async function POST(request: NextRequest) {
 
       if (updateAuthError) throw updateAuthError
       invited = true
+    } else if (existingAuthUser && !hasActiveProjectAccess) {
+      temporaryPasswordForInvite = parsed.temporaryPassword ?? generateTemporaryPassword()
+      const { error: updateAuthError } = await admin.auth.admin.updateUserById(
+        existingAuthUser.id,
+        {
+          password: temporaryPasswordForInvite,
+          email_confirm: true,
+          user_metadata: {
+            ...existingAuthUser.user_metadata,
+            nome: parsed.name,
+          },
+        },
+      )
+
+      if (updateAuthError) throw updateAuthError
+      invited = true
     } else if (parsed.temporaryPassword) {
       return jsonError(
-        'Este e-mail já possui uma conta ativa. Deixe a senha temporária vazia para apenas liberar o projeto, ou use Redefinir acesso.',
+        'Este e-mail já possui acesso ativo. Deixe a senha vazia para apenas liberar este projeto ou altere-a depois em Gerenciar acesso.',
         409,
       )
     }
@@ -327,14 +361,23 @@ export async function POST(request: NextRequest) {
 
     if (accessError) throw accessError
 
-    if (invited && temporaryPasswordForInvite) {
+    const actionLink = new URL('/login', getPublicAppOrigin(request)).toString()
+
+    if (temporaryPasswordForInvite) {
       await sendAccessCredentialsEmail({
         admin,
         email: parsed.email,
         name: parsed.name,
         temporaryPassword: temporaryPasswordForInvite,
-        actionLink: new URL('/login', request.nextUrl.origin).toString(),
+        actionLink,
         kind: 'invite',
+      })
+    } else {
+      await sendAccessLinkEmail({
+        admin,
+        email: parsed.email,
+        name: parsed.name,
+        actionLink,
       })
     }
 
@@ -342,6 +385,9 @@ export async function POST(request: NextRequest) {
       invited,
       userId: targetUserId,
       modules: allowedModules,
+      email: parsed.email,
+      temporaryPassword: temporaryPasswordForInvite,
+      accessLink: actionLink,
     })
   } catch (error) {
     if (invitedUserId) {
