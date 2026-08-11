@@ -13,6 +13,8 @@ Para facilitar o desenvolvimento, a manutenção e o deploy do sistema, a docume
 *   **[Manual de Implantação e Deploy (DEPLOYMENT.md)](./DEPLOYMENT.md)**: Orientações de configuração de variáveis de ambiente e deploy em nuvem através da Vercel, Docker Standalone ou VPS própria via Coolify.
 *   **[Política de Segurança (SECURITY.md)](./SECURITY.md)**: Versão suportada, canal privado de reporte e regras para tratamento de segredos.
 *   **[Requisitos de julho de 2026](./docs/requirements/2026-07-30-controle-de-acesso-comunicacao-e-chips.md)**: Transcrições e critérios de aceite de acesso modular, Comunicação por produto e Controle de Chips.
+*   **[Candidatura de Experts](./docs/requirements/2026-08-11-candidatura-experts.md)**: Fluxo público, avaliação administrativa, privacidade e conversão de lead em projeto.
+*   **[Onboarding Público B16](./docs/requirements/2026-08-11-onboarding-publico.md)**: Conteúdo, direção visual, acessibilidade e critérios de validação da experiência pós-contrato.
 
 ---
 
@@ -46,6 +48,9 @@ A plataforma unifica diversos recursos de controle operacional e estratégico em
 10. **Comunicação por Produto/Curso**: Cada produto ou curso possui Identidades, Urgências, Bloqueios, VSL e Página de Vendas próprias, incluindo Mecanismo Único, Resultado-Alvo e Benefício Estendido.
 11. **Controle Operacional de Chips**: Mantém histórico automático de status e recargas com data e hora, Restrição 24h e alertas calculados de próxima recarga.
 12. **SMTP Administrativo**: Administradores configuram o Google Workspace para recuperação de senha, convites e notificações do Auth; a senha fica protegida no Supabase Vault.
+13. **Briefing Geral do Cliente**: Cada projeto possui um link público e exclusivo para coletar informações gerais do cliente. A trilha muda conforme o serviço contratado — Lançamento Digital, Marketing Digital ou Identidade Visual — sem se confundir com o briefing próprio de cada lançamento. O Clave preserva o conteúdo original e preenche somente campos compatíveis que ainda estejam vazios.
+14. **Candidatura Pública de Experts**: A página `/candidatura` recebe potenciais parceiros em duas etapas, registra consentimento LGPD e mantém cada resposta como lead independente. Administradores avaliam a fila global, registram notas e podem criar um projeto diretamente da candidatura, preservando o vínculo de origem.
+15. **Onboarding Público B16**: A página institucional `/onboarding` apresenta a metodologia PD3, o processo inicial, os materiais necessários e os acordos de colaboração. A rota não exige login, não acessa o banco, usa imagens autorais otimizadas e não permite indexação por mecanismos de busca.
 
 ---
 
@@ -67,8 +72,8 @@ SUPABASE_MANAGEMENT_ACCESS_TOKEN=seu-token-management-privado
 SUPABASE_PROJECT_REF=seu-project-ref
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` é usada apenas no servidor pela rota administrativa
-de convites. Nunca use o prefixo `NEXT_PUBLIC_`, nunca disponibilize essa
+`SUPABASE_SERVICE_ROLE_KEY` é usada apenas no servidor por rotas administrativas
+e pelas rotas públicas controladas de formulários. Nunca use o prefixo `NEXT_PUBLIC_`, nunca disponibilize essa
 variável durante o build e nunca a envie ao navegador ou ao Git.
 `SUPABASE_MANAGEMENT_ACCESS_TOKEN` segue a mesma regra e é usado somente para
 sincronizar o SMTP do Supabase Auth. A senha de aplicativo do Google Workspace

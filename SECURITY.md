@@ -23,9 +23,10 @@ environment file. Never commit `.env*`, service-role keys, API keys, database
 passwords, access tokens, or production exports.
 
 `SUPABASE_SERVICE_ROLE_KEY` is server-only and may be used only through
-`utils/supabase/admin.ts`. Every route using it must authenticate the caller
-with `auth.getUser()` and perform an explicit authorization check before
-creating an admin client. The key must be runtime-only in Coolify.
+`utils/supabase/admin.ts`. Rotas administrativas devem autenticar o usuário com
+`auth.getUser()` e fazer uma autorização explícita antes de criar o cliente
+administrativo. A única exceção são rotas públicas baseadas em capacidade,
+documentadas abaixo. A chave deve existir somente no runtime do Coolify.
 
 `SUPABASE_MANAGEMENT_ACCESS_TOKEN` is also server-only and runtime-only. It may
 only be used by `/api/admin/smtp` after validating an administrator and the
@@ -43,3 +44,51 @@ equivalent hardened `SECURITY DEFINER` helper with an explicit `search_path`.
 Only project administrators may write `project_users`. A regular viewer or
 editor may read their own membership, but cannot grant access or change
 another user's modules.
+
+## Public Form Capabilities
+
+`/api/public/forms/[token]` não aceita sessão como autorização. O UUID do
+formulário identifica somente o projeto e permite iniciar uma resposta. Ler ou
+alterar um rascunho exige também um token aleatório de 32 bytes; somente seu
+hash SHA-256 é persistido. Essas rotas devem validar ambos os tokens antes de
+usar `service_role`, limitar tamanho e chaves do payload e nunca devolver notas
+internas, resumo, caminhos do Storage ou dados de outra resposta.
+
+Anexos públicos são limitados a cinco imagens JPG, PNG ou WebP de até 8 MB. O
+bucket `briefing-references` é privado; a equipe abre arquivos por URL assinada
+e somente quando a RLS confirma acesso ao módulo `formularios` e nível de gestão
+naquele projeto. Grants por coluna impedem que usuários autenticados alterem as
+respostas originais, o resumo ou o histórico de espelhamento pelo cliente REST.
+
+`/api/public/expert-applications` aceita somente a estrutura fechada da
+candidatura, limita o corpo, valida todos os campos novamente no servidor e usa
+idempotência para impedir duplicação pelo navegador. O endpoint combina
+campo-armadilha, tempo mínimo de preenchimento e contador horário por HMAC da
+origem; o endereço bruto não é persistido. `anon` não possui acesso à tabela.
+
+Somente administradores podem consultar ou classificar candidaturas. A criação
+de projeto ocorre por uma função transacional com `auth.uid()`, checagem de
+administrador e bloqueio da resposta. O cliente autenticado só recebe grants de
+atualização para `status` e `internal_notes`; vínculo, ator e data da conversão
+não podem ser alterados pela API REST.
+
+## Public Institutional Pages
+
+`/onboarding` is intentionally public but contains only versioned institutional
+content and optimized local images. It has no form, API call, authentication
+state, customer identifier, query-string behavior, or database dependency. Keep
+`noindex, nofollow` in its route metadata and do not introduce client-specific
+information into this shared page.
+
+`expert_application_rate_limits` intentionally has RLS without a client policy:
+all grants are revoked from `anon` and `authenticated`, and only `service_role`
+can consume the counter. `can_manage_expert_applications` and
+`convert_expert_application_to_project` intentionally remain executable by
+`authenticated`; both derive the actor from `auth.uid()`, require an active
+administrator and expose no privileged operation to a regular account.
+
+`project_form_rate_limits` follows the same private counter pattern. New public
+briefing responses are limited by an HMAC of the form and request origin; the
+raw address is never stored. Public JSON routes read their streams with a hard
+byte limit even when `Content-Length` is absent, and uploaded images must match
+the declared JPG, PNG, or WebP signature before reaching private Storage.

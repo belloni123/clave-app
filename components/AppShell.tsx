@@ -31,6 +31,8 @@ import {
   Moon,
   Smartphone,
   Settings,
+  ClipboardList,
+  FileUser,
 } from 'lucide-react'
 
 interface AppShellProps {
@@ -189,7 +191,7 @@ export default function AppShell({ children }: AppShellProps) {
       }
 
       if (profile.role === 'admin' || profile.agency_role === 'admin') {
-        setAllowedModules(['home', ...DEFAULT_PROJECT_MODULES, 'configuracoes'])
+        setAllowedModules(['home', ...DEFAULT_PROJECT_MODULES, 'candidaturas', 'configuracoes'])
         return
       }
 
@@ -292,12 +294,14 @@ export default function AppShell({ children }: AppShellProps) {
         { id: 'planejador', name: 'Planejador', icon: Calendar },
         { id: 'urlbuilder', name: 'Links & QR Code', icon: Link2 },
         { id: 'chips', name: 'Controle de Chips', icon: Smartphone },
+        { id: 'formularios', name: 'Formulários', icon: ClipboardList },
         { id: 'acesso', name: 'Central de acesso', icon: Users },
       ],
     },
     {
       group: 'ADMINISTRAÇÃO',
       items: [
+        { id: 'candidaturas', name: 'Candidaturas', icon: FileUser },
         { id: 'configuracoes', name: 'Configurações', icon: Settings },
       ],
     },
@@ -317,7 +321,7 @@ export default function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex bg-bg relative">
+    <div className="h-screen w-screen overflow-hidden flex bg-bg relative print:block print:h-auto print:w-auto print:overflow-visible">
       {/* Mobile Backdrop Overlay */}
       {mobileOpen && (
         <div
@@ -328,7 +332,7 @@ export default function AppShell({ children }: AppShellProps) {
 
       {/* 1. SIDEBAR (drawer on mobile, static on desktop) */}
       <aside
-        className={`bg-surface border-r border-border-custom flex flex-col h-full shrink-0 z-50 transition-all duration-200 ease-in-out
+        className={`bg-surface border-r border-border-custom flex flex-col h-full shrink-0 z-50 transition-all duration-200 ease-in-out print:hidden
           fixed inset-y-0 left-0 md:static md:translate-x-0 ${
             mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
           } ${
@@ -418,9 +422,9 @@ export default function AppShell({ children }: AppShellProps) {
       </aside>
 
       {/* 2. MAIN PANEL */}
-      <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
+      <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden print:block print:h-auto print:overflow-visible">
         {/* Topbar */}
-        <header className="h-14 border-b border-border-custom bg-surface flex items-center justify-between px-4 md:px-6 gap-3 shrink-0">
+        <header className="h-14 border-b border-border-custom bg-surface flex items-center justify-between px-4 md:px-6 gap-3 shrink-0 print:hidden">
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => setMobileOpen(true)}
@@ -443,7 +447,9 @@ export default function AppShell({ children }: AppShellProps) {
                 {activeModule === 'planejador' && 'Calendário editorial e eventos anuais'}
                 {activeModule === 'urlbuilder' && 'Gere tags UTM, links de WhatsApp e QR Codes'}
                 {activeModule === 'chips' && 'Status, vínculos e alertas de recarga dos chips de WhatsApp'}
+                {activeModule === 'formularios' && 'Links públicos, respostas e briefings do projeto'}
                 {activeModule === 'acesso' && 'Permissões e equipe'}
+                {activeModule === 'candidaturas' && 'Avaliação de experts e conversão em projetos'}
                 {activeModule === 'configuracoes' && 'Configurações globais e integrações administrativas'}
               </p>
             </div>
@@ -500,13 +506,13 @@ export default function AppShell({ children }: AppShellProps) {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 scrollbar-thin">
-          <div className="max-w-6xl mx-auto w-full">{children}</div>
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 scrollbar-thin print:overflow-visible print:p-0">
+          <div className="max-w-6xl mx-auto w-full print:max-w-none">{children}</div>
         </div>
       </main>
 
       {/* Floating Notifications */}
-      <Toast />
+      <div className="print:hidden"><Toast /></div>
     </div>
   )
 }

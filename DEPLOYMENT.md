@@ -37,11 +37,40 @@ As migrações da integração de BI devem existir no Supabase nesta ordem:
 10. `20260730231015_user_invites_and_profile_contact_fields.sql`
 11. `20260731141454_smtp_settings_and_admin_controls.sql`
 12. `20260731160000_temporary_password_invites.sql`
+13. `20260811122408_client_briefing_forms.sql`
+14. `20260811125729_expert_applications.sql`
+15. `20260811132938_project_forms_policy_performance_hardening.sql`
+16. `20260811133218_public_briefing_submission_rate_limit.sql`
 
 A terceira migração valida os registros existentes antes de criar constraints
 compostas. Se ela acusar referências inconsistentes, não faça o redeploy: corrija
 os registros indicados e execute a migração novamente. Uma execução bem-sucedida
 no SQL Editor mostra `Success. No rows returned`.
+
+A décima terceira migração adiciona o módulo `formularios`, cria um briefing
+geral do cliente exclusivo para cada projeto existente, instala o trigger para
+projetos futuros e cria o bucket privado de referências. Ela é aditiva: não
+altera respostas, lançamentos, briefings de lançamentos ou conteúdos existentes.
+Aplique-a antes do redeploy da interface.
+
+A décima quarta migração cria a fila global de candidaturas de experts, o
+controle de tentativas e a função transacional que converte uma resposta em
+projeto. Ela não altera projetos existentes. Aplique-a depois da migração de
+briefing, pois projetos criados pela conversão também recebem automaticamente o
+briefing geral do cliente.
+
+A décima quinta migração adiciona índices para as novas chaves estrangeiras e
+separa as políticas de leitura e escrita dos formulários. Ela não altera
+respostas nem permissões; apenas elimina políticas permissivas sobrepostas e
+evita reavaliar a sessão para cada linha.
+
+A décima sexta migração instala um contador horário privado para limitar a
+criação abusiva de rascunhos públicos. Somente `service_role` acessa a tabela e
+a origem é persistida como HMAC, sem armazenar o endereço bruto.
+
+A página `/onboarding` é totalmente estática e não possui migração própria. Ela
+pode ser publicada junto da aplicação depois que as migrações 13 a 16 forem
+confirmadas, sem qualquer escrita adicional no banco.
 
 A quarta migração permite cadastrar uma URL externa por lançamento. A quinta
 habilita o conector do dashboard Farol e a Forja. A sexta substitui o cadastro
@@ -269,6 +298,19 @@ operação manual do responsável pelo ambiente.
     nova senha e confirme o acesso apenas aos projetos e módulos concedidos.
 25. Acesse com uma conta sem vínculo ativo e confirme que nenhum “Projeto padrão”
     é criado automaticamente.
+26. Em dois projetos diferentes, abra Formulários e confirme que os links públicos são distintos.
+27. Preencha o briefing geral do cliente, copie o link de continuidade, recarregue e confirme o rascunho sem alterar o briefing de nenhum lançamento.
+28. Envie o briefing e confirme no painel interno a resposta integral, o resumo, os campos preenchidos e os campos preservados.
+29. Marque a resposta como `Aguardando informação`, abra novamente o link seguro, complemente e reenvie.
+30. Em Identidade Visual, envie JPG/PNG/WebP válido, rejeite outro formato e confirme que o anexo interno abre por URL assinada.
+31. Exporte CSV/JSON e use Imprimir para confirmar o relatório sem menu, barra superior ou anotações internas.
+32. Abra `/candidatura` sem sessão, percorra as duas etapas e confirme máscaras, validações, autorização e consentimento LGPD.
+33. Envie a candidatura uma vez, confirme a tela de sucesso e verifique que um duplo clique não cria uma segunda resposta.
+34. Como administrador, abra `Candidaturas`, altere o status, salve uma anotação e confirme que um usuário comum não vê o módulo.
+35. Use `Criar projeto`, confirme o vínculo na candidatura e valide que uma segunda tentativa abre o mesmo projeto em vez de criar outro.
+36. Abra `/onboarding` em uma janela anônima e confirme que a rota não solicita login nem faz chamadas ao Supabase.
+37. Valide `/onboarding` em desktop e smartphone, conferindo imagens, foco do link interno, leitura das listas, ausência de sobreposição e redução de movimento.
+38. Inspecione a resposta HTML da rota e confirme título, descrição e `robots` com `noindex, nofollow`.
 
 ## 7. Rollback
 
