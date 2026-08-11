@@ -58,7 +58,43 @@ Define o acesso atual de cada perfil a um projeto.
 *   `project_id`, `user_id`: relação única entre projeto e perfil.
 *   `permission_level`: `'viewer'`, `'editor'` ou `'admin'`.
 *   `ativo`: indica se o acesso continua válido.
-*   `allowed_modules`: `text[]` com os módulos liberados nesse projeto. Os valores válidos são `concepcao`, `comunicacao`, `lancamentos`, `validacao`, `historias`, `financeiro`, `planejador`, `urlbuilder`, `chips` e `acesso`.
+*   `allowed_modules`: `text[]` com os módulos liberados nesse projeto. Os valores válidos são `concepcao`, `comunicacao`, `lancamentos`, `validacao`, `historias`, `financeiro`, `planejador`, `urlbuilder`, `chips`, `formularios` e `acesso`.
+
+### `public.project_forms`
+Configuração do briefing geral do cliente, pertencente a um único projeto e
+independente dos briefings de cada lançamento.
+*   `kind`: atualmente `client_briefing`.
+*   `public_token`: UUID exclusivo usado no link compartilhável.
+*   `active`, `version`: disponibilidade e versão do formulário.
+*   A combinação `(project_id, kind)` é única e novos projetos recebem o briefing por trigger.
+
+### `public.project_form_submissions`
+Respostas e rascunhos do briefing geral do cliente, sempre vinculados ao formulário e ao mesmo projeto por foreign key composta.
+*   `response_token_hash`: SHA-256 do segredo usado para retomar a resposta; o token original não é persistido.
+*   `status`: `draft`, `received`, `reviewing`, `waiting` ou `completed`.
+*   `answers`: registro integral por campo da informação fornecida pelo cliente, atualizado no rascunho ou quando a equipe solicita complemento.
+*   `internal_notes`, `strategic_summary`: conteúdo interno que nunca é exposto na rota pública.
+*   `mapped_fields`, `skipped_fields`: auditoria do espelhamento conservador para campos existentes.
+
+### `public.project_form_attachments`
+Metadados das referências visuais privadas enviadas no briefing geral do cliente.
+*   Aceita somente JPG, PNG e WebP de até 8 MB.
+*   O conteúdo fica no bucket privado `briefing-references`; usuários internos precisam de acesso ao módulo `formularios` e nível de gestão no mesmo projeto.
+*   Exclusão em cascata acompanha a resposta e o projeto.
+
+### `public.expert_applications`
+Candidaturas públicas de potenciais experts antes de existir um projeto.
+*   Dados de contato, contexto de mercado, histórico digital e capacidade de investimento ficam preservados na resposta original.
+*   `status`: `new`, `reviewing`, `qualified`, `disqualified` ou `converted`.
+*   `idempotency_key`: impede que um envio repetido pelo navegador crie outra candidatura.
+*   `lgpd_consent`, `consented_at`: registram a autorização explícita e seu instante.
+*   `converted_project_id`, `converted_by`, `converted_at`: auditoria da conversão administrativa em projeto.
+*   Não há grants para `anon`; a inclusão pública acontece somente pela API server-side.
+
+### `public.expert_application_rate_limits`
+Contador horário usado pela API pública para limitar envios automatizados.
+*   `key_hash` é um HMAC irreversível da origem e não armazena o endereço bruto.
+*   Somente `service_role` acessa a tabela e executa `consume_expert_application_rate_limit`.
 
 ### `public.communication_products`
 Catálogo de produtos e cursos dentro de cada projeto.
@@ -283,6 +319,13 @@ As migrações devem ser aplicadas em ordem crescente:
 7. `20260731160000_temporary_password_invites.sql`: adiciona o marcador
    `profiles.must_change_password` para exigir a troca da senha temporária no
    primeiro acesso. A senha em texto aberto não é armazenada no banco.
+8. `20260811122408_client_briefing_forms.sql`: cria o briefing geral do cliente por projeto.
+9. `20260811125729_expert_applications.sql`: cria candidaturas públicas, proteção de envio e conversão transacional em projeto.
+10. `20260811132938_project_forms_policy_performance_hardening.sql`: adiciona índices de escopo e separa políticas de leitura/escrita sem alterar os dados.
+11. `20260811133218_public_briefing_submission_rate_limit.sql`: limita a criação de rascunhos públicos com uma chave HMAC por formulário e origem.
 
 O deploy da aplicação não executa essas migrações. Consulte
 [DEPLOYMENT.md](./DEPLOYMENT.md) para o procedimento de produção.
+
+A rota pública `/onboarding` é institucional e não possui tabela, função,
+política ou migração. Ela não lê nem grava dados no Supabase.

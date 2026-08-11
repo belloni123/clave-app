@@ -18,6 +18,8 @@ import UrlBuilderModule from '@/components/modules/UrlBuilderModule'
 import AcessoModule from '@/components/modules/AcessoModule'
 import ChipsModule from '@/components/modules/ChipsModule'
 import AdminSmtpModule from '@/components/modules/AdminSmtpModule'
+import FormulariosModule from '@/components/modules/FormulariosModule'
+import CandidaturasModule from '@/components/modules/CandidaturasModule'
 
 export default function Home() {
   const { activeModule } = useAppStore()
@@ -44,10 +46,14 @@ export default function Home() {
         return <UrlBuilderModule />
       case 'chips':
         return <ChipsModule />
+      case 'formularios':
+        return <FormulariosModule />
       case 'acesso':
         return <AcessoModule />
       case 'configuracoes':
         return <AdminSmtpModule />
+      case 'candidaturas':
+        return <CandidaturasModule />
       default:
         return <DashboardModule />
     }

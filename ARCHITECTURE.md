@@ -146,6 +146,83 @@ O fluxo de salvar é:
 Nenhum token, senha ou segredo é enviado ao navegador, incluído no bundle,
 registrado na auditoria ou versionado no Git.
 
+## 3.2 Briefing Geral Do Cliente Por Projeto
+
+Cada projeto recebe automaticamente um `project_forms` do tipo
+`client_briefing`, com UUID público próprio. Este formulário reúne informações
+gerais do cliente e do serviço contratado. Ele não pertence a um lançamento e
+não lê nem altera a tabela `briefings`; cada lançamento mantém seu próprio
+briefing. A URL pública não usa a sessão do cliente e não acessa o Supabase
+diretamente: as rotas
+`/api/public/forms/[token]` validam o formulário e operam com `service_role`
+somente depois dessa validação.
+
+Ao salvar pela primeira vez, o servidor gera 32 bytes aleatórios para o token
+de retomada. Apenas o SHA-256 fica em `project_form_submissions`; o valor
+original aparece na URL entregue ao cliente. Assim, conhecer o link geral do
+formulário não permite ler ou alterar respostas de outra pessoa. As tabelas não
+possuem grants para `anon`, e a resposta pública nunca devolve anotações,
+resumo, campos espelhados ou caminhos privados de anexos.
+
+O briefing possui três trilhas condicionais: Lançamento Digital, Marketing
+Digital e Identidade Visual. Rascunhos são salvos automaticamente. O status
+`waiting` reabre a mesma resposta para complemento; os demais estados encerram
+a edição pública. Referências visuais aceitam somente JPG, PNG e WebP, até 8 MB
+e cinco arquivos por resposta, em bucket privado.
+
+No envio, `syncBriefingToProject` mantém a resposta integral e executa um
+espelhamento conservador: identifica campos existentes por chave estável,
+preenche apenas os vazios e registra separadamente o que foi preenchido ou
+preservado. Nunca sobrescreve conteúdo já revisado pela equipe. O painel interno
+oferece busca, status, notas, resumo determinístico, exportação e impressão/PDF.
+O módulo segue `project_users.allowed_modules` com a chave `formularios` e exige
+nível de gestão do projeto, evitando que perfis somente leitores consultem
+respostas ou anotações internas.
+
+No fluxo de Lançamento, nome do produto, diferencial, transformação, promessa,
+público, benefícios e razão de escolha alimentam o produto correspondente em
+Comunicação (Mecanismo Único, Resultado-Alvo, Promessa principal, Para Quem É,
+Benefício Estendido e Ponto de Indiferença). Marketing e Identidade Visual
+preenchem apenas os campos com equivalência direta. Os dados comuns também são
+guardados em `text_fields` com prefixo `client_briefing_` para uso futuro, sem
+alterar o nome cadastrado do projeto.
+
+## 3.3 Candidatura Pública De Experts
+
+`/candidatura` é um fluxo comercial global da Agência B16 e não pertence a um
+projeto. Cada envio cria uma linha própria em `expert_applications`, identificada
+pelos dados de contato do lead. A página não acessa o Supabase diretamente: o
+`POST /api/public/expert-applications` valida novamente todos os campos no
+servidor e grava a resposta com `service_role` somente após passar pelo limite
+de tentativas, campo-armadilha, tempo mínimo de preenchimento e idempotência.
+
+Administradores veem a fila no módulo global `Candidaturas`. A interface permite
+classificar, anotar e consultar a resposta integral. A função transacional
+`convert_expert_application_to_project` bloqueia a candidatura, cria o projeto
+e grava `converted_project_id`, `converted_by` e `converted_at` na mesma
+operação. Chamadas repetidas devolvem o projeto já vinculado, evitando projetos
+duplicados. O briefing geral do novo cliente é criado pelo trigger normal de
+projetos; briefings de lançamentos continuam independentes.
+
+## 3.4 Onboarding Público B16
+
+`/onboarding` é uma página institucional pós-contrato, igual para todos os
+clientes e acessível sem sessão. A rota usa metadata própria com
+`noindex, nofollow`, não cria API, não consulta o Supabase e não recebe dados do
+visitante. Dessa forma, sua publicação não altera o isolamento dos projetos nem
+o fluxo autenticado do Clave.
+
+O conteúdo visual fica em `components/public/OnboardingPage.tsx`. A abertura usa
+uma imagem prioritária e em tela cheia; a imagem de Metodologia PD3 é carregada
+de forma tardia pelo `next/image`. Ambas estão em WebP dentro de
+`public/images`, com dimensões responsivas informadas ao navegador. As entradas
+progressivas usam `IntersectionObserver`, mantêm o espaço estável e são
+desativadas quando o dispositivo informa `prefers-reduced-motion`.
+
+As seções usam HTML semântico, títulos encadeados e ícones decorativos ocultos
+da árvore de acessibilidade. O único controle de navegação é um link interno com
+foco visível. Não há estado compartilhado com o painel autenticado.
+
 ## 4. Comunicação Por Produto/Curso
 
 `communication_products` é o primeiro nível do módulo Comunicação. Depois da
