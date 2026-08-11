@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Loader2,
   LockKeyhole,
+  PlayCircle,
   Send,
   ShieldCheck,
 } from 'lucide-react'
@@ -383,33 +384,60 @@ export default function ExpertApplicationForm() {
       </div>
 
       {step === 1 ? (
-        <section className="mx-auto max-w-4xl px-5 py-12 sm:px-8 sm:py-16" aria-labelledby="presentation-title">
-          <div className="grid gap-12 lg:grid-cols-[1fr_280px] lg:gap-16">
+        <section className="mx-auto max-w-5xl px-5 py-12 sm:px-8 sm:py-16" aria-labelledby="presentation-title">
+          <div className="grid items-stretch gap-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)] lg:gap-14">
             <div>
               <p className="text-xs font-bold uppercase text-[#176b52]">Apresentação</p>
-              <h2 id="presentation-title" className="mt-2 text-3xl font-bold sm:text-4xl">Uma parceria para construir com profundidade.</h2>
+              <h2 id="presentation-title" className="mt-2 max-w-2xl text-3xl font-bold sm:text-4xl">Uma parceria para construir com profundidade.</h2>
               <div className="mt-7 space-y-5 text-base leading-7 text-[#57534c]">
                 <p>
                   Já pensou em ter ao seu lado profissionais que já faturaram alguns <strong className="text-[#1a1916]">milhões na internet</strong>, que investem centenas de milhares de reais em formações, participando de <strong className="text-[#1a1916]">Mentorias</strong> e <strong className="text-[#1a1916]">Masterminds</strong> com os principais nomes do mercado e, o mais importante, mantendo um posicionamento alinhado à moral cristã? Estamos fazendo isso desde 2016. Na <strong className="text-[#1a1916]">B16</strong>, temos uma grande responsabilidade e muita ambição para chegar ainda mais longe.
                 </p>
                 <p>Se deseja conhecer um pouco mais sobre a B16, nosso fundador participou de um podcast no qual conta um pouco da nossa história e dos nossos resultados.</p>
-                <p>
-                  <ExternalTextLink href="https://www.youtube.com/watch?v=gdoSAy7RPnw&t=48s">▶️ Clique aqui e assista ao episódio.</ExternalTextLink>
-                </p>
-                <p className="pt-3 font-bold text-[#1a1916]">Conheça alguns de nossos experts e sócios:</p>
-                <ul className="space-y-2" aria-label="Experts e sócios da B16">
-                  <li>💪 <ExternalTextLink href="https://www.instagram.com/cazarre/">Juliano Cazarré</ExternalTextLink></li>
-                  <li>🎻 <ExternalTextLink href="https://www.instagram.com/maestro.thiagosantos/">Maestro Thiago Santos</ExternalTextLink></li>
-                  <li>🔥 <ExternalTextLink href="https://www.instagram.com/faroleforja/">Farol e a Forja</ExternalTextLink></li>
-                  <li>👨‍⚖️ <ExternalTextLink href="https://www.instagram.com/prof_haroldolourenco/">Haroldo Lourenço</ExternalTextLink></li>
-                  <li>🧪 <ExternalTextLink href="https://www.instagram.com/mundialcromo/">Mundial Cromo</ExternalTextLink></li>
-                </ul>
+                <a
+                  href="https://www.youtube.com/watch?v=gdoSAy7RPnw&t=48s"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-12 items-center gap-3 border-b-2 border-[#f3c600] py-2 font-bold text-[#1a1916] transition-colors hover:border-[#176b52] hover:text-[#176b52] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#176b52]"
+                >
+                  <PlayCircle className="h-5 w-5 text-[#176b52]" aria-hidden="true" />
+                  Assista ao episódio
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                </a>
               </div>
             </div>
-            <aside className="border-l-2 border-[#f3c600] pl-5 text-sm leading-6 text-[#5f5b53] lg:mt-10">
-              <ShieldCheck className="mb-4 h-6 w-6 text-[#176b52]" aria-hidden="true" />
-              <p className="font-semibold text-[#25231f]">Avaliação reservada</p>
-              <p className="mt-2">As informações desta candidatura serão analisadas somente pelos sócios da B16.</p>
+            <aside className="flex flex-col bg-[#191815] px-6 py-7 text-white sm:px-8 sm:py-9">
+              <p className="text-xs font-bold uppercase text-[#f3c600]">Em boa companhia</p>
+              <h3 className="mt-2 text-2xl font-bold leading-tight">Experts e sócios que constroem com a B16</h3>
+              <ul className="mt-6 border-b border-white/15" aria-label="Experts e sócios da B16">
+                {[
+                  ['01', 'Juliano Cazarré', 'https://www.instagram.com/cazarre/'],
+                  ['02', 'Maestro Thiago Santos', 'https://www.instagram.com/maestro.thiagosantos/'],
+                  ['03', 'Farol e a Forja', 'https://www.instagram.com/faroleforja/'],
+                  ['04', 'Haroldo Lourenço', 'https://www.instagram.com/prof_haroldolourenco/'],
+                  ['05', 'Mundial Cromo', 'https://www.instagram.com/mundialcromo/'],
+                ].map(([number, name, href]) => (
+                  <li key={href} className="border-t border-white/15">
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group flex min-h-12 items-center gap-3 py-3 text-sm font-semibold transition-colors hover:text-[#f3c600] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-[#f3c600]"
+                    >
+                      <span className="w-6 shrink-0 text-xs font-bold text-[#f3c600]">{number}</span>
+                      <span className="flex-1">{name}</span>
+                      <ExternalLink className="h-3.5 w-3.5 text-white/50 transition-colors group-hover:text-[#f3c600]" aria-hidden="true" />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-auto flex items-start gap-3 border-t border-white/15 pt-6 text-sm leading-6 text-white/70">
+                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#7dc7ac]" aria-hidden="true" />
+                <div>
+                  <p className="font-semibold text-white">Avaliação reservada</p>
+                  <p className="mt-1">As informações desta candidatura serão analisadas somente pelos sócios da B16.</p>
+                </div>
+              </div>
             </aside>
           </div>
 
