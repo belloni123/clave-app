@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { recordAppError } from '@/utils/observability/error-events'
 import {
   getPublicForm,
   getSubmissionByToken,
@@ -30,8 +31,8 @@ function hasExpectedImageSignature(bytes: Buffer, mimeType: string) {
   return false
 }
 
-function jsonError(message: string, status: number) {
-  return NextResponse.json({ error: message }, { status })
+function jsonError(message: string, status: number, reported = false) {
+  return NextResponse.json({ error: message, reported }, { status })
 }
 
 export async function POST(
@@ -56,11 +57,19 @@ export async function POST(
   }
 
   const admin = createAdminClient()
+  const eventContext: {
+    projectId: string | null
+    formId: string | null
+    submissionId: string | null
+  } = { projectId: null, formId: null, submissionId: null }
   try {
     const form = await getPublicForm(admin, token)
     if (!form || !form.active) return jsonError('Formulário indisponível.', 404)
+    eventContext.projectId = form.project_id
+    eventContext.formId = form.id
     const submission = await getSubmissionByToken(admin, form.id, responseToken)
     if (!submission || !['draft', 'waiting'].includes(submission.status)) return jsonError('Resposta editável não encontrada.', 404)
+    eventContext.submissionId = submission.id
 
     const { count, error: countError } = await admin
       .from('project_form_attachments')
@@ -100,8 +109,23 @@ export async function POST(
     }
     return NextResponse.json({ attachment })
   } catch (error) {
-    console.error('Briefing attachment upload failed', error)
-    return jsonError('Não foi possível enviar a imagem agora.', 500)
+    const referenceCode = await recordAppError({
+      admin,
+      request,
+      category: 'briefing_attachment',
+      operation: 'upload_attachment',
+      message: 'Não foi possível anexar uma imagem ao briefing.',
+      error,
+      httpStatus: 500,
+      projectId: eventContext.projectId,
+      formId: eventContext.formId,
+      submissionId: eventContext.submissionId,
+      metadata: {
+        mimeType: file.type,
+        sizeBytes: file.size,
+      },
+    })
+    return jsonError('Não foi possível enviar a imagem agora.', 500, Boolean(referenceCode))
   }
 }
 
@@ -122,11 +146,19 @@ export async function DELETE(
   }
 
   const admin = createAdminClient()
+  const eventContext: {
+    projectId: string | null
+    formId: string | null
+    submissionId: string | null
+  } = { projectId: null, formId: null, submissionId: null }
   try {
     const form = await getPublicForm(admin, token)
     if (!form || !form.active) return jsonError('Formulário indisponível.', 404)
+    eventContext.projectId = form.project_id
+    eventContext.formId = form.id
     const submission = await getSubmissionByToken(admin, form.id, body.responseToken)
     if (!submission || !['draft', 'waiting'].includes(submission.status)) return jsonError('Resposta editável não encontrada.', 404)
+    eventContext.submissionId = submission.id
 
     const { data: attachment, error: readError } = await admin
       .from('project_form_attachments')
@@ -150,7 +182,18 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true })
   } catch (error) {
-    console.error('Briefing attachment removal failed', error)
-    return jsonError('Não foi possível remover a imagem agora.', 500)
+    const referenceCode = await recordAppError({
+      admin,
+      request,
+      category: 'briefing_attachment',
+      operation: 'remove_attachment',
+      message: 'Não foi possível remover uma imagem do briefing.',
+      error,
+      httpStatus: 500,
+      projectId: eventContext.projectId,
+      formId: eventContext.formId,
+      submissionId: eventContext.submissionId,
+    })
+    return jsonError('Não foi possível remover a imagem agora.', 500, Boolean(referenceCode))
   }
 }

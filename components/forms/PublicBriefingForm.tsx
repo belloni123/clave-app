@@ -33,6 +33,11 @@ import {
   isQuestionVisible,
   type BriefingQuestion,
 } from '@/utils/forms/client-briefing'
+import {
+  publicRequestError,
+  PublicRequestError,
+  reportPublicError,
+} from '@/utils/observability/public-error-reporter'
 
 interface PublicBriefingFormProps {
   publicToken: string
@@ -78,6 +83,33 @@ export default function PublicBriefingForm({ publicToken }: PublicBriefingFormPr
     ? !['draft', 'waiting'].includes(payload.response.status)
     : false
 
+  const presentPublicError = useCallback(async (
+    error: unknown,
+    context: {
+      category: 'public_briefing' | 'briefing_attachment'
+      operation: string
+      metadata?: Record<string, string | number | boolean | null>
+    },
+  ) => {
+    const message = error instanceof Error ? error.message : 'Ocorreu uma falha inesperada.'
+    if (error instanceof PublicRequestError) {
+      if (error.reported) return message
+      if (!error.reportable) return message
+    }
+
+    await reportPublicError({
+      ...context,
+      message,
+      stackTrace: error instanceof Error ? error.stack : null,
+      publicToken,
+      responseToken: responseTokenRef.current,
+      leadEmail: typeof latestAnswersRef.current.client_email === 'string'
+        ? latestAnswersRef.current.client_email
+        : null,
+    })
+    return message
+  }, [publicToken])
+
   useEffect(() => {
     latestAnswersRef.current = answers
   }, [answers])
@@ -93,7 +125,9 @@ export default function PublicBriefingForm({ publicToken }: PublicBriefingFormPr
     fetch(`/api/public/forms/${publicToken}${query}`, { cache: 'no-store' })
       .then(async (response) => {
         const data = await response.json()
-        if (!response.ok) throw new Error(data.error || 'Não foi possível abrir o formulário.')
+        if (!response.ok) {
+          throw publicRequestError(data, 'Não foi possível abrir o formulário.', response.status)
+        }
         return data as PublicProjectFormPayload
       })
       .then((data) => {
@@ -105,14 +139,18 @@ export default function PublicBriefingForm({ publicToken }: PublicBriefingFormPr
         setAttachments(data.response.attachments || [])
         setCurrentStep(data.response.currentStep || 0)
       })
-      .catch((error: Error) => {
-        if (!cancelled) setLoadError(error.message)
+      .catch(async (error: unknown) => {
+        const message = await presentPublicError(error, {
+          category: 'public_briefing',
+          operation: 'load_form_browser',
+        })
+        if (!cancelled) setLoadError(message)
       })
 
     return () => {
       cancelled = true
     }
-  }, [publicToken])
+  }, [presentPublicError, publicToken])
 
   const persist = useCallback(async (
     action: 'save' | 'submit',
@@ -153,10 +191,10 @@ export default function PublicBriefingForm({ publicToken }: PublicBriefingFormPr
       }
 
       if (!response.ok) {
-        if (Array.isArray(data.missing)) setFormError(`${data.error} ${data.missing.join('; ')}`)
-        else setFormError(data.error || 'Não foi possível salvar o formulário.')
-        setSaveState('error')
-        throw new Error(data.error || 'Não foi possível salvar o formulário.')
+        const responseMessage = Array.isArray(data.missing)
+          ? `${data.error} ${data.missing.join('; ')}`
+          : data.error || 'Não foi possível salvar o formulário.'
+        throw new PublicRequestError(responseMessage, response.status, data.reported)
       }
 
       if (savedVersion === editVersionRef.current) {
@@ -166,11 +204,20 @@ export default function PublicBriefingForm({ publicToken }: PublicBriefingFormPr
         setSaveState('idle')
       }
       return data as { responseToken: string; resumeUrl: string; submitted: boolean }
+    } catch (error) {
+      const message = await presentPublicError(error, {
+        category: 'public_briefing',
+        operation: action === 'submit' ? 'submit_form_browser' : 'save_draft_browser',
+        metadata: { currentStep: overrideStep ?? latestStepRef.current },
+      })
+      setFormError(message)
+      setSaveState('error')
+      throw new Error(message)
     } finally {
       releaseRequest()
       if (saveRequestRef.current === requestLock) saveRequestRef.current = null
     }
-  }, [publicToken])
+  }, [presentPublicError, publicToken])
 
   useEffect(() => {
     if (!payload || !isDirty || submitted) return
@@ -284,11 +331,17 @@ export default function PublicBriefingForm({ publicToken }: PublicBriefingFormPr
           body: formData,
         })
         const data = await response.json()
-        if (!response.ok) throw new Error(data.error || 'Não foi possível enviar a imagem.')
+        if (!response.ok) {
+          throw publicRequestError(data, 'Não foi possível enviar a imagem.', response.status)
+        }
         setAttachments((current) => [...current, data.attachment])
       }
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Não foi possível enviar a imagem.')
+      const message = await presentPublicError(error, {
+        category: 'briefing_attachment',
+        operation: 'upload_attachment_browser',
+      })
+      setFormError(message)
     } finally {
       setUploading(false)
     }
@@ -296,16 +349,23 @@ export default function PublicBriefingForm({ publicToken }: PublicBriefingFormPr
 
   const removeAttachment = async (attachmentId: string) => {
     if (!responseToken) return
-    const response = await fetch(`/api/public/forms/${publicToken}/attachments`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ responseToken, attachmentId }),
-    })
-    if (response.ok) {
-      setAttachments((current) => current.filter((attachment) => attachment.id !== attachmentId))
-    } else {
+    try {
+      const response = await fetch(`/api/public/forms/${publicToken}/attachments`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ responseToken, attachmentId }),
+      })
       const data = await response.json()
-      setFormError(data.error || 'Não foi possível remover a imagem.')
+      if (!response.ok) {
+        throw publicRequestError(data, 'Não foi possível remover a imagem.', response.status)
+      }
+      setAttachments((current) => current.filter((attachment) => attachment.id !== attachmentId))
+    } catch (error) {
+      const message = await presentPublicError(error, {
+        category: 'briefing_attachment',
+        operation: 'remove_attachment_browser',
+      })
+      setFormError(message)
     }
   }
 

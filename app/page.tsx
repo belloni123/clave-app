@@ -21,6 +21,7 @@ import AdminSmtpModule from '@/components/modules/AdminSmtpModule'
 import FormulariosModule from '@/components/modules/FormulariosModule'
 import CandidaturasModule from '@/components/modules/CandidaturasModule'
 import ClienteModule from '@/components/modules/ClienteModule'
+import MonitoramentoModule from '@/components/modules/MonitoramentoModule'
 
 export default function Home() {
   const { activeModule } = useAppStore()
@@ -57,6 +58,8 @@ export default function Home() {
         return <AdminSmtpModule />
       case 'candidaturas':
         return <CandidaturasModule />
+      case 'monitoramento':
+        return <MonitoramentoModule />
       default:
         return <DashboardModule />
     }

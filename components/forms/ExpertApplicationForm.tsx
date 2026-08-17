@@ -32,6 +32,11 @@ import {
   validateExpertApplication,
   type ExpertApplicationErrors,
 } from '@/utils/forms/expert-application'
+import {
+  publicRequestError,
+  PublicRequestError,
+  reportPublicError,
+} from '@/utils/observability/public-error-reporter'
 
 type Authorization = '' | 'yes' | 'no'
 type SubmissionState = 'idle' | 'submitting' | 'success' | 'error'
@@ -283,6 +288,7 @@ export default function ExpertApplicationForm() {
       const data = await response.json() as {
         error?: string
         errors?: ExpertApplicationErrors
+        reported?: boolean
       }
 
       if (!response.ok) {
@@ -290,14 +296,27 @@ export default function ExpertApplicationForm() {
           setErrors(data.errors)
           focusFirstError(data.errors)
         }
-        throw new Error(data.error || 'Não foi possível enviar a candidatura.')
+        throw publicRequestError(data, 'Não foi possível enviar a candidatura.', response.status)
       }
 
       setSubmitState('success')
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (error) {
       setSubmitState('error')
-      setSubmitError(error instanceof Error ? error.message : 'Não foi possível enviar a candidatura.')
+      const message = error instanceof Error ? error.message : 'Não foi possível enviar a candidatura.'
+      const alreadyReported = error instanceof PublicRequestError && error.reported
+      const shouldReport = !(error instanceof PublicRequestError) || error.reportable
+      if (shouldReport && !alreadyReported) {
+        await reportPublicError({
+          category: 'expert_application',
+          operation: 'submit_application_browser',
+          message,
+          stackTrace: error instanceof Error ? error.stack : null,
+          leadEmail: answers.email,
+          metadata: { step },
+        })
+      }
+      setSubmitError(message)
     }
   }
 

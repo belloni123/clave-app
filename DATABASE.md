@@ -93,6 +93,29 @@ Metadados das referências visuais privadas enviadas no briefing geral do client
 
 ### `public.expert_applications`
 Candidaturas públicas de potenciais experts antes de existir um projeto.
+
+### `public.app_error_events`
+
+Fila operacional global de erros do Clave, disponível somente para
+administradores ativos.
+
+*   `reference_code`: código interno `CLV-XXXXXXXXXXXX` usado somente pela equipe administrativa.
+*   `status`, `severity`, `source`, `category`, `operation`: classificação e fluxo de tratamento.
+*   `project_id`, `form_id`, `submission_id`, `actor_id`, `lead_email`: vínculos opcionais para localizar o contexto sem armazenar a resposta do formulário.
+*   `message`, `technical_message`, `stack_trace`, `error_name`, `http_status`: diagnóstico sanitizado e limitado por tamanho.
+*   `fingerprint`, `metadata`, `occurred_at`: agrupamento futuro e contexto técnico mínimo.
+*   `resolved_at`, `resolved_by`, `admin_notes`: resolução e auditoria administrativa.
+
+`anon` não possui grants. `authenticated` recebe apenas `select` e atualização
+de `status` e `admin_notes`, e ambas as operações dependem de uma checagem do
+papel administrativo ativo pela RLS. Um trigger preenche `resolved_at` e
+`resolved_by` com horário e ator autenticado, impedindo autoria forjada.
+
+### `public.app_error_event_rate_limits`
+
+Contador privado, sem política ou grant para clientes, usado pelo endpoint de
+telemetria do navegador. A chave é um HMAC irreversível da origem e expira de
+forma oportunista; somente `service_role` executa a função de consumo.
 *   Dados de contato, contexto de mercado, histórico digital e capacidade de investimento ficam preservados na resposta original.
 *   `status`: `new`, `reviewing`, `qualified`, `disqualified` ou `converted`.
 *   `idempotency_key`: impede que um envio repetido pelo navegador crie outra candidatura.
@@ -334,6 +357,11 @@ As migrações devem ser aplicadas em ordem crescente:
 11. `20260811133218_public_briefing_submission_rate_limit.sql`: limita a criação de rascunhos públicos com uma chave HMAC por formulário e origem.
 12. `20260817171028_project_client_profiles.sql`: adiciona o módulo `cliente`, cria o perfil e os dois snapshots por projeto, protege a tabela com RLS e atualiza o briefing para a versão 2.
 13. `20260817172120_project_client_profiles_updated_by_idx.sql`: indexa a referência de auditoria `updated_by` para manter atualizações e exclusões de perfis eficientes.
+14. `20260817180720_admin_error_monitoring.sql`: cria a fila administrativa de erros, RLS, grants por coluna e contador privado para telemetria do navegador.
+15. `20260817180946_app_error_events_stack_trace.sql`: adiciona stack trace sanitizada ao diagnóstico exclusivo dos administradores.
+16. `20260817181230_harden_error_resolution_audit.sql`: restringe colunas editáveis e automatiza ator e horário da resolução.
+17. `20260817181400_index_error_event_context.sql`: indexa vínculos opcionais de formulário e resposta para manter a investigação eficiente.
+18. `20260817181552_enrich_error_actor_and_reference.sql`: registra o usuário autenticado quando houver sessão e amplia o identificador interno para reduzir colisões.
 
 O deploy da aplicação não executa essas migrações. Consulte
 [DEPLOYMENT.md](./DEPLOYMENT.md) para o procedimento de produção.

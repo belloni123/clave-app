@@ -3,6 +3,7 @@ import { createAdminClient } from '@/utils/supabase/admin'
 import { getPublicAppOrigin } from '@/utils/http/public-app-origin'
 import { buildStrategicSummary, getServiceType } from '@/utils/forms/client-briefing'
 import { readJsonBody, RequestBodyTooLargeError } from '@/utils/http/read-json-body'
+import { recordAppError } from '@/utils/observability/error-events'
 import {
   createResponseToken,
   createProjectFormRateLimitKey,
@@ -16,8 +17,8 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-function jsonError(message: string, status: number) {
-  return NextResponse.json({ error: message }, { status })
+function jsonError(message: string, status: number, reported = false) {
+  return NextResponse.json({ error: message, reported }, { status })
 }
 
 export async function GET(
@@ -26,10 +27,12 @@ export async function GET(
 ) {
   const { token } = await params
   const admin = createAdminClient()
+  let formContext: { id: string; project_id: string } | null = null
 
   try {
     const form = await getPublicForm(admin, token)
     if (!form || !form.active) return jsonError('Formulário não encontrado ou indisponível.', 404)
+    formContext = { id: form.id, project_id: form.project_id }
     const { data: project, error: projectError } = await admin
       .from('projects')
       .select('name, deleted_at')
@@ -80,8 +83,18 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error('Public project form load failed', error)
-    return jsonError('Não foi possível carregar o formulário agora.', 500)
+    const referenceCode = await recordAppError({
+      admin,
+      request,
+      category: 'public_briefing',
+      operation: 'load_form',
+      message: 'Não foi possível carregar o formulário público.',
+      error,
+      httpStatus: 500,
+      projectId: formContext?.project_id,
+      formId: formContext?.id,
+    })
+    return jsonError('Não foi possível carregar o formulário agora.', 500, Boolean(referenceCode))
   }
 }
 
@@ -120,10 +133,22 @@ export async function POST(
   }
 
   const admin = createAdminClient()
+  const eventContext: {
+    projectId: string | null
+    formId: string | null
+    submissionId: string | null
+  } = {
+    projectId: null,
+    formId: null,
+    submissionId: null,
+  }
+  const leadEmail = typeof answers.client_email === 'string' ? answers.client_email : null
 
   try {
     const form = await getPublicForm(admin, token)
     if (!form || !form.active) return jsonError('Formulário não encontrado ou indisponível.', 404)
+    eventContext.projectId = form.project_id
+    eventContext.formId = form.id
     const origin = getPublicAppOrigin(request)
 
     let submission = responseToken
@@ -168,7 +193,9 @@ export async function POST(
 
       if (createError) throw createError
       submission = created
+      eventContext.submissionId = created.id
     } else {
+      eventContext.submissionId = submission.id
       const { data: updated, error: updateError } = await admin
         .from('project_form_submissions')
         .update({
@@ -200,7 +227,19 @@ export async function POST(
       try {
         mapping = await syncBriefingToProject(admin, form.project_id, answers)
       } catch (mappingError) {
-        console.error('Project briefing field sync failed', mappingError)
+        await recordAppError({
+          admin,
+          request,
+          category: 'public_briefing',
+          operation: 'sync_submission_to_project',
+          message: 'O briefing foi recebido, mas o preenchimento automático do projeto falhou.',
+          error: mappingError,
+          severity: 'warning',
+          projectId: eventContext.projectId,
+          formId: eventContext.formId,
+          submissionId: eventContext.submissionId,
+          leadEmail,
+        })
         mapping.skipped.push('O espelhamento automático falhou e precisa ser revisado pela equipe.')
       }
 
@@ -226,7 +265,22 @@ export async function POST(
       resumeUrl: `${origin}/formularios/${token}?resposta=${encodeURIComponent(activeResponseToken)}`,
     })
   } catch (error) {
-    console.error('Public project form save failed', error)
-    return jsonError('Não foi possível salvar o formulário agora.', 500)
+    const referenceCode = await recordAppError({
+      admin,
+      request,
+      category: 'public_briefing',
+      operation: action === 'submit' ? 'submit_form' : 'save_draft',
+      message: action === 'submit'
+        ? 'Não foi possível concluir o envio do briefing.'
+        : 'Não foi possível salvar o rascunho do briefing.',
+      error,
+      httpStatus: 500,
+      projectId: eventContext.projectId,
+      formId: eventContext.formId,
+      submissionId: eventContext.submissionId,
+      leadEmail,
+      metadata: { currentStep },
+    })
+    return jsonError('Não foi possível salvar o formulário agora.', 500, Boolean(referenceCode))
   }
 }

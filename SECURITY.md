@@ -99,3 +99,27 @@ briefing responses are limited by an HMAC of the form and request origin; the
 raw address is never stored. Public JSON routes read their streams with a hard
 byte limit even when `Content-Length` is absent, and uploaded images must match
 the declared JPG, PNG, or WebP signature before reaching private Storage.
+
+## Error Monitoring
+
+`app_error_events` is an administrative table. `anon` has no privileges and an
+authenticated session can read or update it only when the RLS policy confirms
+an active profile with `role = admin` or `agency_role = admin`. The browser cannot insert directly; public reports
+pass through a size-limited and rate-limited server route using `service_role`.
+
+Monitoring payloads must never contain passwords, access or refresh tokens,
+authorization headers, complete form answers, resume URLs, uploaded files or
+URL query strings. Store only the minimum identifiers required for support.
+The server sanitizes common credential patterns and caps every text field, but
+callers remain responsible for passing allowlisted metadata instead of raw
+request bodies.
+
+`app_error_event_rate_limits` has RLS enabled without client policies and no
+grants for `anon` or `authenticated`. Its `SECURITY DEFINER` function has an
+explicit `search_path`, rejects malformed parameters and is executable only by
+`service_role`.
+
+Authenticated administrators may update only `status` and `admin_notes`.
+`resolved_at` and `resolved_by` are filled by a `SECURITY INVOKER` trigger from
+the current authenticated actor, so a REST client cannot forge who resolved an
+occurrence.

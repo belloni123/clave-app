@@ -14,7 +14,12 @@ export const PROJECT_MODULES = [
 ] as const
 
 export type ProjectModuleKey = (typeof PROJECT_MODULES)[number]['key']
-export type AppModuleKey = 'home' | 'candidaturas' | 'configuracoes' | ProjectModuleKey
+export type AppModuleKey =
+  | 'home'
+  | 'candidaturas'
+  | 'monitoramento'
+  | 'configuracoes'
+  | ProjectModuleKey
 
 export const DEFAULT_PROJECT_MODULES: ProjectModuleKey[] = PROJECT_MODULES.map(
   (module) => module.key,

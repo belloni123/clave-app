@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { parseExpertApplicationPayload } from '@/utils/forms/expert-application'
 import { readJsonBody, RequestBodyTooLargeError } from '@/utils/http/read-json-body'
+import { recordAppError } from '@/utils/observability/error-events'
 
 export const runtime = 'nodejs'
 
@@ -10,8 +11,13 @@ const MAX_BODY_BYTES = 96_000
 const MIN_COMPLETION_TIME_MS = 4_000
 const MAX_COMPLETION_TIME_MS = 24 * 60 * 60 * 1000
 
-function jsonError(message: string, status: number, errors?: Record<string, string>) {
-  return NextResponse.json({ error: message, errors }, { status })
+function jsonError(
+  message: string,
+  status: number,
+  errors?: Record<string, string>,
+  reported = false,
+) {
+  return NextResponse.json({ error: message, errors, reported }, { status })
 }
 
 function clientAddress(request: NextRequest) {
@@ -103,7 +109,22 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ accepted: true }, { status: 201 })
   } catch (error) {
-    console.error('Expert application submission failed', error)
-    return jsonError('Não foi possível enviar sua candidatura. Seus dados continuam nesta página para uma nova tentativa.', 500)
+    const admin = createAdminClient()
+    const referenceCode = await recordAppError({
+      admin,
+      request,
+      category: 'expert_application',
+      operation: 'submit_application',
+      message: 'Não foi possível concluir o envio de uma candidatura.',
+      error,
+      httpStatus: 500,
+      leadEmail: parsed.data.email,
+    })
+    return jsonError(
+      'Não foi possível enviar sua candidatura. Seus dados continuam nesta página para uma nova tentativa.',
+      500,
+      undefined,
+      Boolean(referenceCode),
+    )
   }
 }

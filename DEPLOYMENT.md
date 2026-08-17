@@ -43,6 +43,11 @@ As migrações da integração de BI devem existir no Supabase nesta ordem:
 16. `20260811133218_public_briefing_submission_rate_limit.sql`
 17. `20260817171028_project_client_profiles.sql`
 18. `20260817172120_project_client_profiles_updated_by_idx.sql`
+19. `20260817180720_admin_error_monitoring.sql`
+20. `20260817180946_app_error_events_stack_trace.sql`
+21. `20260817181230_harden_error_resolution_audit.sql`
+22. `20260817181400_index_error_event_context.sql`
+23. `20260817181552_enrich_error_actor_and_reference.sql`
 
 A terceira migração valida os registros existentes antes de criar constraints
 compostas. Se ela acusar referências inconsistentes, não faça o redeploy: corrija
@@ -318,6 +323,9 @@ operação manual do responsável pelo ambiente.
 32. Abra `/candidatura` sem sessão, percorra as duas etapas e confirme máscaras, validações, autorização e consentimento LGPD.
 33. Envie a candidatura uma vez, confirme a tela de sucesso e verifique que um duplo clique não cria uma segunda resposta.
 34. Como administrador, abra `Candidaturas`, altere o status, salve uma anotação e confirme que um usuário comum não vê o módulo.
+35. Como administrador, abra `Monitoramento`, confirme que a lista e os filtros carregam e que uma ocorrência pode passar para Em análise e Resolvido.
+36. Com uma conta comum, confirme que o item `Monitoramento` não aparece e que uma consulta REST a `app_error_events` não retorna linhas.
+37. Em ambiente de teste, provoque uma falha controlada de formulário e confirme que o visitante recebe apenas a mensagem amigável e que o diagnóstico completo aparece somente para administradores.
 35. Use `Criar projeto`, confirme o vínculo na candidatura e valide que uma segunda tentativa abre o mesmo projeto em vez de criar outro.
 36. Abra `/onboarding` em uma janela anônima e confirme que a rota não solicita login nem faz chamadas ao Supabase.
 37. Valide `/onboarding` em desktop e smartphone, conferindo imagens, foco do link interno, leitura das listas, ausência de sobreposição e redução de movimento.

@@ -34,6 +34,7 @@ import {
   ClipboardList,
   ContactRound,
   FileUser,
+  Activity,
 } from 'lucide-react'
 
 interface AppShellProps {
@@ -192,7 +193,13 @@ export default function AppShell({ children }: AppShellProps) {
       }
 
       if (profile.role === 'admin' || profile.agency_role === 'admin') {
-        setAllowedModules(['home', ...DEFAULT_PROJECT_MODULES, 'candidaturas', 'configuracoes'])
+        setAllowedModules([
+          'home',
+          ...DEFAULT_PROJECT_MODULES,
+          'candidaturas',
+          'monitoramento',
+          'configuracoes',
+        ])
         return
       }
 
@@ -304,6 +311,7 @@ export default function AppShell({ children }: AppShellProps) {
       group: 'ADMINISTRAÇÃO',
       items: [
         { id: 'candidaturas', name: 'Candidaturas', icon: FileUser },
+        { id: 'monitoramento', name: 'Monitoramento', icon: Activity },
         { id: 'configuracoes', name: 'Configurações', icon: Settings },
       ],
     },
@@ -453,6 +461,7 @@ export default function AppShell({ children }: AppShellProps) {
                 {activeModule === 'formularios' && 'Links públicos, respostas e briefings do projeto'}
                 {activeModule === 'acesso' && 'Permissões e equipe'}
                 {activeModule === 'candidaturas' && 'Avaliação de experts e conversão em projetos'}
+                {activeModule === 'monitoramento' && 'Erros, ocorrências e acompanhamento operacional'}
                 {activeModule === 'configuracoes' && 'Configurações globais e integrações administrativas'}
               </p>
             </div>

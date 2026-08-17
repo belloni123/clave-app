@@ -251,6 +251,26 @@ As seções usam HTML semântico, títulos encadeados e ícones decorativos ocul
 da árvore de acessibilidade. O único controle de navegação é um link interno com
 foco visível. Não há estado compartilhado com o painel autenticado.
 
+## 3.6 Monitoramento Administrativo De Erros
+
+Erros inesperados nas rotas públicas de briefing, anexos e candidatura são
+registrados por `recordAppError` em `app_error_events`. O mesmo fluxo gera um
+código interno `CLV-XXXXXXXXXXXX`, disponível somente no painel administrativo
+e no log do servidor. O visitante recebe apenas uma mensagem amigável. Respostas de validação esperadas, como campo
+obrigatório ou limite de tentativas, não entram na fila de falhas.
+
+Falhas de rede e renderização que acontecem somente no navegador usam
+`POST /api/public/error-events`. O endpoint limita corpo e frequência por HMAC
+da origem, resolve formulário e rascunho no servidor e nunca persiste tokens,
+respostas completas, senhas, URLs com query string ou conteúdo de anexos. O
+registrador também remove padrões de credenciais antes da escrita.
+
+O módulo global `Monitoramento` consulta diretamente a tabela sob RLS, com
+leitura e atualização restritas a perfis administrativos ativos. A interface
+permite buscar pelo código, projeto ou lead, filtrar período/origem/status,
+consultar stack trace sanitizada, registrar notas e mover a ocorrência entre Novo, Em análise e Resolvido. A
+ocultação do menu é apenas conveniência; a autorização real permanece no banco.
+
 ## 4. Comunicação Por Produto/Curso
 
 `communication_products` é o primeiro nível do módulo Comunicação. Depois da
