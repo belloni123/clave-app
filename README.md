@@ -15,6 +15,7 @@ Para facilitar o desenvolvimento, a manutenção e o deploy do sistema, a docume
 *   **[Requisitos de julho de 2026](./docs/requirements/2026-07-30-controle-de-acesso-comunicacao-e-chips.md)**: Transcrições e critérios de aceite de acesso modular, Comunicação por produto e Controle de Chips.
 *   **[Candidatura de Experts](./docs/requirements/2026-08-11-candidatura-experts.md)**: Fluxo público, avaliação administrativa, privacidade e conversão de lead em projeto.
 *   **[Onboarding Público B16](./docs/requirements/2026-08-11-onboarding-publico.md)**: Conteúdo, direção visual, acessibilidade e critérios de validação da experiência pós-contrato.
+*   **[Cliente e Evolução](./docs/requirements/2026-08-17-cliente-evolucao.md)**: Escopo consolidado dos áudios, campos do perfil, marco de entrada, cenário atual e integração conservadora com o briefing.
 
 ---
 
@@ -51,6 +52,7 @@ A plataforma unifica diversos recursos de controle operacional e estratégico em
 13. **Briefing Geral do Cliente**: Cada projeto possui um link público e exclusivo para coletar informações gerais do cliente. A trilha muda conforme o serviço contratado — Lançamento Digital, Marketing Digital ou Identidade Visual — sem se confundir com o briefing próprio de cada lançamento. O Clave preserva o conteúdo original e preenche somente campos compatíveis que ainda estejam vazios.
 14. **Candidatura Pública de Experts**: A página `/candidatura` recebe potenciais parceiros em duas etapas, registra consentimento LGPD e mantém cada resposta como lead independente. Administradores avaliam a fila global, registram notas e podem criar um projeto diretamente da candidatura, preservando o vínculo de origem.
 15. **Onboarding Público B16**: A página institucional `/onboarding` apresenta a metodologia PD3, o processo inicial, os materiais necessários e os acordos de colaboração. A rota não exige login, não acessa o banco, usa imagens autorais otimizadas e não permite indexação por mecanismos de busca.
+16. **Cliente & Evolução por Projeto**: Cada projeto possui um perfil contratual, um cenário de entrada preservado e um cenário atual editável. O briefing público alimenta somente campos compatíveis ainda vazios no perfil e no marco zero; a equipe acompanha faturamento, audiência, operação e biografia atual sem duplicar o histórico do módulo Lançamentos.
 
 ---
 

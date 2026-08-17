@@ -1,4 +1,5 @@
 export const PROJECT_MODULES = [
+  { key: 'cliente', name: 'Cliente & Evolução' },
   { key: 'concepcao', name: 'Concepção' },
   { key: 'comunicacao', name: 'Comunicação' },
   { key: 'lancamentos', name: 'Lançamentos' },

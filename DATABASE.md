@@ -58,7 +58,16 @@ Define o acesso atual de cada perfil a um projeto.
 *   `project_id`, `user_id`: relação única entre projeto e perfil.
 *   `permission_level`: `'viewer'`, `'editor'` ou `'admin'`.
 *   `ativo`: indica se o acesso continua válido.
-*   `allowed_modules`: `text[]` com os módulos liberados nesse projeto. Os valores válidos são `concepcao`, `comunicacao`, `lancamentos`, `validacao`, `historias`, `financeiro`, `planejador`, `urlbuilder`, `chips`, `formularios` e `acesso`.
+*   `allowed_modules`: `text[]` com os módulos liberados nesse projeto. Os valores válidos são `cliente`, `concepcao`, `comunicacao`, `lancamentos`, `validacao`, `historias`, `financeiro`, `planejador`, `urlbuilder`, `chips`, `formularios` e `acesso`.
+
+### `public.project_client_profiles`
+Mantém um registro único do cliente ou expert em cada projeto.
+*   `project_id`: relação única com `projects`, removida em cascata com o projeto.
+*   `contract_profile`: objeto JSON com nome, e-mail, telefone, CNPJ e razão social.
+*   `baseline_snapshot`: marco de entrada com negócio, resultados, audiência e estrutura operacional.
+*   `current_snapshot`: retrato atual editável e comparável ao marco de entrada.
+*   `updated_by`, `created_at`, `updated_at`: auditoria da última gravação interna.
+*   A RLS exige acesso ativo à chave modular `cliente`; `anon` não possui grants.
 
 ### `public.project_forms`
 Configuração do briefing geral do cliente, pertencente a um único projeto e
@@ -323,6 +332,8 @@ As migrações devem ser aplicadas em ordem crescente:
 9. `20260811125729_expert_applications.sql`: cria candidaturas públicas, proteção de envio e conversão transacional em projeto.
 10. `20260811132938_project_forms_policy_performance_hardening.sql`: adiciona índices de escopo e separa políticas de leitura/escrita sem alterar os dados.
 11. `20260811133218_public_briefing_submission_rate_limit.sql`: limita a criação de rascunhos públicos com uma chave HMAC por formulário e origem.
+12. `20260817171028_project_client_profiles.sql`: adiciona o módulo `cliente`, cria o perfil e os dois snapshots por projeto, protege a tabela com RLS e atualiza o briefing para a versão 2.
+13. `20260817172120_project_client_profiles_updated_by_idx.sql`: indexa a referência de auditoria `updated_by` para manter atualizações e exclusões de perfis eficientes.
 
 O deploy da aplicação não executa essas migrações. Consulte
 [DEPLOYMENT.md](./DEPLOYMENT.md) para o procedimento de produção.

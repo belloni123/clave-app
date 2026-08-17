@@ -170,6 +170,13 @@ Digital e Identidade Visual. Rascunhos são salvos automaticamente. O status
 a edição pública. Referências visuais aceitam somente JPG, PNG e WebP, até 8 MB
 e cinco arquivos por resposta, em bucket privado.
 
+Antes das trilhas condicionais, o formulário coleta o perfil cadastral e o
+cenário de entrada do cliente. No envio, esses campos também passam pelo
+espelhamento conservador para `project_client_profiles`: somente chaves vazias
+de `contract_profile` e `baseline_snapshot` são preenchidas. O
+`current_snapshot` nunca é copiado do formulário público e permanece sob
+controle da equipe.
+
 No envio, `syncBriefingToProject` mantém a resposta integral e executa um
 espelhamento conservador: identifica campos existentes por chave estável,
 preenche apenas os vazios e registra separadamente o que foi preenchido ou
@@ -187,7 +194,28 @@ preenchem apenas os campos com equivalência direta. Os dados comuns também sã
 guardados em `text_fields` com prefixo `client_briefing_` para uso futuro, sem
 alterar o nome cadastrado do projeto.
 
-## 3.3 Candidatura Pública De Experts
+## 3.3 Cliente E Evolução Por Projeto
+
+`ClienteModule` usa uma única linha de `project_client_profiles` por projeto e
+apresenta três visões do mesmo cliente:
+
+1. `contract_profile`: nome, e-mail, telefone, CNPJ e razão social.
+2. `baseline_snapshot`: marco de entrada preservado por convenção, com negócio,
+   resultados, audiência e estrutura operacional anterior à B16.
+3. `current_snapshot`: retrato editável, com os mesmos indicadores, biografia e
+   comparação direta com o marco de entrada.
+
+O módulo não cria ou altera lançamentos. A quantidade informada nos cenários é
+somente um indicador agregado; datas, etapas, verba e resultados por lançamento
+continuam pertencendo ao módulo Lançamentos. Essa separação também permite
+acompanhar clientes recorrentes que não trabalham com lançamentos.
+
+A navegação e a RLS usam a chave `cliente`. Administradores podem concedê-la
+por projeto na Central de acesso. A tabela aceita leitura e escrita somente de
+usuários autenticados com acesso ao módulo no mesmo projeto; toda escrita feita
+pela interface registra `updated_by`.
+
+## 3.4 Candidatura Pública De Experts
 
 `/candidatura` é um fluxo comercial global da Agência B16 e não pertence a um
 projeto. Cada envio cria uma linha própria em `expert_applications`, identificada
@@ -204,7 +232,7 @@ operação. Chamadas repetidas devolvem o projeto já vinculado, evitando projet
 duplicados. O briefing geral do novo cliente é criado pelo trigger normal de
 projetos; briefings de lançamentos continuam independentes.
 
-## 3.4 Onboarding Público B16
+## 3.5 Onboarding Público B16
 
 `/onboarding` é uma página institucional pós-contrato, igual para todos os
 clientes e acessível sem sessão. A rota usa metadata própria com

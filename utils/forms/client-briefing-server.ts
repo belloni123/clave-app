@@ -199,6 +199,91 @@ async function fillTextField(
   mapped.push(label)
 }
 
+function hasStructuredValue(value: unknown) {
+  if (Array.isArray(value)) return value.length > 0
+  if (typeof value === 'string') return value.trim().length > 0
+  return value !== null && value !== undefined
+}
+
+async function fillProjectClientProfile(
+  admin: SupabaseClient,
+  projectId: string,
+  answers: BriefingAnswers,
+  mapped: string[],
+  skipped: string[],
+) {
+  const { data: existing, error: readError } = await admin
+    .from('project_client_profiles')
+    .select('contract_profile, baseline_snapshot, current_snapshot')
+    .eq('project_id', projectId)
+    .maybeSingle()
+
+  if (readError) throw readError
+
+  const contractProfile = { ...((existing?.contract_profile || {}) as Record<string, unknown>) }
+  const baselineSnapshot = { ...((existing?.baseline_snapshot || {}) as Record<string, unknown>) }
+  const currentSnapshot = { ...((existing?.current_snapshot || {}) as Record<string, unknown>) }
+  let changed = false
+
+  const contractFields: Array<[string, string, string]> = [
+    ['fullName', stringifyAnswer(answers.client_full_name), 'Cliente · Nome'],
+    ['email', stringifyAnswer(answers.client_email), 'Cliente · E-mail'],
+    ['phone', stringifyAnswer(answers.client_phone), 'Cliente · Telefone'],
+    ['cnpj', stringifyAnswer(answers.client_cnpj), 'Cliente · CNPJ'],
+    ['legalName', stringifyAnswer(answers.client_legal_name), 'Cliente · Razão social'],
+  ]
+
+  const baselineFields: Array<[string, string, string]> = [
+    ['niche', stringifyAnswer(answers.baseline_niche), 'Cenário de entrada · Nicho'],
+    ['products', stringifyAnswer(answers.baseline_products), 'Cenário de entrada · Produtos'],
+    ['launchesCount', stringifyAnswer(answers.baseline_launches_count), 'Cenário de entrada · Lançamentos realizados'],
+    ['totalRevenue', stringifyAnswer(answers.baseline_total_revenue), 'Cenário de entrada · Faturamento total'],
+    ['monthlyRevenue', stringifyAnswer(answers.baseline_monthly_revenue), 'Cenário de entrada · Faturamento mensal'],
+    ['adSpend', stringifyAnswer(answers.baseline_ad_spend), 'Cenário de entrada · Investimento em tráfego'],
+    ['instagramFollowers', stringifyAnswer(answers.baseline_instagram_followers), 'Cenário de entrada · Instagram'],
+    ['tiktokFollowers', stringifyAnswer(answers.baseline_tiktok_followers), 'Cenário de entrada · TikTok'],
+    ['youtubeFollowers', stringifyAnswer(answers.baseline_youtube_followers), 'Cenário de entrada · YouTube'],
+    ['checkoutPlatforms', stringifyAnswer(answers.baseline_checkout_platforms), 'Cenário de entrada · Checkouts'],
+    ['teamStructure', stringifyAnswer(answers.baseline_team_structure), 'Cenário de entrada · Equipe'],
+    ['partnerStructure', stringifyAnswer(answers.baseline_partner_structure), 'Cenário de entrada · Sócios e parceiros'],
+  ]
+
+  for (const [key, value, label] of contractFields) {
+    if (!value) continue
+    if (hasStructuredValue(contractProfile[key])) {
+      skipped.push(`${label}: preservado porque já possuía conteúdo`)
+      continue
+    }
+    contractProfile[key] = value
+    mapped.push(label)
+    changed = true
+  }
+
+  for (const [key, value, label] of baselineFields) {
+    if (!value) continue
+    if (hasStructuredValue(baselineSnapshot[key])) {
+      skipped.push(`${label}: preservado porque já possuía conteúdo`)
+      continue
+    }
+    baselineSnapshot[key] = value
+    mapped.push(label)
+    changed = true
+  }
+
+  if (!changed && existing) return
+
+  const { error: saveError } = await admin
+    .from('project_client_profiles')
+    .upsert({
+      project_id: projectId,
+      contract_profile: contractProfile,
+      baseline_snapshot: baselineSnapshot,
+      current_snapshot: currentSnapshot,
+    }, { onConflict: 'project_id' })
+
+  if (saveError) throw saveError
+}
+
 async function getOrCreateCommunicationProduct(
   admin: SupabaseClient,
   projectId: string,
@@ -271,6 +356,8 @@ export async function syncBriefingToProject(
   const mapped: string[] = []
   const skipped: string[] = []
   const serviceType = getServiceType(answers) as BriefingServiceType
+
+  await fillProjectClientProfile(admin, projectId, answers, mapped, skipped)
 
   const baseFields: Array<[string, string, string]> = [
     ['client_briefing_project_name', stringifyAnswer(answers.project_name), 'Nome do cliente ou projeto no briefing'],

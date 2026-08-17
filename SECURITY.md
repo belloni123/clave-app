@@ -45,6 +45,13 @@ Only project administrators may write `project_users`. A regular viewer or
 editor may read their own membership, but cannot grant access or change
 another user's modules.
 
+`project_client_profiles` is protected by the `cliente` module key. It has no
+anonymous grants and its authenticated insert/update policies require both
+project-module access and `updated_by = auth.uid()`. The public briefing may
+reach this table only through the validated server route and `service_role`;
+its conservative mapper fills empty profile/baseline fields and never changes
+the current snapshot or overwrites content reviewed by the team.
+
 ## Public Form Capabilities
 
 `/api/public/forms/[token]` não aceita sessão como autorização. O UUID do

@@ -20,6 +20,7 @@ import ChipsModule from '@/components/modules/ChipsModule'
 import AdminSmtpModule from '@/components/modules/AdminSmtpModule'
 import FormulariosModule from '@/components/modules/FormulariosModule'
 import CandidaturasModule from '@/components/modules/CandidaturasModule'
+import ClienteModule from '@/components/modules/ClienteModule'
 
 export default function Home() {
   const { activeModule } = useAppStore()
@@ -28,6 +29,8 @@ export default function Home() {
     switch (activeModule) {
       case 'home':
         return <DashboardModule />
+      case 'cliente':
+        return <ClienteModule />
       case 'concepcao':
         return <ConcepcaoModule />
       case 'comunicacao':
