@@ -33,6 +33,9 @@ fila operacional.
 * A central oferece busca por código, lead, projeto e mensagem.
 * Há filtros de período, origem e status, além dos estados Novo, Em análise e Resolvido.
 * O detalhe mostra contexto, mensagem técnica sanitizada e anotações administrativas.
+* Cada nova ocorrência salva dispara um alerta por e-mail para `felipe@agenciab16.com.br`.
+* O alerta contém código, horário, origem, projeto, lead e resumo técnico, com caminho para o monitoramento.
+* Uma falha do SMTP não remove a ocorrência nem cria outro evento em sequência; ela permanece registrada nos logs do servidor.
 
 ## Privacidade E Segurança
 
@@ -55,3 +58,4 @@ a restrição no Supabase.
 5. Resolver uma ocorrência registra administrador e horário.
 6. O payload armazenado não contém respostas completas nem segredos.
 7. Logs do Coolify continuam recebendo o mesmo código como contingência.
+8. Cada ocorrência persistida tenta enviar um alerta operacional ao destinatário configurado.

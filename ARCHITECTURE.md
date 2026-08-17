@@ -271,6 +271,11 @@ permite buscar pelo código, projeto ou lead, filtrar período/origem/status,
 consultar stack trace sanitizada, registrar notas e mover a ocorrência entre Novo, Em análise e Resolvido. A
 ocultação do menu é apenas conveniência; a autorização real permanece no banco.
 
+Depois que uma ocorrência é persistida, o backend reutiliza o SMTP protegido
+no Vault para enviar um alerta operacional. A entrega de e-mail é isolada do
+registro: falhas do SMTP são registradas no console e não geram recursão nem
+apagam a ocorrência original.
+
 ## 4. Comunicação Por Produto/Curso
 
 `communication_products` é o primeiro nível do módulo Comunicação. Depois da
