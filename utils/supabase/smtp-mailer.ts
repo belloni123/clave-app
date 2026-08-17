@@ -39,7 +39,7 @@ export async function createConfiguredSmtpMailer(admin: AdminClient): Promise<Sm
     || !row.smtp_sender_email
     || !row.smtp_password_secret_id
   ) {
-    throw new Error('Configure e teste o SMTP antes de enviar convites.')
+    throw new Error('Configure e teste o SMTP antes de enviar e-mails.')
   }
 
   const { data: password, error: passwordError } = await admin.rpc(

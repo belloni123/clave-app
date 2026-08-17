@@ -2,6 +2,7 @@ import 'server-only'
 
 import { createHash, createHmac, randomBytes } from 'node:crypto'
 import type { NextRequest } from 'next/server'
+import { sendErrorAlertEmail } from '@/utils/observability/error-alert-mailer'
 import type { createAdminClient } from '@/utils/supabase/admin'
 
 export type ErrorEventCategory =
@@ -135,10 +136,14 @@ export function createErrorRateLimitKey(request: NextRequest) {
 }
 
 export async function recordAppError(input: RecordAppErrorInput) {
+  const occurredAt = new Date()
   const referenceCode = createErrorReference()
   const details = errorDetails(input.error)
   const message = safeText(input.message, 1000) || 'Falha não identificada.'
   const operation = safeText(input.operation, 100) || 'unknown_operation'
+  const source = input.source ?? 'server'
+  const severity = input.severity ?? 'error'
+  const leadEmail = safeEmail(input.leadEmail)
   const pagePath = safePagePath(input.pagePath ?? input.request?.nextUrl.pathname)
   const userAgent = safeText(
     input.userAgent ?? input.request?.headers.get('user-agent'),
@@ -150,15 +155,15 @@ export async function recordAppError(input: RecordAppErrorInput) {
 
   const { error: insertError } = await input.admin.from('app_error_events').insert({
     reference_code: referenceCode,
-    source: input.source ?? 'server',
+    source,
     category: input.category,
     operation,
-    severity: input.severity ?? 'error',
+    severity,
     project_id: input.projectId ?? null,
     form_id: input.formId ?? null,
     submission_id: input.submissionId ?? null,
     actor_id: input.actorId ?? null,
-    lead_email: safeEmail(input.leadEmail),
+    lead_email: leadEmail,
     page_path: pagePath,
     user_agent: userAgent,
     http_status: input.httpStatus && input.httpStatus >= 400 && input.httpStatus <= 599
@@ -174,6 +179,31 @@ export async function recordAppError(input: RecordAppErrorInput) {
 
   if (insertError) {
     console.error(`[${referenceCode}] Error event persistence failed`, insertError.message)
+  } else {
+    try {
+      await sendErrorAlertEmail({
+        admin: input.admin,
+        referenceCode,
+        severity,
+        source,
+        category: input.category,
+        operation,
+        message,
+        technicalMessage: details.technicalMessage,
+        projectId: input.projectId ?? null,
+        leadEmail,
+        pagePath,
+        httpStatus: input.httpStatus && input.httpStatus >= 400 && input.httpStatus <= 599
+          ? input.httpStatus
+          : null,
+        occurredAt,
+      })
+    } catch (notificationError) {
+      const notificationMessage = notificationError instanceof Error
+        ? safeText(notificationError.message, 1000)
+        : 'Falha desconhecida no alerta por e-mail.'
+      console.error(`[${referenceCode}] Error alert email failed`, notificationMessage)
+    }
   }
   console.error(`[${referenceCode}] ${input.category}:${operation}`, input.error ?? message)
 

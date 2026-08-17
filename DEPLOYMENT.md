@@ -15,6 +15,7 @@ uma imagem não aplica migrações no Supabase.
 | `SUPABASE_MANAGEMENT_ACCESS_TOKEN` | SMTP | Somente backend/runtime | Token da Supabase Management API usado exclusivamente para sincronizar o SMTP do Supabase Auth. Nunca use `NEXT_PUBLIC_`. |
 | `SUPABASE_PROJECT_REF` | Opcional | Somente backend/runtime | Referência do projeto Supabase. Se omitida, é derivada de `NEXT_PUBLIC_SUPABASE_URL`. |
 | `APP_URL` | Recomendado | Somente backend/runtime | Origem pública usada nos e-mails, por exemplo `https://clave.agenciab16.com.br`. Em produção, o Clave usa esse domínio como fallback e nunca publica `0.0.0.0`. |
+| `ERROR_ALERT_EMAIL` | Opcional | Somente backend/runtime | Destinatário dos alertas de erro. Se omitido, usa `felipe@agenciab16.com.br`. |
 
 `SUPABASE_SERVICE_ROLE_KEY` nunca pode usar o prefixo `NEXT_PUBLIC_`, ficar
 disponível durante o build ou ser enviada ao navegador. A rota de convite
