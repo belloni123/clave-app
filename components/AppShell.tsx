@@ -32,6 +32,7 @@ import {
   Smartphone,
   Settings,
   ClipboardList,
+  ContactRound,
   FileUser,
 } from 'lucide-react'
 
@@ -280,6 +281,7 @@ export default function AppShell({ children }: AppShellProps) {
     {
       group: 'MÓDULOS',
       items: [
+        { id: 'cliente', name: 'Cliente & Evolução', icon: ContactRound },
         { id: 'concepcao', name: 'Concepção', icon: Lightbulb },
         { id: 'comunicacao', name: 'Comunicação', icon: MessageSquare },
         { id: 'lancamentos', name: 'Lançamentos', icon: Rocket },
@@ -438,6 +440,7 @@ export default function AppShell({ children }: AppShellProps) {
               </h2>
               <p className="text-[11px] text-text3 truncate leading-normal hidden sm:block">
                 {activeModule === 'home' && 'Seu painel estratégico de controle'}
+                {activeModule === 'cliente' && 'Perfil, marco de entrada e evolução do cliente'}
                 {activeModule === 'concepcao' && 'Definição e análise do produto'}
                 {activeModule === 'comunicacao' && 'Roteiros de copy e funis de vendas'}
                 {activeModule === 'lancamentos' && 'Acompanhamento de eventos e picos de vendas'}

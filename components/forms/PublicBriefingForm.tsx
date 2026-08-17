@@ -499,6 +499,15 @@ function QuestionField({
         {question.type === 'short' && (
           <input {...accessibilityProps} value={stringValue} onChange={(event) => onChange(event.target.value)} placeholder={question.placeholder} className={inputClass} />
         )}
+        {question.type === 'email' && (
+          <input {...accessibilityProps} type="email" autoComplete="email" value={stringValue} onChange={(event) => onChange(event.target.value)} placeholder="nome@empresa.com.br" className={inputClass} />
+        )}
+        {question.type === 'tel' && (
+          <input {...accessibilityProps} type="tel" autoComplete="tel" value={stringValue} onChange={(event) => onChange(event.target.value)} placeholder="(00) 00000-0000" className={inputClass} />
+        )}
+        {question.type === 'number' && (
+          <input {...accessibilityProps} type="number" min="0" step="1" inputMode="numeric" value={stringValue} onChange={(event) => onChange(event.target.value)} className={`${inputClass} max-w-xs`} />
+        )}
         {question.type === 'long' && (
           <textarea {...accessibilityProps} value={stringValue} onChange={(event) => onChange(event.target.value)} placeholder={question.placeholder} rows={5} className={`${inputClass} resize-y min-h-28`} />
         )}
@@ -581,9 +590,13 @@ function QuestionField({
         <p id={errorId} className="text-xs text-[#a82f2f] mt-2">
           {question.type === 'url' || question.type === 'urls'
             ? 'Informe links completos, começando com http:// ou https://.'
+            : question.type === 'email'
+              ? 'Informe um endereço de e-mail válido.'
+              : question.type === 'tel'
+                ? 'Informe um telefone válido.'
             : question.type === 'date'
               ? 'Informe uma data válida.'
-              : question.type === 'currency'
+              : question.type === 'currency' || question.type === 'number'
                 ? 'Informe um valor válido, igual ou maior que zero.'
                 : 'Este campo é obrigatório.'}
         </p>

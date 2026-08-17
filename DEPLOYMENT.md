@@ -41,6 +41,8 @@ As migrações da integração de BI devem existir no Supabase nesta ordem:
 14. `20260811125729_expert_applications.sql`
 15. `20260811132938_project_forms_policy_performance_hardening.sql`
 16. `20260811133218_public_briefing_submission_rate_limit.sql`
+17. `20260817171028_project_client_profiles.sql`
+18. `20260817172120_project_client_profiles_updated_by_idx.sql`
 
 A terceira migração valida os registros existentes antes de criar constraints
 compostas. Se ela acusar referências inconsistentes, não faça o redeploy: corrija
@@ -67,6 +69,15 @@ evita reavaliar a sessão para cada linha.
 A décima sexta migração instala um contador horário privado para limitar a
 criação abusiva de rascunhos públicos. Somente `service_role` acessa a tabela e
 a origem é persistida como HMAC, sem armazenar o endereço bruto.
+
+A décima sétima migração adiciona a chave modular `cliente`, cria uma linha de
+perfil para cada projeto ativo e instala RLS por projeto e módulo. Também eleva
+o briefing geral para a versão 2. Ela não altera lançamentos, respostas já
+enviadas nem conteúdo existente; o espelhamento só ocorre em novos envios ou
+reenvios do briefing e preserva todo campo interno já preenchido.
+
+A décima oitava migração adiciona o índice da referência `updated_by` apontado
+pelo consultor de performance do Supabase. Não altera linhas nem permissões.
 
 A página `/onboarding` é totalmente estática e não possui migração própria. Ela
 pode ser publicada junto da aplicação depois que as migrações 13 a 16 forem
@@ -311,6 +322,9 @@ operação manual do responsável pelo ambiente.
 36. Abra `/onboarding` em uma janela anônima e confirme que a rota não solicita login nem faz chamadas ao Supabase.
 37. Valide `/onboarding` em desktop e smartphone, conferindo imagens, foco do link interno, leitura das listas, ausência de sobreposição e redução de movimento.
 38. Inspecione a resposta HTML da rota e confirme título, descrição e `robots` com `noindex, nofollow`.
+39. Em dois projetos diferentes, abra `Cliente & Evolução` e confirme que perfil, cenário de entrada e cenário atual não se misturam.
+40. Envie um briefing com perfil e cenário de entrada, confirme o preenchimento automático dos campos vazios e verifique que um valor interno existente não foi sobrescrito.
+41. Atualize o cenário atual, confira os comparativos de faturamento e seguidores e confirme que nenhum registro do módulo Lançamentos foi criado ou alterado.
 
 ## 7. Rollback
 

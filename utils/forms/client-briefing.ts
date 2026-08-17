@@ -7,6 +7,9 @@ import type {
 export type BriefingQuestionType =
   | 'short'
   | 'long'
+  | 'email'
+  | 'tel'
+  | 'number'
   | 'single'
   | 'multi'
   | 'date'
@@ -62,6 +65,18 @@ export const SERVICE_OPTIONS: Array<{
 
 const COMMON_STEPS: BriefingStep[] = [
   {
+    id: 'client-profile',
+    title: 'Perfil do cliente',
+    description: 'Dados cadastrais para mantermos o projeto e o contrato organizados.',
+    questions: [
+      { id: 'client_full_name', label: 'Nome do cliente ou expert', type: 'short', required: true },
+      { id: 'client_email', label: 'E-mail principal', type: 'email', required: true },
+      { id: 'client_phone', label: 'Telefone ou WhatsApp principal', type: 'tel', required: true },
+      { id: 'client_cnpj', label: 'CNPJ', type: 'short', help: 'Se não houver CNPJ, deixe este campo em branco.' },
+      { id: 'client_legal_name', label: 'Razão social', type: 'short', help: 'Se não houver razão social, deixe este campo em branco.' },
+    ],
+  },
+  {
     id: 'identification',
     title: 'Identificação do projeto',
     description: 'Conte o contexto essencial para direcionarmos as próximas perguntas.',
@@ -103,6 +118,25 @@ const COMMON_STEPS: BriefingStep[] = [
         type: 'long',
         placeholder: 'Explique o motivo da data ou alguma flexibilidade existente.',
       },
+    ],
+  },
+  {
+    id: 'client-baseline',
+    title: 'Cenário de entrada',
+    description: 'Registre o ponto de partida para que possamos acompanhar a evolução do negócio.',
+    questions: [
+      { id: 'baseline_niche', label: 'Qual é o nicho de atuação?', type: 'short', required: true },
+      { id: 'baseline_products', label: 'Quais produtos ou serviços já existem?', type: 'long', required: true, help: 'Use uma linha para cada produto ou serviço.' },
+      { id: 'baseline_launches_count', label: 'Quantos lançamentos já foram realizados?', type: 'number', help: 'Informe zero se o negócio não trabalha com lançamentos.' },
+      { id: 'baseline_total_revenue', label: 'Quanto o negócio já faturou até aqui?', type: 'currency' },
+      { id: 'baseline_monthly_revenue', label: 'Qual é a média de faturamento mensal?', type: 'currency' },
+      { id: 'baseline_ad_spend', label: 'Quanto já foi investido em tráfego pago?', type: 'currency' },
+      { id: 'baseline_instagram_followers', label: 'Quantos seguidores existem no Instagram?', type: 'number' },
+      { id: 'baseline_tiktok_followers', label: 'Quantos seguidores existem no TikTok?', type: 'number' },
+      { id: 'baseline_youtube_followers', label: 'Quantos inscritos existem no YouTube?', type: 'number' },
+      { id: 'baseline_checkout_platforms', label: 'Quais checkouts ou plataformas já foram utilizados?', type: 'long', placeholder: 'Hotmart, Kiwify, Eduzz...' },
+      { id: 'baseline_team_structure', label: 'Como era a equipe antes da entrada na B16?', type: 'long' },
+      { id: 'baseline_partner_structure', label: 'Existem ou já existiram sócios e parceiros no negócio?', type: 'long' },
     ],
   },
 ]
@@ -391,6 +425,16 @@ export function isAnswerFormatValid(
   if (question.type === 'currency') {
     const amount = Number(value)
     return Number.isFinite(amount) && amount >= 0
+  }
+  if (question.type === 'number') {
+    const amount = Number(value)
+    return Number.isInteger(amount) && amount >= 0
+  }
+  if (question.type === 'email') {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+  }
+  if (question.type === 'tel') {
+    return value.replace(/\D/g, '').length >= 8
   }
   if (question.type === 'url') return isHttpUrl(value.trim())
   if (question.type === 'urls') {
