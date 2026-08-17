@@ -362,6 +362,7 @@ As migrações devem ser aplicadas em ordem crescente:
 16. `20260817181230_harden_error_resolution_audit.sql`: restringe colunas editáveis e automatiza ator e horário da resolução.
 17. `20260817181400_index_error_event_context.sql`: indexa vínculos opcionais de formulário e resposta para manter a investigação eficiente.
 18. `20260817181552_enrich_error_actor_and_reference.sql`: registra o usuário autenticado quando houver sessão e amplia o identificador interno para reduzir colisões.
+19. `20260817184544_fix_expert_application_whatsapp_constraint.sql`: corrige a validação de WhatsApp das candidaturas públicas e a alinha à máscara `(DD) 9XXXX-XXXX` aplicada pelo formulário.
 
 O deploy da aplicação não executa essas migrações. Consulte
 [DEPLOYMENT.md](./DEPLOYMENT.md) para o procedimento de produção.

@@ -49,6 +49,7 @@ As migrações da integração de BI devem existir no Supabase nesta ordem:
 21. `20260817181230_harden_error_resolution_audit.sql`
 22. `20260817181400_index_error_event_context.sql`
 23. `20260817181552_enrich_error_actor_and_reference.sql`
+24. `20260817184544_fix_expert_application_whatsapp_constraint.sql`
 
 A terceira migração valida os registros existentes antes de criar constraints
 compostas. Se ela acusar referências inconsistentes, não faça o redeploy: corrija
