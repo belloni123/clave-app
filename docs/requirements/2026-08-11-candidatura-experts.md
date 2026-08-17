@@ -29,5 +29,6 @@ até que um administrador decida convertê-la em projeto.
 * Nenhuma resposta é enviada a terceiros.
 * `anon` não acessa as tabelas de candidatura.
 * Validação acontece no navegador e novamente no servidor.
+* O WhatsApp é normalizado e validado como celular brasileiro no formato `(DD) 9XXXX-XXXX` nas duas camadas.
 * Idempotência, campo-armadilha, tempo mínimo e limite horário reduzem abuso.
 * Consentimento, data de envio e histórico de conversão são persistidos.
