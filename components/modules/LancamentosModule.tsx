@@ -13,7 +13,13 @@ import {
   Settings, User, Clock, Trash, AlertTriangle, ArrowRight, Save, CheckCircle, Rocket
 } from 'lucide-react'
 
-type LaunchTemplate = 'lancamento' | 'evento_pago' | 'pico_perpetuo'
+type LaunchTemplate =
+  | 'lancamento'
+  | 'evento_pago'
+  | 'pico_perpetuo'
+  | 'evento_presencial'
+  | 'lancamento_interno'
+  | 'lancamento_meteorico'
 
 interface Launch {
   id: string
@@ -135,6 +141,9 @@ const TEMPLATE_NAMES: Record<LaunchTemplate, string> = {
   lancamento: 'Lançamento (PLF Clássico)',
   evento_pago: 'Evento Pago',
   pico_perpetuo: 'Pico + Perpétuo',
+  evento_presencial: 'Evento Presencial',
+  lancamento_interno: 'Lançamento Interno',
+  lancamento_meteorico: 'Lançamento Meteórico',
 }
 
 export default function LancamentosModule() {
@@ -600,6 +609,34 @@ export default function LancamentosModule() {
         { nome: 'Aquecimento', pct_verba: 2.5, dias: 7, inicio: adjustDate(anchor, -8), fim: adjustDate(anchor, -2) },
         { nome: 'Lembrete', pct_verba: 2.5, dias: 3, inicio: adjustDate(anchor, -4), fim: adjustDate(anchor, -2) },
         { nome: 'Inscrições abertas', pct_verba: 15, dias: 7, inicio: adjustDate(anchor, 1), fim: adjustDate(anchor, 7) },
+      ]
+    }
+
+    if (template === 'evento_presencial') {
+      return [
+        { nome: 'Venda de Ingressos / Inscrições', pct_verba: 70, dias: 30, inicio: adjustDate(anchor, -31), fim: adjustDate(anchor, -2) },
+        { nome: 'Aquecimento', pct_verba: 10, dias: 14, inicio: adjustDate(anchor, -15), fim: adjustDate(anchor, -2) },
+        { nome: 'Lembrete / Confirmação', pct_verba: 5, dias: 3, inicio: adjustDate(anchor, -4), fim: adjustDate(anchor, -2) },
+        { nome: 'Evento Presencial', pct_verba: 0, dias: 1, inicio: anchor, fim: anchor },
+        { nome: 'Inscrições abertas / Follow-up', pct_verba: 15, dias: 7, inicio: adjustDate(anchor, 1), fim: adjustDate(anchor, 7) },
+      ]
+    }
+
+    if (template === 'lancamento_interno') {
+      return [
+        { nome: 'Captação / Ativação da base', pct_verba: 30, dias: 14, inicio: adjustDate(anchor, -15), fim: adjustDate(anchor, -2) },
+        { nome: 'Aquecimento', pct_verba: 20, dias: 7, inicio: adjustDate(anchor, -8), fim: adjustDate(anchor, -2) },
+        { nome: 'Conteúdo de Lançamento', pct_verba: 10, dias: cpls, inicio: anchor, fim: adjustDate(anchor, cpls - 1) },
+        { nome: 'Inscrições abertas / Carrinho', pct_verba: 40, dias: 7, inicio: adjustDate(anchor, cpls), fim: adjustDate(anchor, cpls + 6) },
+      ]
+    }
+
+    if (template === 'lancamento_meteorico') {
+      return [
+        { nome: 'Captação / Grupo de WhatsApp', pct_verba: 65, dias: 10, inicio: adjustDate(anchor, -11), fim: adjustDate(anchor, -2) },
+        { nome: 'Aquecimento', pct_verba: 15, dias: 3, inicio: adjustDate(anchor, -4), fim: adjustDate(anchor, -2) },
+        { nome: 'Oferta Meteórica', pct_verba: 10, dias: 1, inicio: anchor, fim: anchor },
+        { nome: 'Carrinho / Follow-up', pct_verba: 10, dias: 4, inicio: adjustDate(anchor, 1), fim: adjustDate(anchor, 4) },
       ]
     }
 
@@ -1130,6 +1167,7 @@ export default function LancamentosModule() {
               {activeSubTab === 'crono' && (
                 <CronogramaTab
                   crono={activeLaunchData.cronograma}
+                  template={activeLaunchData.launch.template}
                   onSave={handleSaveCronograma}
                 />
               )}
@@ -1220,11 +1258,14 @@ export default function LancamentosModule() {
                   <option value="lancamento">Lançamento Clássico (PLF)</option>
                   <option value="evento_pago">Evento Pago</option>
                   <option value="pico_perpetuo">Pico + Perpétuo</option>
+                  <option value="evento_presencial">Evento Presencial</option>
+                  <option value="lancamento_interno">Lançamento Interno</option>
+                  <option value="lancamento_meteorico">Lançamento Meteórico</option>
                 </select>
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] font-bold text-text2 uppercase block">Data 1º CPL — Conteúdo de Pré-Lançamento / Data-âncora</label>
+                <label className="text-[10px] font-bold text-text2 uppercase block">Data-âncora do cronograma</label>
                 <input
                   type="date"
                   className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none"
@@ -1375,13 +1416,22 @@ function BriefingTab({ briefing, onSave }: BriefingTabProps) {
 
 interface CronogramaTabProps {
   crono: CronogramaData
+  template: LaunchTemplate
   onSave: (data: { verba_total: number; data_ancora: string; qtd_cpls: number }) => void
 }
 
-function CronogramaTab({ crono, onSave }: CronogramaTabProps) {
+function CronogramaTab({ crono, template, onSave }: CronogramaTabProps) {
   const [verba, setVerba] = useState(crono.verba_total)
   const [anchor, setAnchor] = useState(crono.data_ancora)
   const [cpls, setCpls] = useState(crono.qtd_cpls)
+  const usesContentCount = ['lancamento', 'pico_perpetuo', 'lancamento_interno'].includes(template)
+  const anchorLabel = template === 'evento_pago'
+    ? 'Data do Evento Pago (âncora)'
+    : template === 'evento_presencial'
+      ? 'Data do Evento Presencial (âncora)'
+      : template === 'lancamento_meteorico'
+        ? 'Data da Oferta Meteórica (âncora)'
+        : 'Data do 1º conteúdo do lançamento (âncora)'
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-xs animate-[fadeUp_0.15s_ease_both]">
@@ -1391,9 +1441,9 @@ function CronogramaTab({ crono, onSave }: CronogramaTabProps) {
             Parâmetros de Cronograma e Verba
           </h4>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className={`grid grid-cols-1 ${usesContentCount ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-4`}>
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-text2 uppercase tracking-wider">Verba Total (Pico)</label>
+              <label className="text-[10px] font-bold text-text2 uppercase tracking-wider">Verba Total</label>
               <input
                 type="number"
                 className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
@@ -1402,7 +1452,7 @@ function CronogramaTab({ crono, onSave }: CronogramaTabProps) {
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-text2 uppercase tracking-wider">Data do 1º CPL — Conteúdo de Pré-Lançamento (âncora)</label>
+              <label className="text-[10px] font-bold text-text2 uppercase tracking-wider">{anchorLabel}</label>
               <input
                 type="date"
                 className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
@@ -1410,15 +1460,18 @@ function CronogramaTab({ crono, onSave }: CronogramaTabProps) {
                 onChange={(e) => setAnchor(e.target.value)}
               />
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-[10px] font-bold text-text2 uppercase tracking-wider">Quantidade de CPLs (conteúdos)</label>
-              <input
-                type="number"
-                className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
-                value={cpls}
-                onChange={(e) => setCpls(Number(e.target.value))}
-              />
-            </div>
+            {usesContentCount && (
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-text2 uppercase tracking-wider">Quantidade de conteúdos</label>
+                <input
+                  type="number"
+                  min={1}
+                  className="px-3 py-1.5 border border-border2 rounded bg-surface text-text-custom outline-none"
+                  value={cpls}
+                  onChange={(e) => setCpls(Math.max(1, Number(e.target.value)))}
+                />
+              </div>
+            )}
           </div>
 
           <button

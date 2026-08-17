@@ -50,6 +50,7 @@ As migrações da integração de BI devem existir no Supabase nesta ordem:
 22. `20260817181400_index_error_event_context.sql`
 23. `20260817181552_enrich_error_actor_and_reference.sql`
 24. `20260817184544_fix_expert_application_whatsapp_constraint.sql`
+25. `20260817195345_add_launch_modalities.sql`
 
 A terceira migração valida os registros existentes antes de criar constraints
 compostas. Se ela acusar referências inconsistentes, não faça o redeploy: corrija
@@ -335,6 +336,7 @@ operação manual do responsável pelo ambiente.
 39. Em dois projetos diferentes, abra `Cliente & Evolução` e confirme que perfil, cenário de entrada e cenário atual não se misturam.
 40. Envie um briefing com perfil e cenário de entrada, confirme o preenchimento automático dos campos vazios e verifique que um valor interno existente não foi sobrescrito.
 41. Atualize o cenário atual, confira os comparativos de faturamento e seguidores e confirme que nenhum registro do módulo Lançamentos foi criado ou alterado.
+42. Crie um Evento Presencial, um Lançamento Interno e um Lançamento Meteórico; confirme o nome da modalidade, a data-âncora e as etapas iniciais próprias de cada cronograma.
 
 ## 7. Rollback
 

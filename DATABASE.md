@@ -165,7 +165,9 @@ Histórico normalizado e cronológico dos chips.
 Representa um lançamento dentro de um projeto.
 *   `project_id`: projeto proprietário e escopo de RLS.
 *   `nome`: nome do lançamento.
-*   `template`: `'lancamento'`, `'evento_pago'` ou `'pico_perpetuo'`.
+*   `template`: `'lancamento'`, `'evento_pago'`, `'pico_perpetuo'`,
+    `'evento_presencial'`, `'lancamento_interno'` ou
+    `'lancamento_meteorico'`.
 *   `criado_por`, `atualizado_por`: responsáveis pelas alterações.
 
 ### `public.launch_bi_integrations`
@@ -363,6 +365,7 @@ As migrações devem ser aplicadas em ordem crescente:
 17. `20260817181400_index_error_event_context.sql`: indexa vínculos opcionais de formulário e resposta para manter a investigação eficiente.
 18. `20260817181552_enrich_error_actor_and_reference.sql`: registra o usuário autenticado quando houver sessão e amplia o identificador interno para reduzir colisões.
 19. `20260817184544_fix_expert_application_whatsapp_constraint.sql`: corrige a validação de WhatsApp das candidaturas públicas e a alinha à máscara `(DD) 9XXXX-XXXX` aplicada pelo formulário.
+20. `20260817195345_add_launch_modalities.sql`: libera Evento Presencial, Lançamento Interno e Lançamento Meteórico como modalidades próprias de lançamento.
 
 O deploy da aplicação não executa essas migrações. Consulte
 [DEPLOYMENT.md](./DEPLOYMENT.md) para o procedimento de produção.
