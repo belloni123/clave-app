@@ -6,7 +6,9 @@
     "node": ">=20.9.0"
   },
   "scripts": {
+    "predev": "node scripts/copy-transformers-assets.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/copy-transformers-assets.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -14,6 +16,7 @@
     "audit:prod": "npm audit --omit=dev --audit-level=high"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.2",
     "@tanstack/react-query": "^5.100.14",
@@ -31,6 +34,7 @@
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "esbuild": "^0.25.12",
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
     "tailwindcss": "^4",

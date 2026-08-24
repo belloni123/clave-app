@@ -34,6 +34,13 @@ explicit SMTP editor allowlist. SMTP passwords are stored in Supabase Vault;
 they must never be logged, returned to the browser, committed, or shared in
 chat.
 
+OpenAI e Claude não usam segredos globais do ambiente. As credenciais são
+isoladas por projeto em `project_ai_settings` e criptografadas no Supabase
+Vault. O navegador recebe somente estado de configuração e os quatro últimos
+caracteres; leitura e alteração do segredo exigem uma rota autenticada,
+autorização do projeto e `service_role`. Nunca registre prompts completos,
+respostas dos provedores ou credenciais em logs de erro.
+
 ## Project And Module Isolation
 
 Hiding a navigation item is not an authorization control. Project membership
@@ -44,6 +51,12 @@ equivalent hardened `SECURITY DEFINER` helper with an explicit `search_path`.
 Only project administrators may write `project_users`. A regular viewer or
 editor may read their own membership, but cannot grant access or change
 another user's modules.
+
+O bucket `story-audio` é privado e limitado a formatos de áudio permitidos e
+25 MB. A RLS valida o projeto derivado do caminho e o acesso ao módulo
+`historias`; a gravação também exige que o segundo segmento do caminho seja o
+usuário autenticado. A transcrição acontece no navegador em Web Worker e não
+envia o áudio para OpenAI, Claude ou para a rota de geração de conteúdo.
 
 `project_client_profiles` is protected by the `cliente` module key. It has no
 anonymous grants and its authenticated insert/update policies require both

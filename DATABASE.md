@@ -60,6 +60,31 @@ Define o acesso atual de cada perfil a um projeto.
 *   `ativo`: indica se o acesso continua válido.
 *   `allowed_modules`: `text[]` com os módulos liberados nesse projeto. Os valores válidos são `cliente`, `concepcao`, `comunicacao`, `lancamentos`, `validacao`, `historias`, `financeiro`, `planejador`, `urlbuilder`, `chips`, `formularios` e `acesso`.
 
+### `public.project_ai_settings`
+Metadados da integração de IA pertencentes a um único projeto.
+*   `active_provider`: `openai` ou `anthropic`.
+*   `openai_secret_id`, `anthropic_secret_id`: referências aos segredos no Supabase Vault.
+*   `openai_key_hint`, `anthropic_key_hint`: somente os quatro últimos caracteres, usados como confirmação visual.
+*   `*_verified_at`, `updated_by`, `created_at`, `updated_at`: validação e auditoria sem armazenar a credencial em texto aberto.
+
+A tabela tem RLS habilitado e nenhum grant para `anon` ou `authenticated`.
+Somente rotas server-side autorizadas usam `service_role`. As funções
+`configure_project_ai_provider` e `remove_project_ai_provider` atualizam Vault
+e metadados na mesma transação e também não são executáveis pelo navegador.
+
+### `public.stories`
+Banco de histórias de cada projeto, protegido pela permissão modular
+`historias`.
+*   `body`: história digitada ou transcrição revisada.
+*   `audio_storage_path`: caminho privado no bucket `story-audio`.
+*   `audio_original_name`, `audio_mime_type`, `audio_size_bytes`: metadados do arquivo, limitado a 25 MB.
+*   `transcribed_at`: instante da transcrição local concluída.
+*   `ai_analysis`: análise opcional gerada com a credencial do próprio projeto.
+
+O bucket `story-audio` não é público. O caminho começa por `project_id/user_id`
+e as políticas de leitura, inclusão e remoção conferem projeto, usuário e
+módulo. A interface cria URLs assinadas com duração limitada para reprodução.
+
 ### `public.project_client_profiles`
 Mantém um registro único do cliente ou expert em cada projeto.
 *   `project_id`: relação única com `projects`, removida em cascata com o projeto.

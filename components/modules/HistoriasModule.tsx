@@ -1,10 +1,21 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
-import { Trash, Sparkles, Check, BookOpenCheck } from 'lucide-react'
+import {
+  BookOpenCheck,
+  Check,
+  FileAudio,
+  Mic,
+  Sparkles,
+  Square,
+  Trash,
+  Upload,
+  X,
+} from 'lucide-react'
+import ProjectAiSettings from '@/components/modules/ProjectAiSettings'
 
 interface Story {
   id: string
@@ -16,12 +27,54 @@ interface Story {
   result: string
   body: string
   used: boolean
+  audio_storage_path: string | null
+  audio_original_name: string | null
+  audio_mime_type: string | null
+  audio_size_bytes: number | null
+  transcribed_at: string | null
+  audio_url?: string | null
   ai_analysis: {
     resumo: string
     angulos: string[]
     formatos: string[]
     gatilhos: string[]
   } | null
+}
+
+type StoryInputMode = 'text' | 'record' | 'upload'
+
+interface CreateStoryPayload {
+  title: string
+  category: string
+  emotion: string
+  context: string
+  result: string
+  body: string
+  used: boolean
+  audioFile: File | null
+  audioTranscribed: boolean
+}
+
+async function decodeAudioForWhisper(file: File) {
+  const AudioContextClass = window.AudioContext
+  const context = new AudioContextClass()
+  try {
+    const decoded = await context.decodeAudioData(await file.arrayBuffer())
+    if (decoded.sampleRate === 16_000 && decoded.numberOfChannels === 1) {
+      return new Float32Array(decoded.getChannelData(0))
+    }
+
+    const outputLength = Math.max(1, Math.ceil(decoded.duration * 16_000))
+    const offline = new OfflineAudioContext(1, outputLength, 16_000)
+    const source = offline.createBufferSource()
+    source.buffer = decoded
+    source.connect(offline.destination)
+    source.start()
+    const rendered = await offline.startRendering()
+    return new Float32Array(rendered.getChannelData(0))
+  } finally {
+    await context.close()
+  }
 }
 
 const CATEGORIES = ['Vida pessoal', 'Negócio', 'Superação', 'Aprendizado', 'Relacionamento', 'Outro']
@@ -51,6 +104,19 @@ export default function HistoriasModule() {
   const [result, setResult] = useState('')
   const [body, setBody] = useState('')
   const [used, setUsed] = useState(false)
+  const [storyInputMode, setStoryInputMode] = useState<StoryInputMode>('text')
+  const [audioFile, setAudioFile] = useState<File | null>(null)
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null)
+  const [audioTranscribed, setAudioTranscribed] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingSeconds, setRecordingSeconds] = useState(0)
+  const [isTranscribing, setIsTranscribing] = useState(false)
+  const [transcriptionStage, setTranscriptionStage] = useState('')
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const recordingStreamRef = useRef<MediaStream | null>(null)
+  const recordingChunksRef = useRef<Blob[]>([])
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const transcriptionWorkerRef = useRef<Worker | null>(null)
 
   // AI Consolidated query states
   const [iaInt, setIaInt] = useState<number>(0)
@@ -60,6 +126,18 @@ export default function HistoriasModule() {
 
   // Active AI individual loading track
   const [aiLoadingId, setAiLoadingId] = useState<string | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl)
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)
+      recordingStreamRef.current?.getTracks().forEach((track) => track.stop())
+    }
+  }, [audioPreviewUrl])
+
+  useEffect(() => {
+    return () => transcriptionWorkerRef.current?.terminate()
+  }, [])
 
   // 1. QUERY STORIES FROM SUPABASE
   const { data: stories } = useQuery({
@@ -77,21 +155,61 @@ export default function HistoriasModule() {
         showToast('Erro ao carregar histórias', 'err')
         return []
       }
-      return data as Story[]
+      const rows = data as Story[]
+      return Promise.all(rows.map(async (story) => {
+        if (!story.audio_storage_path) return story
+        const { data: signed } = await supabase.storage
+          .from('story-audio')
+          .createSignedUrl(story.audio_storage_path, 3_600)
+        return { ...story, audio_url: signed?.signedUrl ?? null }
+      }))
     },
     enabled: !!activeProjectId,
   })
 
   // 2. MUTATIONS
   const createStoryMutation = useMutation({
-    mutationFn: async (payload: Omit<Story, 'id' | 'project_id' | 'ai_analysis'>) => {
+    mutationFn: async (payload: CreateStoryPayload) => {
       if (!activeProjectId) return
-      const { error } = await supabase.from('stories').insert({
-        ...payload,
-        project_id: activeProjectId,
-        ai_analysis: null,
-      })
-      if (error) throw error
+      let audioStoragePath: string | null = null
+
+      try {
+        if (payload.audioFile) {
+          const { data: { user } } = await supabase.auth.getUser()
+          if (!user) throw new Error('Sessão expirada')
+          const fileExtension = payload.audioFile.name.toLowerCase().split('.').pop() || 'webm'
+          audioStoragePath = `${activeProjectId}/${user.id}/${crypto.randomUUID()}.${fileExtension}`
+          const { error: uploadError } = await supabase.storage
+            .from('story-audio')
+            .upload(audioStoragePath, payload.audioFile, {
+              contentType: payload.audioFile.type || 'audio/webm',
+              upsert: false,
+            })
+          if (uploadError) throw uploadError
+        }
+
+        const {
+          audioFile: selectedAudio,
+          audioTranscribed: wasTranscribed,
+          ...storyData
+        } = payload
+        const { error } = await supabase.from('stories').insert({
+          ...storyData,
+          project_id: activeProjectId,
+          ai_analysis: null,
+          audio_storage_path: audioStoragePath,
+          audio_original_name: selectedAudio?.name ?? null,
+          audio_mime_type: selectedAudio?.type ?? null,
+          audio_size_bytes: selectedAudio?.size ?? null,
+          transcribed_at: selectedAudio && wasTranscribed ? new Date().toISOString() : null,
+        })
+        if (error) throw error
+      } catch (error) {
+        if (audioStoragePath) {
+          await supabase.storage.from('story-audio').remove([audioStoragePath])
+        }
+        throw error
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stories', activeProjectId] })
@@ -139,6 +257,12 @@ export default function HistoriasModule() {
     setResult('')
     setBody('')
     setUsed(false)
+    setStoryInputMode('text')
+    setAudioFile(null)
+    setAudioTranscribed(false)
+    if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl)
+    setAudioPreviewUrl(null)
+    setRecordingSeconds(0)
   }
 
   const handleCreate = (e: React.FormEvent) => {
@@ -152,7 +276,129 @@ export default function HistoriasModule() {
       result: result.trim(),
       body: body.trim(),
       used,
+      audioFile,
+      audioTranscribed,
     })
+  }
+
+  const setSelectedAudio = (file: File) => {
+    if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl)
+    setAudioFile(file)
+    setAudioTranscribed(false)
+    setAudioPreviewUrl(URL.createObjectURL(file))
+  }
+
+  const transcribeAudio = async (file: File) => {
+    if (!activeProjectId) return
+    if (file.size > 25 * 1024 * 1024) {
+      showToast('O áudio deve ter no máximo 25 MB.', 'err')
+      return
+    }
+
+    setSelectedAudio(file)
+    setIsTranscribing(true)
+    setTranscriptionStage('Preparando áudio...')
+    try {
+      const audio = await decodeAudioForWhisper(file)
+      const worker = transcriptionWorkerRef.current ?? new Worker(
+        '/workers/transcription.worker.js',
+        { type: 'module' },
+      )
+      transcriptionWorkerRef.current = worker
+      const id = crypto.randomUUID()
+      const transcript = await new Promise<string>((resolve, reject) => {
+        const listener = (event: MessageEvent<{
+          type: string
+          id?: string
+          status?: string
+          text?: string
+          message?: string
+        }>) => {
+          if (event.data.id && event.data.id !== id) return
+          if (event.data.type === 'status') {
+            setTranscriptionStage(
+              event.data.status === 'loading_model'
+                ? 'Carregando transcrição local...'
+                : 'Transcrevendo áudio...',
+            )
+            return
+          }
+          if (event.data.type === 'result') {
+            worker.removeEventListener('message', listener)
+            resolve(event.data.text?.trim() ?? '')
+          } else if (event.data.type === 'error') {
+            worker.removeEventListener('message', listener)
+            reject(new Error(event.data.message || 'Falha na transcrição local.'))
+          }
+        }
+        worker.addEventListener('message', listener)
+        worker.postMessage({ id, audio }, [audio.buffer])
+      })
+      if (!transcript) throw new Error('Nenhuma fala foi identificada no áudio.')
+      setBody(transcript)
+      setAudioTranscribed(true)
+      showToast('Áudio transcrito. Revise o texto antes de salvar.')
+    } catch (error) {
+      showToast(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível transcrever este formato de áudio.',
+        'err',
+      )
+    } finally {
+      setIsTranscribing(false)
+      setTranscriptionStage('')
+    }
+  }
+
+  const startRecording = async () => {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      showToast('Este navegador não permite gravação de áudio.', 'err')
+      return
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      recordingStreamRef.current = stream
+      const mimeType = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/webm']
+        .find((type) => MediaRecorder.isTypeSupported(type))
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
+      mediaRecorderRef.current = recorder
+      recordingChunksRef.current = []
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordingChunksRef.current.push(event.data)
+      }
+      recorder.onstop = () => {
+        const baseMime = (recorder.mimeType || 'audio/webm').split(';')[0]
+        const extension = baseMime.includes('ogg') ? 'ogg' : 'webm'
+        const blob = new Blob(recordingChunksRef.current, { type: baseMime })
+        const file = new File([blob], `historia-${Date.now()}.${extension}`, { type: baseMime })
+        stream.getTracks().forEach((track) => track.stop())
+        recordingStreamRef.current = null
+        void transcribeAudio(file)
+      }
+      recorder.start(1_000)
+      setRecordingSeconds(0)
+      setIsRecording(true)
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((seconds) => seconds + 1)
+      }, 1_000)
+    } catch {
+      showToast('Não foi possível acessar o microfone.', 'err')
+    }
+  }
+
+  const stopRecording = () => {
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)
+    recordingTimerRef.current = null
+    setIsRecording(false)
+    if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
+  }
+
+  const clearSelectedAudio = () => {
+    if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl)
+    setAudioFile(null)
+    setAudioTranscribed(false)
+    setAudioPreviewUrl(null)
   }
 
   const handleToggleUsed = (story: Story) => {
@@ -168,6 +414,7 @@ export default function HistoriasModule() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          projectId: activeProjectId,
           task: 'individual_story',
           story: {
             title: story.title,
@@ -180,8 +427,11 @@ export default function HistoriasModule() {
         }),
       })
 
-      if (!res.ok) throw new Error('Falha na API de IA')
-      const data = await res.json()
+      const data = await res.json().catch(() => ({})) as {
+        analysis?: Story['ai_analysis']
+        error?: string
+      }
+      if (!res.ok || !data.analysis) throw new Error(data.error || 'Falha na API de IA')
       
       updateStoryMutation.mutate({
         id: story.id,
@@ -214,21 +464,23 @@ export default function HistoriasModule() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          projectId: activeProjectId,
           task: 'global_consultation',
           intent,
           context: iaCtx.trim(),
-          stories: stories.map((s) => ({
+          stories: stories.slice(0, 40).map((s) => ({
             title: s.title,
             category: s.category,
             emotion: s.emotion,
             context: s.context,
             result: s.result,
+            body: s.body.slice(0, 6_000),
           })),
         }),
       })
 
-      if (!res.ok) throw new Error('Falha na API de IA')
-      const data = await res.json()
+      const data = await res.json().catch(() => ({})) as { suggestion?: string; error?: string }
+      if (!res.ok || !data.suggestion) throw new Error(data.error || 'Falha na API de IA')
       setIaGlobalResult(data.suggestion)
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : 'Erro inesperado'
@@ -338,6 +590,16 @@ export default function HistoriasModule() {
                   {story.body}
                 </p>
 
+                {story.audio_url && (
+                  <div className="flex items-center gap-3 rounded border border-border-custom bg-surface2 px-3 py-2">
+                    <FileAudio className="h-4 w-4 shrink-0 text-blue-t" />
+                    <audio controls preload="metadata" src={story.audio_url} className="h-8 min-w-0 flex-1" />
+                    <span className="hidden max-w-40 truncate text-[9px] text-text3 sm:block">
+                      {story.audio_original_name || 'Áudio da história'}
+                    </span>
+                  </div>
+                )}
+
                 {/* AI Analysis section */}
                 <div className="border-t border-border-custom pt-3.5 space-y-3">
                   <div className="flex justify-between items-center">
@@ -414,6 +676,32 @@ export default function HistoriasModule() {
             Cadastrar Novo Ativo de Storytelling
           </h4>
 
+          <div className="grid grid-cols-3 gap-1 rounded border border-border-custom bg-surface2 p-1">
+            {([
+              { id: 'text', label: 'Texto', icon: BookOpenCheck },
+              { id: 'record', label: 'Gravar áudio', icon: Mic },
+              { id: 'upload', label: 'Enviar áudio', icon: Upload },
+            ] as const).map((mode) => {
+              const Icon = mode.icon
+              return (
+                <button
+                  key={mode.id}
+                  type="button"
+                  onClick={() => setStoryInputMode(mode.id)}
+                  disabled={isRecording || isTranscribing}
+                  className={`flex min-h-9 items-center justify-center gap-1.5 rounded px-2 text-[10px] font-semibold transition-colors disabled:opacity-50 ${
+                    storyInputMode === mode.id
+                      ? 'bg-surface text-text-custom shadow-sm'
+                      : 'text-text2 hover:text-text-custom'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span>{mode.label}</span>
+                </button>
+              )
+            })}
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="sm:col-span-2">
               <label className="text-[10px] font-bold text-text2 mb-1 block">Título do Acontecimento</label>
@@ -476,13 +764,80 @@ export default function HistoriasModule() {
             </div>
           </div>
 
+          {storyInputMode === 'record' && (
+            <div className="flex min-h-24 flex-col items-center justify-center gap-3 rounded border border-dashed border-border2 bg-surface2 p-4">
+              <button
+                type="button"
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={isTranscribing}
+                title={isRecording ? 'Parar gravação' : 'Iniciar gravação'}
+                className={`flex h-11 w-11 items-center justify-center rounded-full text-white transition-colors disabled:opacity-50 ${
+                  isRecording ? 'bg-red-t' : 'bg-blue-t'
+                }`}
+              >
+                {isRecording ? <Square className="h-4 w-4" /> : <Mic className="h-5 w-5" />}
+              </button>
+              <span className="text-[10px] font-semibold text-text2">
+                {isRecording
+                  ? `Gravando ${String(Math.floor(recordingSeconds / 60)).padStart(2, '0')}:${String(recordingSeconds % 60).padStart(2, '0')}`
+                  : 'Clique para começar a gravar'}
+              </span>
+            </div>
+          )}
+
+          {storyInputMode === 'upload' && (
+            <label className="flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded border border-dashed border-border2 bg-surface2 p-4 text-text2 hover:border-text3">
+              <Upload className="h-5 w-5" />
+              <span className="text-[10px] font-semibold">Selecionar arquivo de áudio</span>
+              <span className="text-[9px] text-text3">MP3, M4A, WAV, OGG ou WEBM • até 25 MB</span>
+              <input
+                type="file"
+                accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/m4a,audio/ogg,audio/wav,audio/x-wav,audio/webm"
+                className="sr-only"
+                disabled={isTranscribing}
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  if (file) void transcribeAudio(file)
+                  event.target.value = ''
+                }}
+              />
+            </label>
+          )}
+
+          {audioFile && audioPreviewUrl && (
+            <div className="flex items-center gap-3 rounded border border-border-custom bg-surface2 px-3 py-2">
+              <FileAudio className="h-4 w-4 shrink-0 text-blue-t" />
+              <audio controls preload="metadata" src={audioPreviewUrl} className="h-8 min-w-0 flex-1" />
+              <button
+                type="button"
+                onClick={clearSelectedAudio}
+                disabled={isRecording || isTranscribing}
+                title="Remover áudio"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border2 text-text2 hover:text-red-t disabled:opacity-50"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+
+          {isTranscribing && (
+            <div className="flex items-center gap-2 text-[10px] font-medium text-blue-t">
+              <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />
+              <span>{transcriptionStage}</span>
+            </div>
+          )}
+
           <div>
-            <label className="text-[10px] font-bold text-text2 mb-1.5 block">História Completa (Cópia)</label>
+            <label className="text-[10px] font-bold text-text2 mb-1.5 block">
+              {storyInputMode === 'text' ? 'História Completa' : 'Transcrição da História'}
+            </label>
             <textarea
               className="w-full p-3 border border-border2 rounded bg-surface text-text-custom outline-none h-40 scrollbar-thin"
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="Escreva a história com o máximo de detalhes possível. Descreva as sensações, dores e a virada."
+              placeholder={storyInputMode === 'text'
+                ? 'Escreva a história com o máximo de detalhes possível. Descreva as sensações, dores e a virada.'
+                : 'A transcrição aparecerá aqui para você revisar antes de salvar.'}
               required
             />
           </div>
@@ -500,7 +855,7 @@ export default function HistoriasModule() {
 
             <button
               type="submit"
-              disabled={createStoryMutation.isPending}
+              disabled={createStoryMutation.isPending || isRecording || isTranscribing}
               className="px-5 py-2 bg-text-custom text-surface hover:opacity-90 rounded font-semibold cursor-pointer disabled:opacity-50 transition-opacity"
             >
               Salvar História
@@ -519,6 +874,10 @@ export default function HistoriasModule() {
             <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">
               Configurar Geração de Roteiro
             </h4>
+
+            {activeProjectId && (
+              <ProjectAiSettings projectId={activeProjectId} showToast={showToast} />
+            )}
 
             <div className="space-y-4">
               <div>

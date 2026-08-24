@@ -11,7 +11,6 @@ uma imagem não aplica migrações no Supabase.
 | `NEXT_PUBLIC_SUPABASE_URL` | Sim | Frontend e backend | URL pública da API do projeto Supabase. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Sim | Frontend e backend | Chave anônima pública; a autorização real é feita por Auth + RLS. |
 | `SUPABASE_SERVICE_ROLE_KEY` | Sim | Somente backend/runtime | Chave administrativa usada exclusivamente para convidar usuários e sincronizar seus vínculos. |
-| `GEMINI_API_KEY` | Produção | Somente backend | Chave da API Gemini usada pela rota de IA. |
 | `SUPABASE_MANAGEMENT_ACCESS_TOKEN` | SMTP | Somente backend/runtime | Token da Supabase Management API usado exclusivamente para sincronizar o SMTP do Supabase Auth. Nunca use `NEXT_PUBLIC_`. |
 | `SUPABASE_PROJECT_REF` | Opcional | Somente backend/runtime | Referência do projeto Supabase. Se omitida, é derivada de `NEXT_PUBLIC_SUPABASE_URL`. |
 | `APP_URL` | Recomendado | Somente backend/runtime | Origem pública usada nos e-mails, por exemplo `https://clave.agenciab16.com.br`. Em produção, o Clave usa esse domínio como fallback e nunca publica `0.0.0.0`. |
@@ -51,6 +50,9 @@ As migrações da integração de BI devem existir no Supabase nesta ordem:
 23. `20260817181552_enrich_error_actor_and_reference.sql`
 24. `20260817184544_fix_expert_application_whatsapp_constraint.sql`
 25. `20260817195345_add_launch_modalities.sql`
+26. `20260824142516_project_ai_and_story_audio.sql`
+27. `20260824142852_harden_project_ai_story_policies.sql`
+28. `20260824143131_atomic_project_ai_credentials.sql`
 
 A terceira migração valida os registros existentes antes de criar constraints
 compostas. Se ela acusar referências inconsistentes, não faça o redeploy: corrija
@@ -90,6 +92,13 @@ pelo consultor de performance do Supabase. Não altera linhas nem permissões.
 A página `/onboarding` é totalmente estática e não possui migração própria. Ela
 pode ser publicada junto da aplicação depois que as migrações 13 a 16 forem
 confirmadas, sem qualquer escrita adicional no banco.
+
+A vigésima sexta migração cria os metadados de IA por projeto, as funções
+server-only do Vault, as colunas de áudio das histórias e o bucket privado
+`story-audio`. A vigésima sétima elimina uma política legada duplicada e
+otimiza as checagens RLS. A vigésima oitava torna atômicas a gravação e a
+remoção das credenciais. As três são aditivas e não alteram o texto de
+histórias ou os projetos existentes.
 
 A quarta migração permite cadastrar uma URL externa por lançamento. A quinta
 habilita o conector do dashboard Farol e a Forja. A sexta substitui o cadastro
@@ -233,7 +242,6 @@ docker run --rm -p 3000:3000 \
   -e NEXT_PUBLIC_SUPABASE_URL="https://seu-projeto.supabase.co" \
   -e NEXT_PUBLIC_SUPABASE_ANON_KEY="sua-anon-key" \
   -e SUPABASE_SERVICE_ROLE_KEY="sua-service-role-key" \
-  -e GEMINI_API_KEY="sua-gemini-key" \
   clave-app:release
 ```
 
@@ -253,8 +261,9 @@ Resposta esperada: `{"status":"ok"}`.
 3. Confirme as variáveis de ambiente da seção 1.
 4. Marque `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` como
    disponíveis durante o build e durante o runtime.
-5. Mantenha `SUPABASE_SERVICE_ROLE_KEY` e `GEMINI_API_KEY` somente no runtime,
-   com a opção de build desmarcada.
+5. Mantenha `SUPABASE_SERVICE_ROLE_KEY` somente no runtime, com a opção de
+   build desmarcada. OpenAI e Claude não são variáveis do Coolify: cada chave é
+   cadastrada no projeto e protegida pelo Supabase Vault.
 6. No Supabase Auth > URL Configuration, defina a **Site URL** como
    `https://clave.agenciab16.com.br` e permita
    `https://clave.agenciab16.com.br/auth/callback` e
