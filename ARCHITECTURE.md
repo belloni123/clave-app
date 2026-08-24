@@ -309,16 +309,37 @@ também agenda `restricao_24h_ate`.
 
 ## 6. Integração e Segurança de Inteligência Artificial
 
-As chamadas para Inteligência Artificial utilizam a API oficial do Gemini de forma segura contra a exposição de chaves no frontend.
+O Criador de Conteúdo é multi-tenant também no consumo de IA. Cada projeto
+escolhe OpenAI ou Claude e usa a própria credencial; não existe chave global
+nem fallback simulado.
 
-### Fluxo de Comunicação com a IA:
-1. O frontend faz uma chamada do tipo `POST` para o endpoint interno: `/api/ai/analyze`.
-2. A requisição envia no corpo os parâmetros e prompts necessários para a geração/estudo.
-3. No servidor, a rota Next.js intercepta a requisição, recupera de forma segura a variável `GEMINI_API_KEY` do ambiente, e instancia o cliente do Gemini.
-4. O modelo utilizado é o **`gemini-2.5-flash`** que fornece:
-   - Respostas ultra rápidas (latência ideal para MVP).
-   - Saídas estruturadas garantidas por **Structured Outputs** (JSON Schema).
-5. Caso o servidor não possua a chave `GEMINI_API_KEY` configurada, o backend faz um fallback automático para simulações locais (mock data) de forma transparente para o usuário.
+### Fluxo de geração de conteúdo
+
+1. A interface envia `projectId`, a tarefa e somente os campos necessários para
+   `/api/ai/analyze`, com limite de corpo.
+2. A rota autentica a sessão e confirma acesso ao módulo `historias` no projeto.
+3. O backend lê em `project_ai_settings` qual provedor está ativo e recupera a
+   credencial correspondente do Supabase Vault com `service_role`.
+4. A solicitação é enviada à API oficial da OpenAI ou Anthropic. A chave nunca
+   aparece em HTML, JavaScript, resposta JSON, log ou variável `NEXT_PUBLIC_*`.
+5. A análise individual valida a estrutura JSON recebida antes de persistir.
+   Falhas de autenticação, limite e saldo são convertidas em mensagens seguras.
+
+Somente administradores do projeto podem cadastrar, substituir, selecionar ou
+remover uma chave. As funções que alteram o Vault e os metadados executam em
+uma única transação e têm `EXECUTE` revogado para `anon` e `authenticated`.
+
+### Fluxo de áudio e transcrição
+
+O cadastro de história aceita texto, gravação pelo `MediaRecorder` ou arquivo
+de até 25 MB. O navegador decodifica o áudio para mono/16 kHz e executa Whisper
+em um Web Worker com Transformers.js. O modelo é baixado e armazenado no cache
+do navegador no primeiro uso. A transcrição não chama OpenAI, Claude ou uma API
+do Clave e, portanto, não consome créditos dos provedores.
+
+Depois da revisão do texto, o áudio original é enviado ao bucket privado
+`story-audio`. A RLS exige acesso ao módulo `historias` do mesmo projeto e URLs
+de reprodução são temporárias e assinadas.
 
 ---
 

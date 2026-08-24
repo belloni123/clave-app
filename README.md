@@ -8,7 +8,7 @@ O **Clave** é uma plataforma robusta de gestão estratégica de marketing desen
 
 Para facilitar o desenvolvimento, a manutenção e o deploy do sistema, a documentação foi modularizada em guias técnicos dedicados:
 
-*   **[Arquitetura do Software (ARCHITECTURE.md)](./ARCHITECTURE.md)**: Explicação sobre a estrutura modular do Next.js, ciclo de vida do estado global no Zustand, fluxo e segurança das chamadas de Inteligência Artificial com Gemini e padrões de responsividade UI.
+*   **[Arquitetura do Software (ARCHITECTURE.md)](./ARCHITECTURE.md)**: Explicação sobre a estrutura modular do Next.js, ciclo de vida do estado global no Zustand, fluxo e segurança da IA por projeto e padrões de responsividade UI.
 *   **[Modelo de Banco de Dados e Segurança (DATABASE.md)](./DATABASE.md)**: Dicionário de tabelas do banco de dados, mapeamento de chaves estrangeiras, triggers de inicialização de perfil e políticas RLS detalhadas com funções de desvio para evitar recursão infinita.
 *   **[Manual de Implantação e Deploy (DEPLOYMENT.md)](./DEPLOYMENT.md)**: Orientações de configuração de variáveis de ambiente e deploy em nuvem através da Vercel, Docker Standalone ou VPS própria via Coolify.
 *   **[Política de Segurança (SECURITY.md)](./SECURITY.md)**: Versão suportada, canal privado de reporte e regras para tratamento de segredos.
@@ -17,6 +17,7 @@ Para facilitar o desenvolvimento, a manutenção e o deploy do sistema, a docume
 *   **[Onboarding Público B16](./docs/requirements/2026-08-11-onboarding-publico.md)**: Conteúdo, direção visual, acessibilidade e critérios de validação da experiência pós-contrato.
 *   **[Cliente e Evolução](./docs/requirements/2026-08-17-cliente-evolucao.md)**: Escopo consolidado dos áudios, campos do perfil, marco de entrada, cenário atual e integração conservadora com o briefing.
 *   **[Monitoramento Administrativo](./docs/requirements/2026-08-17-monitoramento-erros.md)**: Registro seguro de falhas, códigos de suporte, acesso administrativo e fluxo de resolução.
+*   **[Banco de Histórias e IA por Projeto](./docs/requirements/2026-08-24-banco-historias-ia-por-projeto.md)**: Entrada por texto ou áudio, transcrição local, armazenamento privado e credenciais OpenAI/Claude isoladas por projeto.
 
 ---
 
@@ -29,7 +30,8 @@ A stack do projeto garante velocidade de processamento, performance de compilaç
 *   **Estado Global**: Zustand para fluxo reativo leve (sidebar, maturidade do projeto e projetos ativos).
 *   **Banco de Dados & Autenticação**: Supabase (PostgreSQL) integrado ao ciclo de Next.js via Cookies (`@supabase/ssr`).
 *   **Gerenciamento de Cache**: React Query para sincronização inteligente de dados e invalidação de cache.
-*   **Inteligência Artificial**: API do Gemini Studio (modelo `gemini-2.5-flash` com Structured Output nativo).
+*   **Inteligência Artificial**: OpenAI ou Claude, escolhida e financiada por projeto, com credenciais criptografadas no Supabase Vault.
+*   **Transcrição local**: Whisper via Transformers.js em Web Worker; não usa créditos de OpenAI ou Claude.
 *   **Integração de BI**: Rota server-side para sincronização controlada do dashboard B16 com snapshots históricos no Supabase.
 
 ---
@@ -55,6 +57,7 @@ A plataforma unifica diversos recursos de controle operacional e estratégico em
 15. **Onboarding Público B16**: A página institucional `/onboarding` apresenta a metodologia PD3, o processo inicial, os materiais necessários e os acordos de colaboração. A rota não exige login, não acessa o banco, usa imagens autorais otimizadas e não permite indexação por mecanismos de busca.
 16. **Cliente & Evolução por Projeto**: Cada projeto possui um perfil contratual, um cenário de entrada preservado e um cenário atual editável. O briefing público alimenta somente campos compatíveis ainda vazios no perfil e no marco zero; a equipe acompanha faturamento, audiência, operação e biografia atual sem duplicar o histórico do módulo Lançamentos.
 17. **Monitoramento Administrativo**: Falhas inesperadas dos formulários públicos, anexos, candidaturas e renderização do navegador são capturadas silenciosamente com um identificador interno. Somente administradores acessam a fila global e o diagnóstico completo, registram notas e controlam os estados Novo, Em análise e Resolvido; o visitante recebe apenas uma mensagem amigável e o responsável recebe um alerta por e-mail.
+18. **Banco de Histórias com Áudio**: Uma história pode ser digitada, gravada pelo microfone ou enviada como arquivo. A fala é transcrita localmente no navegador, o texto permanece editável e o áudio original é guardado em bucket privado. O Criador de Conteúdo usa somente a chave OpenAI ou Claude cadastrada no projeto ativo.
 
 ---
 
@@ -70,7 +73,6 @@ Crie um arquivo chamado `.env.local` na pasta raiz e insira as chaves de acesso:
 NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-anon-key-publica
 SUPABASE_SERVICE_ROLE_KEY=sua-service-role-key-privada
-GEMINI_API_KEY=sua-gemini-api-key-privada
 SUPABASE_MANAGEMENT_ACCESS_TOKEN=seu-token-management-privado
 # Opcional; pode ser derivado da URL do Supabase
 SUPABASE_PROJECT_REF=seu-project-ref
@@ -83,6 +85,10 @@ variável durante o build e nunca a envie ao navegador ou ao Git.
 sincronizar o SMTP do Supabase Auth. A senha de aplicativo do Google Workspace
 é cadastrada na tela administrativa e nunca deve ser colocada neste arquivo,
 no Git ou no chat.
+
+Não existe uma chave global de IA no ambiente. Um administrador cadastra a
+chave OpenAI ou Claude dentro do Criador de Conteúdo de cada projeto. O backend
+valida a credencial e guarda somente o segredo criptografado no Supabase Vault.
 
 ### 3. Executando os Comandos
 ```bash

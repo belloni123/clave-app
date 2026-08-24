@@ -11,6 +11,8 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    "public/vendor/transformers/**",
+    "public/workers/transcription.worker.js",
     "next-env.d.ts",
   ]),
 ]);
