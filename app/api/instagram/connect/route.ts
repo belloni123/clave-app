@@ -27,9 +27,6 @@ export async function GET(request: NextRequest) {
     const authorizeUrl = new URL(`https://www.facebook.com/${version}/dialog/oauth`)
     authorizeUrl.searchParams.set('client_id', appId)
     authorizeUrl.searchParams.set('display', 'page')
-    authorizeUrl.searchParams.set('extras', JSON.stringify({
-      setup: { channel: 'IG_API_ONBOARDING' },
-    }))
     authorizeUrl.searchParams.set('redirect_uri', redirectUri)
     authorizeUrl.searchParams.set('response_type', 'token')
     authorizeUrl.searchParams.set('scope', [

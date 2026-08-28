@@ -287,7 +287,8 @@ Resposta esperada: `{"status":"ok"}`.
 8. Cadastre `META_APP_ID`, `INSTAGRAM_GRAPH_API_VERSION` e `CRON_SECRET`
    somente no runtime. No Login do Facebook para Empresas da Meta, use
    `/instagram/conectar` como URI de redirecionamento OAuth válida. A conta
-   profissional precisa estar ligada a uma Página disponível na BM da agência.
+   profissional precisa estar previamente ligada a uma Página disponível na BM
+   da agência; o Clave não executa o onboarding ou a conversão da conta.
 9. Use o `Dockerfile` da raiz e porta `3000`.
 10. Dispare o redeploy manual no Coolify.
 11. Aguarde o healthcheck ficar saudável antes de encerrar a versão anterior.

@@ -97,8 +97,8 @@ chave OpenAI ou Claude dentro do Criador de Conteúdo de cada projeto. O backend
 valida a credencial e guarda somente o segredo criptografado no Supabase Vault.
 
 No Login do Facebook para Empresas da Meta, cadastre a URL de callback
-`https://seu-dominio/instagram/conectar`. A conta profissional precisa estar
-ligada a uma Página disponível na BM. Use
+`https://seu-dominio/instagram/conectar`. O conector lista somente contas
+profissionais já ligadas a Páginas disponíveis na BM autorizada. Use
 `https://seu-dominio/privacidade` como política de privacidade,
 `https://seu-dominio/termos` como termos de serviço. Para liberar usuários fora
 das funções do app, solicite acesso avançado a `instagram_basic`,
