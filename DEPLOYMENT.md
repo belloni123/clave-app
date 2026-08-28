@@ -15,6 +15,10 @@ uma imagem não aplica migrações no Supabase.
 | `SUPABASE_PROJECT_REF` | Opcional | Somente backend/runtime | Referência do projeto Supabase. Se omitida, é derivada de `NEXT_PUBLIC_SUPABASE_URL`. |
 | `APP_URL` | Recomendado | Somente backend/runtime | Origem pública usada nos e-mails, por exemplo `https://clave.agenciab16.com.br`. Em produção, o Clave usa esse domínio como fallback e nunca publica `0.0.0.0`. |
 | `ERROR_ALERT_EMAIL` | Opcional | Somente backend/runtime | Destinatário dos alertas de erro. Se omitido, usa `felipe@agenciab16.com.br`. |
+| `INSTAGRAM_APP_ID` | Instagram | Somente backend/runtime | ID do app do Instagram exibido na configuração da API com login do Instagram. |
+| `INSTAGRAM_APP_SECRET` | Instagram | Somente backend/runtime | Chave secreta do app do Instagram. Nunca use `NEXT_PUBLIC_`. |
+| `INSTAGRAM_GRAPH_API_VERSION` | Opcional | Somente backend/runtime | Versão da Graph API. Se omitida, o conector usa sua versão compatível padrão. |
+| `CRON_SECRET` | Instagram | Somente backend/runtime | Segredo longo usado para autenticar a sincronização diária. |
 
 `SUPABASE_SERVICE_ROLE_KEY` nunca pode usar o prefixo `NEXT_PUBLIC_`, ficar
 disponível durante o build ou ser enviada ao navegador. A rota de convite
@@ -53,6 +57,8 @@ As migrações da integração de BI devem existir no Supabase nesta ordem:
 26. `20260824142516_project_ai_and_story_audio.sql`
 27. `20260824142852_harden_project_ai_story_policies.sql`
 28. `20260824143131_atomic_project_ai_credentials.sql`
+29. `20260828154021_instagram_analytics.sql`
+30. `20260828160000_instagram_analytics_fk_indexes.sql`
 
 A terceira migração valida os registros existentes antes de criar constraints
 compostas. Se ela acusar referências inconsistentes, não faça o redeploy: corrija
@@ -279,9 +285,13 @@ Resposta esperada: `{"status":"ok"}`.
    `https://clave.agenciab16.com.br`, nunca com o endereço interno do container.
 7. Cadastre `SUPABASE_MANAGEMENT_ACCESS_TOKEN` somente no runtime do Coolify;
    mantenha `SUPABASE_PROJECT_REF` como runtime ou deixe o sistema derivá-lo.
-8. Use o `Dockerfile` da raiz e porta `3000`.
-9. Dispare o redeploy manual no Coolify.
-10. Aguarde o healthcheck ficar saudável antes de encerrar a versão anterior.
+8. Cadastre `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`,
+   `INSTAGRAM_GRAPH_API_VERSION` e `CRON_SECRET` somente no runtime. Na Meta,
+   use `/api/instagram/callback`, `/api/instagram/deauthorize`,
+   `/api/instagram/data-deletion` e `/privacidade` nos respectivos campos.
+9. Use o `Dockerfile` da raiz e porta `3000`.
+10. Dispare o redeploy manual no Coolify.
+11. Aguarde o healthcheck ficar saudável antes de encerrar a versão anterior.
 
 Este repositório não executa ações no Coolify automaticamente. O redeploy é uma
 operação manual do responsável pelo ambiente.

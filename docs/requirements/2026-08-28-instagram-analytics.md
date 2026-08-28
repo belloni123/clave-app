@@ -149,6 +149,8 @@ O menu lateral recebe o item **Instagram**, no grupo Ferramentas. O módulo poss
 - Operações de vínculo validam `user_can_administer_project`.
 - Tokens são criptografados no Vault.
 - O callback usa `state` de uso único e cookie `SameSite=Lax`.
+- Solicitações de desautorização e exclusão validam a assinatura HMAC da Meta.
+- Revogar o acesso na Meta exclui a conexão, o token e os snapshots relacionados.
 - Logs não incluem token, código OAuth ou respostas completas da Meta.
 
 ## 12. Configuração necessária
@@ -158,6 +160,9 @@ O menu lateral recebe o item **Instagram**, no grupo Ferramentas. O módulo poss
 - `INSTAGRAM_GRAPH_API_VERSION` (opcional; padrão atual do conector)
 - `CRON_SECRET` para a sincronização agendada
 - URL de callback cadastrada na Meta: `/api/instagram/callback`
+- URL de desautorização: `/api/instagram/deauthorize`
+- URL de solicitação de exclusão: `/api/instagram/data-deletion`
+- Política de privacidade pública: `/privacidade`
 - Permissões com acesso avançado: `instagram_business_basic` e `instagram_business_manage_insights`
 
 ## 13. Critérios de aceite

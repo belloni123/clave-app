@@ -29,8 +29,7 @@ export async function GET(request: NextRequest) {
       'instagram_business_basic,instagram_business_manage_insights',
     )
     authorizeUrl.searchParams.set('state', state)
-    authorizeUrl.searchParams.set('enable_fb_login', '0')
-    authorizeUrl.searchParams.set('force_authentication', '1')
+    authorizeUrl.searchParams.set('force_reauth', 'true')
 
     const response = NextResponse.redirect(authorizeUrl)
     response.cookies.set(OAUTH_COOKIE, Buffer.from(JSON.stringify({
