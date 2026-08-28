@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   BookOpen,
   Calendar,
+  Camera,
 } from 'lucide-react'
 
 interface PrioItem {
@@ -167,6 +168,14 @@ export default function DashboardModule() {
       bg: 'bg-coral-bg/25',
       icon: BookOpen,
       iconColor: 'text-coral-custom',
+    },
+    {
+      id: 'instagram',
+      title: 'Instagram Analytics',
+      desc: 'Crescimento, alcance e conteúdos de destaque',
+      bg: 'bg-purple-bg/25',
+      icon: Camera,
+      iconColor: 'text-purple-custom',
     },
     {
       id: 'planejador',

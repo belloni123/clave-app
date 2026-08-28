@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useAppStore, MaturityLevel } from '@/store/useAppStore'
@@ -35,6 +35,7 @@ import {
   ContactRound,
   FileUser,
   Activity,
+  Camera as InstagramIcon,
 } from 'lucide-react'
 
 interface AppShellProps {
@@ -99,6 +100,21 @@ export default function AppShell({ children }: AppShellProps) {
   } = useAppStore()
 
   const [mobileOpen, setMobileOpen] = useState(false)
+  const requestedModuleRef = useRef<AppModuleKey | null>(
+    typeof window === 'undefined'
+      ? null
+      : new URLSearchParams(window.location.search).get('activeModule') as AppModuleKey | null,
+  )
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const instagramStatus = params.get('instagram')
+    if (instagramStatus === 'connected') showToast('Instagram conectado com sucesso')
+    if (instagramStatus === 'cancelled') showToast('Conexão com o Instagram cancelada', 'err')
+    if (instagramStatus === 'invalid_state') showToast('A conexão expirou. Tente novamente.', 'err')
+    if (instagramStatus === 'not_configured') showToast('Configure as chaves do Instagram no servidor.', 'err')
+    if (instagramStatus === 'error') showToast('Não foi possível conectar o Instagram.', 'err')
+  }, [showToast])
 
   // 1. INICIALIZAR TEMA
   useEffect(() => {
@@ -255,6 +271,18 @@ export default function AppShell({ children }: AppShellProps) {
     }
   }, [activeModule, allowedModules, setActiveModule])
 
+  useEffect(() => {
+    const requestedModule = requestedModuleRef.current
+    if (!requestedModule || !allowedModules.includes(requestedModule)) return
+    setActiveModule(requestedModule)
+    requestedModuleRef.current = null
+    const url = new URL(window.location.href)
+    url.searchParams.delete('activeModule')
+    url.searchParams.delete('instagram')
+    url.searchParams.delete('sync')
+    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+  }, [allowedModules, setActiveModule])
+
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut()
     if (error) {
@@ -304,6 +332,7 @@ export default function AppShell({ children }: AppShellProps) {
         { id: 'urlbuilder', name: 'Links & QR Code', icon: Link2 },
         { id: 'chips', name: 'Controle de Chips', icon: Smartphone },
         { id: 'formularios', name: 'Formulários', icon: ClipboardList },
+        { id: 'instagram', name: 'Instagram', icon: InstagramIcon },
         { id: 'acesso', name: 'Central de acesso', icon: Users },
       ],
     },
@@ -459,6 +488,7 @@ export default function AppShell({ children }: AppShellProps) {
                 {activeModule === 'urlbuilder' && 'Gere tags UTM, links de WhatsApp e QR Codes'}
                 {activeModule === 'chips' && 'Status, vínculos e alertas de recarga dos chips de WhatsApp'}
                 {activeModule === 'formularios' && 'Links públicos, respostas e briefings do projeto'}
+                {activeModule === 'instagram' && 'Crescimento, alcance e performance de conteúdo'}
                 {activeModule === 'acesso' && 'Permissões e equipe'}
                 {activeModule === 'candidaturas' && 'Avaliação de experts e conversão em projetos'}
                 {activeModule === 'monitoramento' && 'Erros, ocorrências e acompanhamento operacional'}

@@ -10,6 +10,7 @@ export const PROJECT_MODULES = [
   { key: 'urlbuilder', name: 'Links & QR Code' },
   { key: 'chips', name: 'Controle de Chips' },
   { key: 'formularios', name: 'Formulários' },
+  { key: 'instagram', name: 'Instagram Analytics' },
   { key: 'acesso', name: 'Central de acesso' },
 ] as const
 

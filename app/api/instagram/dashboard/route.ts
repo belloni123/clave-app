@@ -1,0 +1,193 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { authorizeInstagramProject, InstagramAccessError } from '@/utils/instagram/access'
+import { createAdminClient } from '@/utils/supabase/admin'
+import type {
+  InstagramConnectionPublic,
+  InstagramDailyMetric,
+  InstagramDashboardResponse,
+  InstagramMediaMetric,
+} from '@/types/instagram'
+
+interface ConnectionRow {
+  id: string
+  project_id: string
+  instagram_user_id: string
+  username: string
+  name: string | null
+  account_type: string | null
+  profile_picture_url: string | null
+  followers_count: number | null
+  media_count: number | null
+  status: InstagramConnectionPublic['status']
+  connected_at: string
+  last_synced_at: string | null
+  last_error: string | null
+}
+
+function numeric(value: unknown): number | null {
+  if (value === null || value === undefined) return null
+  const result = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(result) ? result : null
+}
+
+export async function GET(request: NextRequest) {
+  const projectId = request.nextUrl.searchParams.get('projectId')?.trim() || ''
+  const requestedDays = Number(request.nextUrl.searchParams.get('days') || 30)
+  const days = [7, 30, 90].includes(requestedDays) ? requestedDays : 30
+
+  try {
+    const { user, supabase } = await authorizeInstagramProject(projectId)
+    const { data: canManage } = await supabase.rpc('user_can_administer_project', {
+      proj_id: projectId,
+      usr_id: user.id,
+    })
+    const admin = createAdminClient()
+    const { data: row, error: connectionError } = await admin
+      .from('instagram_connections')
+      .select([
+        'id',
+        'project_id',
+        'instagram_user_id',
+        'username',
+        'name',
+        'account_type',
+        'profile_picture_url',
+        'followers_count',
+        'media_count',
+        'status',
+        'connected_at',
+        'last_synced_at',
+        'last_error',
+      ].join(','))
+      .eq('project_id', projectId)
+      .maybeSingle()
+    if (connectionError) throw connectionError
+
+    if (!row) {
+      const empty: InstagramDashboardResponse = {
+        connection: null,
+        canManage: Boolean(canManage),
+        days,
+        daily: [],
+        media: [],
+      }
+      return NextResponse.json(empty)
+    }
+
+    const connectionRow = row as unknown as ConnectionRow
+    const connection: InstagramConnectionPublic = {
+      id: connectionRow.id,
+      projectId: connectionRow.project_id,
+      instagramUserId: connectionRow.instagram_user_id,
+      username: connectionRow.username,
+      name: connectionRow.name,
+      accountType: connectionRow.account_type,
+      profilePictureUrl: connectionRow.profile_picture_url,
+      followersCount: numeric(connectionRow.followers_count),
+      mediaCount: numeric(connectionRow.media_count),
+      status: connectionRow.status,
+      connectedAt: connectionRow.connected_at,
+      lastSyncedAt: connectionRow.last_synced_at,
+      lastError: connectionRow.last_error,
+    }
+
+    const historyStart = new Date()
+    historyStart.setUTCDate(historyStart.getUTCDate() - days * 2)
+    const mediaStart = new Date()
+    mediaStart.setUTCDate(mediaStart.getUTCDate() - days)
+    const [dailyResult, mediaResult] = await Promise.all([
+      admin
+        .from('instagram_account_daily')
+        .select('*')
+        .eq('connection_id', connectionRow.id)
+        .gte('metric_date', historyStart.toISOString().slice(0, 10))
+        .order('metric_date', { ascending: true }),
+      admin
+        .from('instagram_media')
+        .select('*')
+        .eq('connection_id', connectionRow.id)
+        .gte('posted_at', mediaStart.toISOString())
+        .order('posted_at', { ascending: false })
+        .limit(50),
+    ])
+    if (dailyResult.error) throw dailyResult.error
+    if (mediaResult.error) throw mediaResult.error
+
+    const mediaRows = mediaResult.data || []
+    const mediaIds = mediaRows.map((item) => item.id)
+    const insightsResult = mediaIds.length
+      ? await admin
+          .from('instagram_media_insights')
+          .select('*')
+          .in('media_id', mediaIds)
+          .order('collected_on', { ascending: false })
+      : { data: [], error: null }
+    if (insightsResult.error) throw insightsResult.error
+
+    const latestInsight = new Map<string, Record<string, unknown>>()
+    ;(insightsResult.data || []).forEach((item) => {
+      if (!latestInsight.has(item.media_id)) latestInsight.set(item.media_id, item)
+    })
+
+    const daily: InstagramDailyMetric[] = (dailyResult.data || []).map((item) => ({
+      date: item.metric_date,
+      followers: numeric(item.followers_count),
+      follows: numeric(item.follows),
+      unfollows: numeric(item.unfollows),
+      reach: numeric(item.reach),
+      views: numeric(item.views),
+      profileViews: numeric(item.profile_views),
+      profileLinksTaps: numeric(item.profile_links_taps),
+      accountsEngaged: numeric(item.accounts_engaged),
+      totalInteractions: numeric(item.total_interactions),
+      likes: numeric(item.likes),
+      comments: numeric(item.comments),
+      shares: numeric(item.shares),
+      saves: numeric(item.saves),
+      replies: numeric(item.replies),
+    }))
+
+    const media: InstagramMediaMetric[] = mediaRows.map((item) => {
+      const insight = latestInsight.get(item.id)
+      return {
+        id: item.id,
+        caption: item.caption,
+        mediaType: item.media_type,
+        mediaProductType: item.media_product_type,
+        mediaUrl: item.media_url,
+        thumbnailUrl: item.thumbnail_url,
+        permalink: item.permalink,
+        postedAt: item.posted_at,
+        likeCount: numeric(item.like_count),
+        commentsCount: numeric(item.comments_count),
+        isStory: Boolean(item.is_story),
+        insights: insight ? {
+          views: numeric(insight.views),
+          reach: numeric(insight.reach),
+          plays: numeric(insight.plays),
+          totalInteractions: numeric(insight.total_interactions),
+          likes: numeric(insight.likes),
+          comments: numeric(insight.comments),
+          shares: numeric(insight.shares),
+          saves: numeric(insight.saves),
+          replies: numeric(insight.replies),
+          averageWatchTimeMs: numeric(insight.average_watch_time_ms),
+          totalWatchTimeMs: numeric(insight.total_watch_time_ms),
+        } : null,
+      }
+    })
+
+    const response: InstagramDashboardResponse = {
+      connection,
+      canManage: Boolean(canManage),
+      days,
+      daily,
+      media,
+    }
+    return NextResponse.json(response)
+  } catch (error) {
+    const status = error instanceof InstagramAccessError ? error.status : 500
+    const message = error instanceof Error ? error.message : 'Não foi possível carregar o Instagram.'
+    return NextResponse.json({ error: message }, { status })
+  }
+}
