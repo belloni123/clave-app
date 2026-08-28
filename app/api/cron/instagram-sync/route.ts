@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { after, NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { syncInstagramConnection } from '@/utils/instagram/server'
 
@@ -24,14 +24,20 @@ export async function POST(request: NextRequest) {
       || Date.now() - new Date(connection.updated_at).getTime() >= 15 * 60 * 1_000
     ))
     .slice(0, 2)
-  const results = await Promise.allSettled(
-    eligibleConnections.map((connection) => syncInstagramConnection(connection.id, 'cron')),
-  )
-  const succeeded = results.filter((result) => result.status === 'fulfilled').length
+  after(async () => {
+    for (const connection of eligibleConnections) {
+      try {
+        await syncInstagramConnection(connection.id, 'cron')
+      } catch (syncError) {
+        console.error('Instagram cron sync failed', {
+          connectionId: connection.id,
+          message: syncError instanceof Error ? syncError.message : 'unknown',
+        })
+      }
+    }
+  })
   return NextResponse.json({
     ok: true,
-    attempted: results.length,
-    succeeded,
-    failed: results.length - succeeded,
-  })
+    queued: eligibleConnections.length,
+  }, { status: 202 })
 }

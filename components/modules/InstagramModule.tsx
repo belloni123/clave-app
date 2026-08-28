@@ -68,10 +68,10 @@ function dateAtNoon(value: string) {
   return new Date(`${value}T12:00:00`)
 }
 
-function startDate(days: number, offset = 0) {
+function startDate(days: number) {
   const date = new Date()
   date.setHours(0, 0, 0, 0)
-  date.setDate(date.getDate() - days - offset + 1)
+  date.setDate(date.getDate() - days + 1)
   return date
 }
 
@@ -144,19 +144,30 @@ function TrendChart({ rows }: { rows: InstagramDailyMetric[] }) {
   const height = 250
   const pad = { left: 14, right: 14, top: 18, bottom: 32 }
   const points = rows.length > 1 ? rows : rows.length === 1 ? [rows[0], rows[0]] : []
-  const reach = points.map((row) => row.reach ?? 0)
-  const views = points.map((row) => row.views ?? 0)
-  const max = Math.max(...reach, ...views, 1)
+  const reach = points.map((row) => row.reach)
+  const views = points.map((row) => row.views)
+  const availableValues = [...reach, ...views].filter((value): value is number => value !== null)
+  const max = Math.max(...availableValues, 1)
   const x = (index: number) => pad.left + (index / Math.max(1, points.length - 1)) * (width - pad.left - pad.right)
   const y = (value: number) => pad.top + (1 - value / max) * (height - pad.top - pad.bottom)
-  const path = (values: number[]) => values.map((value, index) => `${index ? 'L' : 'M'} ${x(index)} ${y(value)}`).join(' ')
-  const area = `${path(views)} L ${x(points.length - 1)} ${height - pad.bottom} L ${x(0)} ${height - pad.bottom} Z`
+  const path = (values: Array<number | null>) => {
+    let drawing = false
+    return values.flatMap((value, index) => {
+      if (value === null) {
+        drawing = false
+        return []
+      }
+      const command = drawing ? 'L' : 'M'
+      drawing = true
+      return [`${command} ${x(index)} ${y(value)}`]
+    }).join(' ')
+  }
 
-  if (!rows.length) {
+  if (!rows.length || !availableValues.length) {
     return (
       <div className="h-[250px] flex flex-col items-center justify-center text-center">
         <BarChart3 className="w-8 h-8 text-text3 mb-3" />
-        <p className="text-xs text-text2">O gráfico aparecerá após a primeira sincronização.</p>
+        <p className="text-xs text-text2">A Meta ainda não disponibilizou a série diária deste período.</p>
       </div>
     )
   }
@@ -164,16 +175,9 @@ function TrendChart({ rows }: { rows: InstagramDailyMetric[] }) {
   return (
     <div className="w-full overflow-hidden">
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto min-h-[220px]" role="img" aria-label="Evolução de alcance e visualizações">
-        <defs>
-          <linearGradient id="instagramArea" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="#8B5CF6" stopOpacity="0" />
-          </linearGradient>
-        </defs>
         {[0, 0.25, 0.5, 0.75, 1].map((ratio) => (
           <line key={ratio} x1={pad.left} x2={width - pad.right} y1={y(max * ratio)} y2={y(max * ratio)} stroke="currentColor" className="text-border-custom" strokeWidth="1" />
         ))}
-        <path d={area} fill="url(#instagramArea)" />
         <path d={path(views)} fill="none" stroke="#8B5CF6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
         <path d={path(reach)} fill="none" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="5 5" />
         {points.map((row, index) => index % Math.max(1, Math.floor(points.length / 5)) === 0 || index === points.length - 1 ? (
@@ -318,32 +322,34 @@ export default function InstagramModule() {
 
   const analytics = useMemo(() => {
     const daily = query.data?.daily || []
+    const currentSummary = query.data?.summary.current
+    const previousSummary = query.data?.summary.previous
     const currentStart = startDate(period)
-    const previousStart = startDate(period * 2)
     const current = daily.filter((row) => dateAtNoon(row.date) >= currentStart)
-    const previous = daily.filter((row) => {
-      const date = dateAtNoon(row.date)
-      return date >= previousStart && date < currentStart
-    })
-    const currentReach = sumMetric(current, 'reach')
-    const currentViews = sumMetric(current, 'views')
-    const currentInteractions = sumMetric(current, 'totalInteractions')
-    const latestFollowers = [...current].reverse().find((row) => row.followers !== null)?.followers
-      ?? query.data?.connection?.followersCount
+    const currentReach = currentSummary?.reach ?? null
+    const currentViews = currentSummary?.views ?? sumMetric(current, 'views')
+    const currentInteractions = currentSummary?.totalInteractions
+      ?? sumMetric(current, 'totalInteractions')
+    const latestFollowers = query.data?.connection?.followersCount
+      ?? [...current].reverse().find((row) => row.followers !== null)?.followers
       ?? null
-    const growth = followersGrowth(current)
+    const periodGrowth = currentSummary?.follows !== null
+      && currentSummary?.follows !== undefined
+      && currentSummary.unfollows !== null
+      ? currentSummary.follows - currentSummary.unfollows
+      : null
+    const growth = periodGrowth ?? followersGrowth(current)
     const engagement = currentReach && currentInteractions !== null
       ? (currentInteractions / currentReach) * 100
       : null
-    const previousReach = sumMetric(previous, 'reach')
-    const previousViews = sumMetric(previous, 'views')
-    const previousInteractions = sumMetric(previous, 'totalInteractions')
+    const previousReach = previousSummary?.reach ?? null
+    const previousViews = previousSummary?.views ?? null
+    const previousInteractions = previousSummary?.totalInteractions ?? null
     const previousEngagement = previousReach && previousInteractions !== null
       ? (previousInteractions / previousReach) * 100
       : null
     return {
       current,
-      previous,
       latestFollowers,
       growth,
       growthRate: growth !== null && latestFollowers && latestFollowers - growth > 0
@@ -357,6 +363,8 @@ export default function InstagramModule() {
       viewsDelta: percentChange(currentViews, previousViews),
       interactionsDelta: percentChange(currentInteractions, previousInteractions),
       engagementDelta: percentChange(engagement, previousEngagement),
+      profileViews: currentSummary?.profileViews ?? sumMetric(current, 'profileViews'),
+      profileLinksTaps: currentSummary?.profileLinksTaps ?? sumMetric(current, 'profileLinksTaps'),
     }
   }, [period, query.data])
 
@@ -392,8 +400,11 @@ export default function InstagramModule() {
       })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error || 'Falha na sincronização.')
+      if (payload.queued) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1_000))
+      }
       await query.refetch()
-      showToast('Instagram atualizado com sucesso')
+      showToast(payload.queued ? 'Atualização do Instagram iniciada' : 'Instagram atualizado com sucesso')
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Falha na sincronização.', 'err')
     } finally {
@@ -476,9 +487,9 @@ export default function InstagramModule() {
       )}
 
       <section className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-        <MetricCard label="Seguidores" value={formatNumber(analytics.latestFollowers)} helper={analytics.growth === null ? 'Histórico em formação' : `${analytics.growth >= 0 ? '+' : ''}${formatNumber(analytics.growth, false)} no período`} delta={analytics.growthRate} icon={Users} tone="bg-purple-bg text-purple-t" />
-        <MetricCard label="Crescimento" value={formatPercent(analytics.growthRate)} helper={`Últimos ${period} dias`} delta={analytics.growthRate} icon={TrendingUp} tone="bg-green-bg text-green-t" />
-        <MetricCard label="Alcance" value={formatNumber(analytics.reach)} helper="Contas únicas alcançadas" delta={analytics.reachDelta} icon={UserPlus} tone="bg-blue-bg text-blue-t" />
+        <MetricCard label="Seguidores" value={formatNumber(analytics.latestFollowers)} helper={analytics.growth === null ? 'Total atual da conta' : `${analytics.growth >= 0 ? '+' : ''}${formatNumber(analytics.growth, false)} líquidos no período`} delta={analytics.growthRate} icon={Users} tone="bg-purple-bg text-purple-t" />
+        <MetricCard label="Crescimento" value={formatPercent(analytics.growthRate)} helper={analytics.growth === null ? `Últimos ${period} dias` : `${analytics.growth >= 0 ? '+' : ''}${formatNumber(analytics.growth, false)} seguidores líquidos`} delta={analytics.growthRate} icon={TrendingUp} tone="bg-green-bg text-green-t" />
+        <MetricCard label="Alcance" value={formatNumber(analytics.reach)} helper={period === 90 ? 'Alcance acumulado em janelas de 30 dias' : 'Contas únicas alcançadas'} delta={analytics.reachDelta} icon={UserPlus} tone="bg-blue-bg text-blue-t" />
         <MetricCard label="Visualizações" value={formatNumber(analytics.views)} helper="Todas as exibições" delta={analytics.viewsDelta} icon={Eye} tone="bg-coral-bg text-coral-t" />
         <MetricCard label="Interações" value={formatNumber(analytics.interactions)} helper="Curtidas, comentários e mais" delta={analytics.interactionsDelta} icon={Heart} tone="bg-red-bg text-red-t" />
         <MetricCard label="Engajamento" value={formatPercent(analytics.engagement)} helper="Interações por alcance" delta={analytics.engagementDelta} icon={Activity} tone="bg-amber-bg text-amber-t" />
@@ -497,7 +508,11 @@ export default function InstagramModule() {
           <div className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-purple-t" /><h4 className="text-xs font-bold text-text-custom">Leitura rápida</h4></div>
           <div className="space-y-3 mt-5">
             {[
-              analytics.reachDelta === null ? 'Sincronize diariamente para comparar o alcance.' : `O alcance ${analytics.reachDelta >= 0 ? 'cresceu' : 'caiu'} ${Math.abs(analytics.reachDelta).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% contra o período anterior.`,
+              analytics.reachDelta === null
+                ? period === 90
+                  ? 'A Meta retém 90 dias; por isso a comparação anterior desse período não está disponível.'
+                  : 'A comparação aparecerá após a sincronização do período anterior.'
+                : `O alcance ${analytics.reachDelta >= 0 ? 'cresceu' : 'caiu'} ${Math.abs(analytics.reachDelta).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% contra o período anterior.`,
               topFormat ? `${topFormat.label} concentra ${formatPercent(topFormat.share)} das visualizações dos conteúdos.` : 'Os formatos de destaque aparecerão após a coleta dos conteúdos.',
               best ? `O melhor conteúdo alcançou ${formatNumber(best.insights?.reach ?? null)} contas.` : 'Publique conteúdo para formar seu ranking de performance.',
             ].map((text, index) => (
@@ -526,7 +541,7 @@ export default function InstagramModule() {
           <div className="bg-gradient-to-br from-purple-bg/70 to-coral-bg/40 border border-purple-custom/15 rounded-xl p-5">
             <div className="w-8 h-8 rounded-lg bg-purple-custom text-white flex items-center justify-center"><MousePointerClick className="w-4 h-4" /></div>
             <p className="text-xs font-bold text-text-custom mt-4">Ações no perfil</p>
-            <div className="grid grid-cols-2 gap-3 mt-3"><div><p className="text-lg font-bold text-text-custom">{formatNumber(sumMetric(analytics.current, 'profileViews'))}</p><p className="text-[9px] text-text3">Visitas ao perfil</p></div><div><p className="text-lg font-bold text-text-custom">{formatNumber(sumMetric(analytics.current, 'profileLinksTaps'))}</p><p className="text-[9px] text-text3">Cliques em links</p></div></div>
+            <div className="grid grid-cols-2 gap-3 mt-3"><div><p className="text-lg font-bold text-text-custom">{formatNumber(analytics.profileViews)}</p><p className="text-[9px] text-text3">Visitas ao perfil</p></div><div><p className="text-lg font-bold text-text-custom">{formatNumber(analytics.profileLinksTaps)}</p><p className="text-[9px] text-text3">Cliques em links</p></div></div>
           </div>
         </div>
       </section>

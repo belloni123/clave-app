@@ -34,6 +34,26 @@ export interface InstagramDailyMetric {
   replies: number | null
 }
 
+export interface InstagramPeriodMetric {
+  windowDays: 7 | 30 | 90
+  periodStart: string
+  periodEnd: string
+  reach: number | null
+  views: number | null
+  profileViews: number | null
+  profileLinksTaps: number | null
+  accountsEngaged: number | null
+  totalInteractions: number | null
+  likes: number | null
+  comments: number | null
+  shares: number | null
+  saves: number | null
+  replies: number | null
+  follows: number | null
+  unfollows: number | null
+  collectedAt: string
+}
+
 export interface InstagramMediaMetric {
   id: string
   caption: string | null
@@ -66,12 +86,14 @@ export interface InstagramDashboardResponse {
   canManage: boolean
   days: number
   daily: InstagramDailyMetric[]
+  summary: {
+    current: InstagramPeriodMetric | null
+    previous: InstagramPeriodMetric | null
+  }
   media: InstagramMediaMetric[]
 }
 
 export interface InstagramSyncResponse {
   ok: true
-  syncedAt: string
-  accountDaysSynced: number
-  mediaSynced: number
+  queued: true
 }

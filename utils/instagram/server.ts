@@ -3,9 +3,7 @@ import 'server-only'
 import { createAdminClient } from '@/utils/supabase/admin'
 
 const DEFAULT_API_VERSION = 'v26.0'
-const ACCOUNT_METRICS = [
-  'follower_count',
-  'reach',
+const DAILY_TOTAL_METRICS = [
   'views',
   'profile_views',
   'profile_links_taps',
@@ -17,6 +15,20 @@ const ACCOUNT_METRICS = [
   'saves',
   'replies',
 ] as const
+const DAILY_REQUIRED_METRICS = [
+  'views',
+  'profile_links_taps',
+  'accounts_engaged',
+  'total_interactions',
+] as const
+const PERIOD_TOTAL_METRICS = [
+  'reach',
+  ...DAILY_TOTAL_METRICS,
+] as const
+const INSIGHTS_RANGE_DAYS = 30
+const ACCOUNT_HISTORY_DAYS = 90
+const RECENT_DAYS_TO_REFRESH = 3
+const DAILY_BACKFILL_BATCH_SIZE = 30
 
 type SyncTrigger = 'oauth' | 'manual' | 'cron'
 
@@ -139,6 +151,36 @@ interface DailyRow {
   raw_metrics: Record<string, unknown>
 }
 
+interface StoredDailyRow extends DailyRow {
+  metric_date: string
+}
+
+interface AccountPeriodRow {
+  window_days: 7 | 30 | 90
+  window_kind: 'current' | 'previous'
+  period_start: string
+  period_end: string
+  reach: number | null
+  views: number | null
+  profile_views: number | null
+  profile_links_taps: number | null
+  accounts_engaged: number | null
+  total_interactions: number | null
+  likes: number | null
+  comments: number | null
+  shares: number | null
+  saves: number | null
+  replies: number | null
+  follows: number | null
+  unfollows: number | null
+  raw_metrics: Record<string, unknown>
+  collected_at: string
+}
+
+interface AccountMetricCapabilities {
+  profileViews?: boolean
+}
+
 export interface InstagramSyncResult {
   syncedAt: string
   accountDaysSynced: number
@@ -162,6 +204,10 @@ class InstagramApiError extends Error {
     super(message)
     this.name = 'InstagramApiError'
   }
+}
+
+function isMetaThrottleError(error: unknown) {
+  return error instanceof InstagramApiError && [4, 17, 32, 613].includes(error.code || 0)
 }
 
 function apiVersion() {
@@ -414,9 +460,11 @@ function emptyDailyRow(): DailyRow {
   }
 }
 
-function metricColumn(metric: string): keyof Omit<DailyRow, 'raw_metrics'> | null {
-  const columns: Record<string, keyof Omit<DailyRow, 'raw_metrics'>> = {
-    follower_count: 'followers_count',
+type AccountMetricColumn = Exclude<keyof DailyRow, 'followers_count' | 'raw_metrics'>
+
+function metricColumn(metric: string): AccountMetricColumn | null {
+  const columns: Record<string, AccountMetricColumn> = {
+    follower_count: 'follows',
     reach: 'reach',
     views: 'views',
     profile_views: 'profile_views',
@@ -436,98 +484,445 @@ function isoDate(value = new Date()) {
   return value.toISOString().slice(0, 10)
 }
 
+function utcStartOfDay(value: Date) {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()))
+}
+
+function addUtcDays(value: Date, days: number) {
+  const result = new Date(value)
+  result.setUTCDate(result.getUTCDate() + days)
+  return result
+}
+
+function unixSeconds(value: Date) {
+  return Math.floor(value.getTime() / 1_000).toString()
+}
+
+function numberOrNull(value: unknown) {
+  if (value === null || value === undefined) return null
+  const number = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(number) ? number : null
+}
+
+function storedDailyRow(row: StoredDailyRow): DailyRow {
+  const rawMetrics = row.raw_metrics && typeof row.raw_metrics === 'object'
+    ? row.raw_metrics
+    : {}
+  return {
+    followers_count: numberOrNull(row.followers_count),
+    follows: numberOrNull(row.follows),
+    unfollows: numberOrNull(row.unfollows),
+    reach: numberOrNull(row.reach),
+    views: numberOrNull(row.views),
+    profile_views: numberOrNull(row.profile_views),
+    profile_links_taps: numberOrNull(row.profile_links_taps),
+    accounts_engaged: numberOrNull(row.accounts_engaged),
+    total_interactions: numberOrNull(row.total_interactions),
+    likes: numberOrNull(row.likes),
+    comments: numberOrNull(row.comments),
+    shares: numberOrNull(row.shares),
+    saves: numberOrNull(row.saves),
+    replies: numberOrNull(row.replies),
+    raw_metrics: { ...rawMetrics },
+  }
+}
+
+function setDailyMetric(row: DailyRow, column: AccountMetricColumn, value: number) {
+  const metrics = row as unknown as Record<AccountMetricColumn, number | null>
+  metrics[column] = value
+}
+
+function addWarning(warnings: string[], label: string, error: unknown) {
+  if (warnings.length >= 25) return
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === 'string' ? error : 'Falha desconhecida.'
+  warnings.push(`${label}: ${message.slice(0, 240)}`)
+}
+
+function insightChunks(start: Date, end: Date) {
+  const chunks: Array<{ start: Date; end: Date }> = []
+  let cursor = new Date(start)
+  while (cursor.getTime() < end.getTime()) {
+    const proposedEnd = addUtcDays(cursor, INSIGHTS_RANGE_DAYS)
+    const chunkEnd = proposedEnd.getTime() < end.getTime() ? proposedEnd : new Date(end)
+    chunks.push({ start: new Date(cursor), end: chunkEnd })
+    cursor = chunkEnd
+  }
+  return chunks
+}
+
+function totalValueParams(metrics: readonly string[], start: Date, end: Date) {
+  return {
+    metric: metrics.join(','),
+    period: 'day',
+    metric_type: 'total_value',
+    since: unixSeconds(start),
+    until: unixSeconds(end),
+  }
+}
+
+async function fetchTotalValuePayload(
+  instagramUserId: string,
+  accessToken: string,
+  metrics: readonly string[],
+  start: Date,
+  end: Date,
+  label: string,
+  warnings: string[],
+  capabilities: AccountMetricCapabilities,
+) {
+  const requestedMetrics = capabilities.profileViews === false
+    ? metrics.filter((metric) => metric !== 'profile_views')
+    : metrics
+  try {
+    const payload = await graphGet<InsightPayload>(
+      `${instagramUserId}/insights`,
+      accessToken,
+      totalValueParams(requestedMetrics, start, end),
+    )
+    if (
+      requestedMetrics.includes('profile_views')
+      && payload.data?.some((series) => series.name === 'profile_views')
+    ) {
+      capabilities.profileViews = true
+    }
+    return payload
+  } catch (error) {
+    const isProfileViewsCompatibilityError = error instanceof InstagramApiError
+      && error.code === 100
+      && /profile_views/i.test(error.message)
+    if (!requestedMetrics.includes('profile_views') || !isProfileViewsCompatibilityError) throw error
+    capabilities.profileViews = false
+    addWarning(warnings, `${label}/profile_views`, error)
+    return graphGet<InsightPayload>(
+      `${instagramUserId}/insights`,
+      accessToken,
+      totalValueParams(requestedMetrics.filter((metric) => metric !== 'profile_views'), start, end),
+    )
+  }
+}
+
+function applyDailyTotalPayload(row: DailyRow, payload: InsightPayload) {
+  const returnedMetrics = new Set<string>()
+  payload.data?.forEach((series) => {
+    const metric = series.name || ''
+    const column = metricColumn(metric)
+    const value = series.total_value?.value
+    if (!column || typeof value !== 'number') return
+    returnedMetrics.add(metric)
+    setDailyMetric(row, column, value)
+    row.raw_metrics[metric] = series.total_value || value
+  })
+  return returnedMetrics
+}
+
 async function fetchAccountDaily(
   instagramUserId: string,
   accessToken: string,
   followersCount: number | undefined,
+  existingRows: StoredDailyRow[],
+  warnings: string[],
+  capabilities: AccountMetricCapabilities,
 ) {
-  const sinceDate = new Date()
-  sinceDate.setUTCDate(sinceDate.getUTCDate() - 89)
-  const untilDate = new Date()
-  untilDate.setUTCDate(untilDate.getUTCDate() + 1)
-  const daily = new Map<string, DailyRow>()
-
-  const results = await Promise.allSettled(
-    ACCOUNT_METRICS.map((metric) => {
-      const supportsTimeSeries = [
-        'follower_count',
-        'reach',
-        'views',
-        'profile_views',
-      ].includes(metric)
-      return graphGet<InsightPayload>(
-        `${instagramUserId}/insights`,
-        accessToken,
-        supportsTimeSeries
-          ? {
-              metric,
-              period: 'day',
-              since: isoDate(sinceDate),
-              until: isoDate(untilDate),
-            }
-          : {
-              metric,
-              period: 'day',
-              metric_type: 'total_value',
-              since: isoDate(),
-              until: isoDate(untilDate),
-            },
-      )
-    }),
+  const now = new Date()
+  const todayStart = utcStartOfDay(now)
+  const historyStart = addUtcDays(todayStart, -(ACCOUNT_HISTORY_DAYS - 1))
+  const daily = new Map<string, DailyRow>(
+    existingRows.map((row) => [row.metric_date, storedDailyRow(row)]),
   )
 
-  results.forEach((result, index) => {
-    if (result.status !== 'fulfilled') return
-    const requestedMetric = ACCOUNT_METRICS[index]
-    result.value.data?.forEach((series) => {
-      const metric = series.name || requestedMetric
-      const column = metricColumn(metric)
-      if (!column) return
-
-      series.values?.forEach((entry) => {
-        if (!entry.end_time || typeof entry.value !== 'number') return
-        const date = entry.end_time.slice(0, 10)
-        const row = daily.get(date) || emptyDailyRow()
-        row[column] = entry.value
-        row.raw_metrics[metric] = entry.value
-        daily.set(date, row)
+  const timeSeriesChunks = insightChunks(historyStart, now)
+  await mapWithConcurrency(timeSeriesChunks, 3, async (chunk) => {
+    try {
+      const payload = await graphGet<InsightPayload>(
+        `${instagramUserId}/insights`,
+        accessToken,
+        {
+          metric: 'reach,follower_count',
+          period: 'day',
+          metric_type: 'time_series',
+          since: unixSeconds(chunk.start),
+          until: unixSeconds(chunk.end),
+        },
+      )
+      payload.data?.forEach((series) => {
+        const metric = series.name || ''
+        const column = metricColumn(metric)
+        if (!column) return
+        series.values?.forEach((entry) => {
+          if (!entry.end_time || typeof entry.value !== 'number') return
+          const date = entry.end_time.slice(0, 10)
+          const row = daily.get(date) || emptyDailyRow()
+          setDailyMetric(row, column, entry.value)
+          row.raw_metrics[metric] = { value: entry.value, end_time: entry.end_time }
+          daily.set(date, row)
+        })
       })
-
-      if (typeof series.total_value?.value === 'number') {
-        const date = isoDate()
-        const row = daily.get(date) || emptyDailyRow()
-        row[column] = series.total_value.value
-        row.raw_metrics[metric] = series.total_value
-        daily.set(date, row)
-      }
-    })
+    } catch (error) {
+      addWarning(warnings, `time_series/${isoDate(chunk.start)}`, error)
+    }
   })
 
-  try {
-    const followPayload = await graphGet<InsightPayload>(
-      `${instagramUserId}/insights`,
-      accessToken,
-      { metric: 'follows_and_unfollows', period: 'day', metric_type: 'total_value' },
-    )
-    const date = isoDate()
-    const row = daily.get(date) || emptyDailyRow()
-    const resultsByType = followPayload.data?.[0]?.total_value?.breakdowns?.[0]?.results || []
-    resultsByType.forEach((item) => {
-      const type = item.dimension_values?.[0]?.toLowerCase()
-      if (type === 'follows') row.follows = item.value ?? null
-      if (type === 'unfollows') row.unfollows = item.value ?? null
-    })
-    row.raw_metrics.follows_and_unfollows = followPayload.data?.[0]?.total_value || null
-    daily.set(date, row)
-  } catch {
-    // Nem todas as contas têm este breakdown disponível.
-  }
+  const allDates = Array.from({ length: ACCOUNT_HISTORY_DAYS }, (_, index) => (
+    isoDate(addUtcDays(historyStart, index))
+  ))
+  const recentStart = isoDate(addUtcDays(todayStart, -(RECENT_DAYS_TO_REFRESH - 1)))
+  const recentDates = allDates.filter((date) => date >= recentStart)
+  const missingBackfillDates = allDates.filter((date) => {
+    const marker = daily.get(date)?.raw_metrics._totals_checked_at
+    return date < recentStart && typeof marker !== 'string'
+  }).reverse().slice(0, DAILY_BACKFILL_BATCH_SIZE)
+  const datesToRefresh = [...recentDates, ...missingBackfillDates]
+  recentDates.forEach((date) => {
+    const row = daily.get(date)
+    if (!row) return
+    delete row.raw_metrics._totals_checked_at
+    delete row.raw_metrics._totals_collected_at
+  })
+  let throttleError: unknown = null
+
+  await mapWithConcurrency(datesToRefresh, 5, async (date) => {
+    if (throttleError) return
+    const start = new Date(`${date}T00:00:00.000Z`)
+    const nextDay = addUtcDays(start, 1)
+    const end = nextDay.getTime() > now.getTime() ? now : nextDay
+    try {
+      const payload = await fetchTotalValuePayload(
+        instagramUserId,
+        accessToken,
+        DAILY_TOTAL_METRICS,
+        start,
+        end,
+        `daily/${date}`,
+        warnings,
+        capabilities,
+      )
+      const row = daily.get(date) || emptyDailyRow()
+      const returnedMetrics = applyDailyTotalPayload(row, payload)
+      row.raw_metrics._total_metrics_returned = Array.from(returnedMetrics)
+      const hasRequiredMetrics = DAILY_REQUIRED_METRICS.every((metric) => (
+        returnedMetrics.has(metric)
+      ))
+      row.raw_metrics._totals_checked_at = now.toISOString()
+      if (hasRequiredMetrics) row.raw_metrics._totals_collected_at = now.toISOString()
+      else {
+        row.raw_metrics._total_metrics_missing = DAILY_REQUIRED_METRICS.filter((metric) => (
+          !returnedMetrics.has(metric)
+        ))
+        addWarning(warnings, `daily/${date}`, 'Resposta sem todas as métricas essenciais.')
+      }
+      daily.set(date, row)
+    } catch (error) {
+      if (isMetaThrottleError(error)) throttleError = error
+      addWarning(warnings, `daily/${date}`, error)
+    }
+  })
+  if (throttleError) throw throttleError
 
   const today = isoDate()
   const todayRow = daily.get(today) || emptyDailyRow()
   if (typeof followersCount === 'number') todayRow.followers_count = followersCount
   daily.set(today, todayRow)
   return daily
+}
+
+function emptyPeriodMetrics() {
+  return {
+    follows: null,
+    unfollows: null,
+    reach: null,
+    views: null,
+    profile_views: null,
+    profile_links_taps: null,
+    accounts_engaged: null,
+    total_interactions: null,
+    likes: null,
+    comments: null,
+    shares: null,
+    saves: null,
+    replies: null,
+  } satisfies Record<AccountMetricColumn, number | null>
+}
+
+function addPeriodMetric(
+  metrics: Record<AccountMetricColumn, number | null>,
+  column: AccountMetricColumn,
+  value: number,
+) {
+  metrics[column] = (metrics[column] ?? 0) + value
+}
+
+async function fetchAccountPeriod(
+  instagramUserId: string,
+  accessToken: string,
+  windowDays: 7 | 30 | 90,
+  windowKind: 'current' | 'previous',
+  start: Date,
+  end: Date,
+  periodEnd: string,
+  warnings: string[],
+  capabilities: AccountMetricCapabilities,
+): Promise<AccountPeriodRow> {
+  const chunks = insightChunks(start, end)
+  const metrics = emptyPeriodMetrics()
+  const rawMetrics: Record<string, unknown> = {
+    chunks: [],
+    reach_semantics: chunks.length > 1 ? 'accumulated_unique_per_chunk' : 'unique',
+  }
+  const metricChunkCounts: Partial<Record<AccountMetricColumn, number>> = {}
+  let completeFollowChunks = 0
+
+  await mapWithConcurrency(chunks, 3, async (chunk) => {
+    const label = `${windowKind}_${windowDays}/${isoDate(chunk.start)}`
+    const [totalsResult, followsResult] = await Promise.allSettled([
+      fetchTotalValuePayload(
+        instagramUserId,
+        accessToken,
+        PERIOD_TOTAL_METRICS,
+        chunk.start,
+        chunk.end,
+        label,
+        warnings,
+        capabilities,
+      ),
+      graphGet<InsightPayload>(`${instagramUserId}/insights`, accessToken, {
+        metric: 'follows_and_unfollows',
+        period: 'day',
+        metric_type: 'total_value',
+        breakdown: 'follow_type',
+        since: unixSeconds(chunk.start),
+        until: unixSeconds(chunk.end),
+      }),
+    ])
+
+    const chunkRaw: Record<string, unknown> = {
+      start: isoDate(chunk.start),
+      end: isoDate(chunk.end),
+    }
+    if (totalsResult.status === 'fulfilled') {
+      chunkRaw.metrics = totalsResult.value.data || []
+      totalsResult.value.data?.forEach((series) => {
+        const column = metricColumn(series.name || '')
+        const value = series.total_value?.value
+        if (!column || typeof value !== 'number') return
+        metricChunkCounts[column] = (metricChunkCounts[column] || 0) + 1
+        addPeriodMetric(metrics, column, value)
+      })
+    } else {
+      addWarning(warnings, `${label}/totals`, totalsResult.reason)
+    }
+
+    if (followsResult.status === 'fulfilled') {
+      chunkRaw.follows_and_unfollows = followsResult.value.data || []
+      const breakdown = followsResult.value.data?.[0]?.total_value?.breakdowns?.[0]
+      if (breakdown) {
+        let chunkFollows = 0
+        let chunkUnfollows = 0
+        let validBreakdown = true
+        ;(breakdown.results || []).forEach((item) => {
+          const dimension = item.dimension_values?.[0]?.toUpperCase()
+          if (typeof item.value !== 'number') {
+            validBreakdown = false
+            return
+          }
+          if (dimension === 'FOLLOWER') chunkFollows += item.value
+          else if (dimension === 'NON_FOLLOWER') chunkUnfollows += item.value
+          else if (item.value !== 0) validBreakdown = false
+        })
+        if (validBreakdown) {
+          completeFollowChunks += 1
+          addPeriodMetric(metrics, 'follows', chunkFollows)
+          addPeriodMetric(metrics, 'unfollows', chunkUnfollows)
+        } else {
+          addWarning(warnings, `${label}/follows`, 'Detalhamento retornado com categoria desconhecida.')
+        }
+      } else {
+        addWarning(warnings, `${label}/follows`, 'Resposta sem o detalhamento por tipo.')
+      }
+    } else {
+      addWarning(warnings, `${label}/follows`, followsResult.reason)
+    }
+    ;(rawMetrics.chunks as unknown[]).push(chunkRaw)
+  })
+
+  const periodMetricColumns = Object.keys(metrics)
+    .filter((column): column is AccountMetricColumn => !['follows', 'unfollows'].includes(column))
+  periodMetricColumns.forEach((column) => {
+    if (metricChunkCounts[column] !== chunks.length) metrics[column] = null
+  })
+  rawMetrics.metric_chunk_counts = metricChunkCounts
+  const coreMetricsComplete = (['reach', 'views', 'total_interactions'] as const)
+    .every((column) => metricChunkCounts[column] === chunks.length)
+  if (!coreMetricsComplete) {
+    throw new Error(`A Meta não retornou o período completo de ${windowDays} dias.`)
+  }
+  if (completeFollowChunks !== chunks.length) {
+    metrics.follows = null
+    metrics.unfollows = null
+    rawMetrics.follows_complete = false
+  } else {
+    rawMetrics.follows_complete = true
+  }
+
+  return {
+    window_days: windowDays,
+    window_kind: windowKind,
+    period_start: isoDate(start),
+    period_end: periodEnd,
+    ...metrics,
+    raw_metrics: rawMetrics,
+    collected_at: new Date().toISOString(),
+  }
+}
+
+async function fetchAccountPeriods(
+  instagramUserId: string,
+  accessToken: string,
+  warnings: string[],
+  capabilities: AccountMetricCapabilities,
+) {
+  const now = new Date()
+  const todayStart = utcStartOfDay(now)
+  const definitions: Array<{
+    days: 7 | 30 | 90
+    kind: 'current' | 'previous'
+    start: Date
+    end: Date
+    periodEnd: string
+  }> = []
+
+  ;([7, 30, 90] as const).forEach((days) => {
+    const currentStart = addUtcDays(todayStart, -(days - 1))
+    definitions.push({
+      days,
+      kind: 'current',
+      start: currentStart,
+      end: now,
+      periodEnd: isoDate(todayStart),
+    })
+    if (days !== 90) {
+      definitions.push({
+        days,
+        kind: 'previous',
+        start: addUtcDays(currentStart, -days),
+        end: currentStart,
+        periodEnd: isoDate(addUtcDays(currentStart, -1)),
+      })
+    }
+  })
+
+  return mapWithConcurrency(definitions, 1, (definition) => fetchAccountPeriod(
+    instagramUserId,
+    accessToken,
+    definition.days,
+    definition.kind,
+    definition.start,
+    definition.end,
+    definition.periodEnd,
+    warnings,
+    capabilities,
+  ))
 }
 
 async function fetchMediaCollection(
@@ -579,7 +974,11 @@ async function fetchMediaInsights(media: InstagramMediaPayload, accessToken: str
     return await graphGet<InsightPayload>(`${media.id}/insights`, accessToken, {
       metric: mediaInsightMetrics(media),
     })
-  } catch {
+  } catch (error) {
+    if (isMetaThrottleError(error)) throw error
+    const canRetryWithReachOnly = error instanceof InstagramApiError
+      && [10, 100].includes(error.code || 0)
+    if (!canRetryWithReachOnly) return { data: [] } satisfies InsightPayload
     try {
       return await graphGet<InsightPayload>(`${media.id}/insights`, accessToken, { metric: 'reach' })
     } catch {
@@ -682,10 +1081,43 @@ export async function syncInstagramConnection(
     )
     if (!profile.username) throw new Error('A Meta não retornou o perfil profissional.')
 
+    const accountHistoryStart = addUtcDays(
+      utcStartOfDay(new Date()),
+      -(ACCOUNT_HISTORY_DAYS - 1),
+    )
+    const { data: existingDailyData, error: existingDailyError } = await admin
+      .from('instagram_account_daily')
+      .select([
+        'metric_date',
+        'followers_count',
+        'follows',
+        'unfollows',
+        'reach',
+        'views',
+        'profile_views',
+        'profile_links_taps',
+        'accounts_engaged',
+        'total_interactions',
+        'likes',
+        'comments',
+        'shares',
+        'saves',
+        'replies',
+        'raw_metrics',
+      ].join(','))
+      .eq('connection_id', connection.id)
+      .gte('metric_date', isoDate(accountHistoryStart))
+    if (existingDailyError) throw new Error('Não foi possível ler o histórico da conta.')
+
+    const accountMetricWarnings: string[] = []
+    const accountMetricCapabilities: AccountMetricCapabilities = {}
     const daily = await fetchAccountDaily(
       connection.instagram_user_id,
       refreshed.accessToken,
       profile.followers_count,
+      (existingDailyData || []) as unknown as StoredDailyRow[],
+      accountMetricWarnings,
+      accountMetricCapabilities,
     )
     const accountRows = Array.from(daily.entries()).map(([metricDate, row]) => ({
       connection_id: connection.id,
@@ -698,6 +1130,29 @@ export async function syncInstagramConnection(
         .from('instagram_account_daily')
         .upsert(accountRows, { onConflict: 'connection_id,metric_date' })
       if (error) throw new Error('Não foi possível salvar o histórico da conta.')
+    }
+
+    await admin.from('instagram_sync_runs').update({
+      account_days_synced: accountRows.length,
+      details: { account_metric_warnings: accountMetricWarnings },
+    }).eq('id', run.id)
+
+    const accountPeriods = await fetchAccountPeriods(
+      connection.instagram_user_id,
+      refreshed.accessToken,
+      accountMetricWarnings,
+      accountMetricCapabilities,
+    )
+    const periodRows = accountPeriods.map((row) => ({
+      connection_id: connection.id,
+      project_id: connection.project_id,
+      ...row,
+    }))
+    if (periodRows.length) {
+      const { error } = await admin
+        .from('instagram_account_period_totals')
+        .upsert(periodRows, { onConflict: 'connection_id,window_days,window_kind' })
+      if (error) throw new Error('Não foi possível salvar os totais por período.')
     }
 
     const [mediaResult, storyResult] = await Promise.allSettled([
@@ -734,14 +1189,36 @@ export async function syncInstagramConnection(
       if (error) throw new Error('Não foi possível salvar os conteúdos do Instagram.')
     }
 
-    const insightPairs = await mapWithConcurrency(media, 5, async (item) => ({
+    const collectedOn = isoDate()
+    const existingInsightResult = media.length
+      ? await admin
+          .from('instagram_media_insights')
+          .select('media_id,views,reach,total_interactions')
+          .eq('connection_id', connection.id)
+          .eq('collected_on', collectedOn)
+          .in('media_id', media.map((item) => item.id))
+      : { data: [], error: null }
+    if (existingInsightResult.error) {
+      throw new Error('Não foi possível verificar as métricas já coletadas hoje.')
+    }
+    const collectedToday = new Set(
+      (existingInsightResult.data || [])
+        .filter((item) => (
+          item.views !== null
+          || item.reach !== null
+          || item.total_interactions !== null
+        ))
+        .map((item) => item.media_id),
+    )
+    const mediaToRefresh = media.filter((item) => !collectedToday.has(item.id))
+    const insightPairs = await mapWithConcurrency(mediaToRefresh, 5, async (item) => ({
       item,
       payload: await fetchMediaInsights(item, refreshed.accessToken),
     }))
-    const collectedOn = isoDate()
-    if (insightPairs.length) {
+    const validInsightPairs = insightPairs.filter(({ payload }) => Boolean(payload.data?.length))
+    if (validInsightPairs.length) {
       const { error } = await admin.from('instagram_media_insights').upsert(
-        insightPairs.map(({ item, payload }) => ({
+        validInsightPairs.map(({ item, payload }) => ({
           media_id: item.id,
           connection_id: connection.id,
           project_id: connection.project_id,
@@ -782,11 +1259,22 @@ export async function syncInstagramConnection(
       .eq('id', connection.id)
     if (finishError) throw new Error('Não foi possível finalizar a sincronização.')
 
+    if (accountMetricWarnings.length) {
+      console.warn('[instagram-sync] Coleta parcial de métricas da conta', {
+        connectionId: connection.id,
+        warnings: accountMetricWarnings,
+      })
+    }
+
     await admin.from('instagram_sync_runs').update({
       status: 'success',
       finished_at: syncedAt,
       account_days_synced: accountRows.length,
       media_synced: media.length,
+      details: {
+        account_periods_synced: periodRows.length,
+        account_metric_warnings: accountMetricWarnings,
+      },
     }).eq('id', run.id)
 
     return {
