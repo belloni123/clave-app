@@ -78,10 +78,9 @@ SUPABASE_SERVICE_ROLE_KEY=sua-service-role-key-privada
 SUPABASE_MANAGEMENT_ACCESS_TOKEN=seu-token-management-privado
 # Opcional; pode ser derivado da URL do Supabase
 SUPABASE_PROJECT_REF=seu-project-ref
-INSTAGRAM_APP_ID=seu-app-id-da-meta
-INSTAGRAM_APP_SECRET=seu-app-secret-da-meta
-# Opcional; o conector possui um padrão compatível
-INSTAGRAM_GRAPH_API_VERSION=v23.0
+META_APP_ID=seu-id-do-app-meta
+# Opcional; o conector usa a versão oficial compatível atual
+INSTAGRAM_GRAPH_API_VERSION=v26.0
 CRON_SECRET=um-segredo-longo-para-a-sincronizacao-diaria
 ```
 
@@ -97,14 +96,15 @@ Não existe uma chave global de IA no ambiente. Um administrador cadastra a
 chave OpenAI ou Claude dentro do Criador de Conteúdo de cada projeto. O backend
 valida a credencial e guarda somente o segredo criptografado no Supabase Vault.
 
-No painel da Meta, cadastre a URL de callback
-`https://seu-dominio/api/instagram/callback`, o retorno de desautorização
-`https://seu-dominio/api/instagram/deauthorize` e a solicitação de exclusão
-`https://seu-dominio/api/instagram/data-deletion`. Use
+No Login do Facebook para Empresas da Meta, cadastre a URL de callback
+`https://seu-dominio/instagram/conectar`. A conta profissional precisa estar
+ligada a uma Página disponível na BM. Use
 `https://seu-dominio/privacidade` como política de privacidade,
-`https://seu-dominio/termos` como termos de serviço e solicite acesso avançado
-somente às permissões `instagram_business_basic` e
-`instagram_business_manage_insights`. A rotina diária deve fazer um `POST`
+`https://seu-dominio/termos` como termos de serviço. Para liberar usuários fora
+das funções do app, solicite acesso avançado a `instagram_basic`,
+`instagram_manage_insights`, `pages_show_list` e `pages_read_engagement`.
+Para ativos administrados pela BM, o fluxo também solicita `business_management`.
+A rotina diária deve fazer um `POST`
 para `/api/cron/instagram-sync` com o cabeçalho
 `Authorization: Bearer <CRON_SECRET>`.
 

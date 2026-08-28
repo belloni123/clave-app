@@ -2,7 +2,7 @@ import 'server-only'
 
 import { createAdminClient } from '@/utils/supabase/admin'
 
-const DEFAULT_API_VERSION = 'v23.0'
+const DEFAULT_API_VERSION = 'v26.0'
 const ACCOUNT_METRICS = [
   'follower_count',
   'reach',
@@ -73,6 +73,21 @@ interface MediaPayload extends MetaErrorPayload {
   paging?: { next?: string }
 }
 
+interface FacebookPagesPayload extends MetaErrorPayload {
+  data?: Array<{
+    id?: string
+    name?: string
+    instagram_business_account?: { id?: string }
+  }>
+}
+
+interface FacebookPermissionsPayload extends MetaErrorPayload {
+  data?: Array<{
+    permission?: string
+    status?: string
+  }>
+}
+
 interface InstagramMediaPayload {
   id: string
   caption?: string
@@ -105,17 +120,22 @@ interface DailyRow {
   raw_metrics: Record<string, unknown>
 }
 
-export interface InstagramTokenBundle {
-  accessToken: string
-  instagramUserId: string
-  expiresAt: string
-  grantedScopes: string[]
-}
-
 export interface InstagramSyncResult {
   syncedAt: string
   accountDaysSynced: number
   mediaSynced: number
+}
+
+export interface FacebookInstagramAccount {
+  pageId: string
+  pageName: string
+  instagramUserId: string
+  username: string
+  name: string | null
+  accountType: string | null
+  profilePictureUrl: string | null
+  followersCount: number | null
+  mediaCount: number | null
 }
 
 class InstagramApiError extends Error {
@@ -130,16 +150,7 @@ function apiVersion() {
 }
 
 function graphBase() {
-  return `https://graph.instagram.com/${apiVersion()}`
-}
-
-function requiredInstagramConfig() {
-  const appId = process.env.INSTAGRAM_APP_ID?.trim()
-  const appSecret = process.env.INSTAGRAM_APP_SECRET?.trim()
-  if (!appId || !appSecret) {
-    throw new Error('A integração do Instagram ainda não foi configurada no servidor.')
-  }
-  return { appId, appSecret }
+  return `https://graph.facebook.com/${apiVersion()}`
 }
 
 async function readJson<T extends MetaErrorPayload>(response: Response): Promise<T> {
@@ -167,79 +178,12 @@ async function graphGet<T extends MetaErrorPayload>(
   return readJson<T>(response)
 }
 
-export async function exchangeInstagramCode(
-  code: string,
-  redirectUri: string,
-): Promise<InstagramTokenBundle> {
-  const { appId, appSecret } = requiredInstagramConfig()
-  const normalizedCode = code.replace(/#_$/, '')
-  const tokenForm = new FormData()
-  tokenForm.set('client_id', appId)
-  tokenForm.set('client_secret', appSecret)
-  tokenForm.set('grant_type', 'authorization_code')
-  tokenForm.set('redirect_uri', redirectUri)
-  tokenForm.set('code', normalizedCode)
-
-  const shortResponse = await fetch('https://api.instagram.com/oauth/access_token', {
-    method: 'POST',
-    // Meta documents this endpoint as multipart form data. Let fetch provide
-    // the boundary so the payload matches the supported request shape.
-    body: tokenForm,
-    cache: 'no-store',
-  })
-  type ShortToken = {
-    access_token?: string
-    user_id?: string | number
-    permissions?: string[] | string
-  }
-  const shortPayload = await readJson<MetaErrorPayload & ShortToken & {
-    data?: ShortToken[]
-  }>(shortResponse)
-  // Since March 2026 the Instagram Login endpoint documents the token inside
-  // `data[0]`. Keep accepting the legacy top-level shape during the rollout.
-  const shortToken = shortPayload.data?.[0] || shortPayload
-
-  if (!shortToken.access_token || !shortToken.user_id) {
-    throw new InstagramApiError('A Meta não retornou as credenciais da conta.')
-  }
-
-  const longUrl = new URL('https://graph.instagram.com/access_token')
-  longUrl.searchParams.set('grant_type', 'ig_exchange_token')
-  longUrl.searchParams.set('client_secret', appSecret)
-  longUrl.searchParams.set('access_token', shortToken.access_token)
-  const longResponse = await fetch(longUrl, { cache: 'no-store' })
-  const longToken = await readJson<MetaErrorPayload & {
-    access_token?: string
-    expires_in?: number
-  }>(longResponse)
-
-  if (!longToken.access_token) {
-    throw new InstagramApiError('A Meta não retornou o token de longa duração.')
-  }
-
-  const expiresIn = longToken.expires_in || 5_184_000
-  const grantedScopes = Array.isArray(shortToken.permissions)
-    ? shortToken.permissions
-    : shortToken.permissions?.split(',').map((scope) => scope.trim()).filter(Boolean)
-
-  return {
-    accessToken: longToken.access_token,
-    instagramUserId: String(shortToken.user_id),
-    expiresAt: new Date(Date.now() + expiresIn * 1_000).toISOString(),
-    grantedScopes: grantedScopes || [
-      'instagram_business_basic',
-      'instagram_business_manage_insights',
-    ],
-  }
-}
-
 export async function fetchInstagramProfile(
   instagramUserId: string,
   accessToken: string,
 ) {
   const richFields = [
     'id',
-    'user_id',
     'username',
     'name',
     'account_type',
@@ -254,28 +198,59 @@ export async function fetchInstagramProfile(
     })
   } catch {
     return graphGet<InstagramProfilePayload>(instagramUserId, accessToken, {
-      fields: 'id,user_id,username,name,profile_picture_url,followers_count,media_count',
+      fields: 'id,username,name,profile_picture_url,followers_count,media_count',
     })
   }
 }
 
+export async function fetchFacebookGrantedScopes(accessToken: string) {
+  const payload = await graphGet<FacebookPermissionsPayload>('me/permissions', accessToken)
+  return (payload.data || [])
+    .filter((item) => item.status === 'granted' && item.permission)
+    .map((item) => item.permission as string)
+}
+
+export async function fetchFacebookInstagramAccounts(
+  accessToken: string,
+): Promise<FacebookInstagramAccount[]> {
+  const payload = await graphGet<FacebookPagesPayload>('me/accounts', accessToken, {
+    fields: 'id,name,instagram_business_account',
+    limit: '100',
+  })
+  const candidates = (payload.data || []).flatMap((page) => {
+    const instagramUserId = page.instagram_business_account?.id
+    if (!page.id || !page.name || !instagramUserId) return []
+    return [{ pageId: page.id, pageName: page.name, instagramUserId }]
+  })
+
+  const profiles = await Promise.allSettled(candidates.map(async (candidate) => ({
+    ...candidate,
+    profile: await fetchInstagramProfile(candidate.instagramUserId, accessToken),
+  })))
+
+  return profiles.flatMap((result) => {
+    if (result.status !== 'fulfilled') return []
+    const { profile, ...candidate } = result.value
+    const username = profile.username
+    if (!username) return []
+    return [{
+      ...candidate,
+      username,
+      name: profile.name || null,
+      accountType: profile.account_type || null,
+      profilePictureUrl: profile.profile_picture_url || null,
+      followersCount: profile.followers_count ?? null,
+      mediaCount: profile.media_count ?? null,
+    }]
+  })
+}
+
 async function refreshTokenIfNeeded(connection: ConnectionRow, accessToken: string) {
   if (!connection.token_expires_at) return { accessToken, expiresAt: null as string | null }
-  const refreshThreshold = Date.now() + 7 * 24 * 60 * 60 * 1_000
-  if (new Date(connection.token_expires_at).getTime() > refreshThreshold) {
-    return { accessToken, expiresAt: null as string | null }
+  if (new Date(connection.token_expires_at).getTime() <= Date.now()) {
+    throw new InstagramApiError('A autorização do Instagram expirou. Reconecte a conta.', 190)
   }
-
-  const url = new URL('https://graph.instagram.com/refresh_access_token')
-  url.searchParams.set('grant_type', 'ig_refresh_token')
-  url.searchParams.set('access_token', accessToken)
-  const response = await fetch(url, { cache: 'no-store' })
-  const payload = await readJson<MetaErrorPayload & { access_token?: string; expires_in?: number }>(response)
-  if (!payload.access_token) throw new InstagramApiError('A Meta não renovou a autorização.')
-  return {
-    accessToken: payload.access_token,
-    expiresAt: new Date(Date.now() + (payload.expires_in || 5_184_000) * 1_000).toISOString(),
-  }
+  return { accessToken, expiresAt: null as string | null }
 }
 
 function emptyDailyRow(): DailyRow {
