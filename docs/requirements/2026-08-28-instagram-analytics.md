@@ -30,6 +30,7 @@ Agências e especialistas precisam alternar entre o Clave, o Instagram e planilh
 - Gestão de comentários ou mensagens.
 - Métricas de anúncios, campanhas e investimento da Meta Ads.
 - Contas pessoais do Instagram.
+- Contas profissionais fora das BMs autorizadas pela agência.
 - Benchmarking com contas que não autorizaram o Clave.
 
 ## 5. Personas e permissões
@@ -54,14 +55,15 @@ Agências e especialistas precisam alternar entre o Clave, o Instagram e planilh
 
 1. Um projeto possui no máximo uma conexão ativa do Instagram.
 2. A conta deve ser profissional: Comercial ou Criador de conteúdo.
-3. A conexão é feita por OAuth oficial da Meta; nunca por senha.
-4. O token de acesso é armazenado no Supabase Vault e nunca retorna ao navegador.
-5. O histórico é segregado por `project_id` em todas as tabelas.
-6. Uma sincronização não apaga o último snapshot válido quando a Meta falha.
-7. A sincronização automática roda diariamente; a manual informa sucesso ou erro.
-8. Métricas ausentes na API são exibidas como indisponíveis, não como zero.
-9. Datas da Meta são persistidas em UTC e apresentadas no fuso do usuário.
-10. Trocar a conta encerra o vínculo anterior. O histórico anterior é removido junto da conexão para evitar misturar perfis no mesmo projeto.
+3. A conta deve estar previamente vinculada a uma Página disponível em uma BM autorizada.
+4. A conexão é feita por OAuth oficial da Meta; o Clave nunca coleta a senha.
+5. O token de acesso é removido imediatamente do fragmento de retorno e armazenado no Supabase Vault.
+6. O histórico é segregado por `project_id` em todas as tabelas.
+7. Uma sincronização não apaga o último snapshot válido quando a Meta falha.
+8. A sincronização automática roda diariamente; a manual informa sucesso ou erro.
+9. Métricas ausentes na API são exibidas como indisponíveis, não como zero.
+10. Datas da Meta são persistidas em UTC e apresentadas no fuso do usuário.
+11. Trocar a conta encerra o vínculo anterior. O histórico anterior é removido junto da conexão para evitar misturar perfis no mesmo projeto.
 
 ## 7. Experiência e navegação
 
@@ -127,11 +129,12 @@ O menu lateral recebe o item **Instagram**, no grupo Ferramentas. O módulo poss
 1. O usuário inicia a conexão informando o projeto.
 2. O backend valida autenticação e permissão administrativa.
 3. Um `state` aleatório é salvo em cookie `HttpOnly` para proteção CSRF.
-4. A Meta autentica e devolve um código temporário.
-5. O backend troca o código por token de longa duração, busca o perfil e guarda o token no Vault.
-6. A primeira sincronização importa conta, histórico disponível e até 50 conteúdos recentes.
-7. Sincronizações seguintes fazem `upsert` dos snapshots e conteúdos.
-8. Tokens próximos da expiração são renovados antes da coleta.
+4. A Meta autentica o administrador e libera os ativos já existentes da BM.
+5. O Clave captura o token de longa duração no fragmento, remove-o da URL e
+   lista as contas profissionais vinculadas às Páginas autorizadas.
+6. O usuário escolhe uma conta para o projeto e o backend guarda o token no Vault.
+7. A primeira sincronização importa conta, histórico disponível e até 50 conteúdos recentes.
+8. Sincronizações seguintes fazem `upsert` dos snapshots e conteúdos.
 
 ## 10. Modelo de dados
 
