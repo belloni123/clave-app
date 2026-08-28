@@ -34,6 +34,9 @@ interface MetaErrorPayload {
     code?: number
     error_subcode?: number
   }
+  error_type?: string
+  error_message?: string
+  code?: number
 }
 
 interface InstagramProfilePayload extends MetaErrorPayload {
@@ -141,9 +144,11 @@ function requiredInstagramConfig() {
 
 async function readJson<T extends MetaErrorPayload>(response: Response): Promise<T> {
   const payload = await response.json().catch(() => ({})) as T
-  if (!response.ok || payload.error) {
-    const message = payload.error?.message || 'A Meta não conseguiu concluir a solicitação.'
-    throw new InstagramApiError(message, payload.error?.code)
+  if (!response.ok || payload.error || payload.error_message) {
+    const message = payload.error?.message
+      || payload.error_message
+      || 'A Meta não conseguiu concluir a solicitação.'
+    throw new InstagramApiError(message, payload.error?.code ?? payload.code)
   }
   return payload
 }
@@ -180,11 +185,17 @@ export async function exchangeInstagramCode(
     }),
     cache: 'no-store',
   })
-  const shortToken = await readJson<MetaErrorPayload & {
+  type ShortToken = {
     access_token?: string
     user_id?: string | number
-    permissions?: string[]
+    permissions?: string[] | string
+  }
+  const shortPayload = await readJson<MetaErrorPayload & ShortToken & {
+    data?: ShortToken[]
   }>(shortResponse)
+  // Since March 2026 the Instagram Login endpoint documents the token inside
+  // `data[0]`. Keep accepting the legacy top-level shape during the rollout.
+  const shortToken = shortPayload.data?.[0] || shortPayload
 
   if (!shortToken.access_token || !shortToken.user_id) {
     throw new InstagramApiError('A Meta não retornou as credenciais da conta.')
@@ -205,11 +216,15 @@ export async function exchangeInstagramCode(
   }
 
   const expiresIn = longToken.expires_in || 5_184_000
+  const grantedScopes = Array.isArray(shortToken.permissions)
+    ? shortToken.permissions
+    : shortToken.permissions?.split(',').map((scope) => scope.trim()).filter(Boolean)
+
   return {
     accessToken: longToken.access_token,
     instagramUserId: String(shortToken.user_id),
     expiresAt: new Date(Date.now() + expiresIn * 1_000).toISOString(),
-    grantedScopes: shortToken.permissions || [
+    grantedScopes: grantedScopes || [
       'instagram_business_basic',
       'instagram_business_manage_insights',
     ],
