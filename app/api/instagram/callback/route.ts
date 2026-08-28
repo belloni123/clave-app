@@ -38,17 +38,47 @@ function readOAuthState(request: NextRequest): OAuthState | null {
   }
 }
 
+function readRawQueryParam(request: NextRequest, key: string): string | null {
+  const query = request.url.split('?', 2)[1]?.split('#', 1)[0]
+  if (!query) return null
+
+  for (const part of query.split('&')) {
+    const separator = part.indexOf('=')
+    const rawKey = separator >= 0 ? part.slice(0, separator) : part
+    try {
+      if (decodeURIComponent(rawKey) !== key) continue
+      const rawValue = separator >= 0 ? part.slice(separator + 1) : ''
+      // Unlike URLSearchParams, decodeURIComponent preserves a literal `+`.
+      return decodeURIComponent(rawValue)
+    } catch {
+      return null
+    }
+  }
+
+  return null
+}
+
 export async function GET(request: NextRequest) {
-  const returnedState = request.nextUrl.searchParams.get('state')
-  const code = request.nextUrl.searchParams.get('code')
+  const returnedState = readRawQueryParam(request, 'state')
+  const code = readRawQueryParam(request, 'code')
   const oauthError = request.nextUrl.searchParams.get('error')
   const savedState = readOAuthState(request)
 
   if (oauthError) return dashboardRedirect(request, { instagram: 'cancelled' })
   if (!savedState || !returnedState || savedState.state !== returnedState || !code) {
+    console.error('Instagram OAuth callback rejected', {
+      hasCookie: Boolean(savedState),
+      hasReturnedState: Boolean(returnedState),
+      stateMatches: Boolean(savedState && returnedState && savedState.state === returnedState),
+      hasCode: Boolean(code),
+      codeLength: code?.length ?? 0,
+      codeHasWhitespace: Boolean(code && /\s/.test(code)),
+      redirectUri: savedState?.redirectUri ?? null,
+    })
     return dashboardRedirect(request, { instagram: 'invalid_state' })
   }
 
+  let stage = 'authorize_project'
   try {
     const { user } = await authorizeInstagramProject(savedState.projectId, {
       requireManager: true,
@@ -57,10 +87,13 @@ export async function GET(request: NextRequest) {
       return dashboardRedirect(request, { instagram: 'invalid_state' })
     }
 
+    stage = 'exchange_code'
     const token = await exchangeInstagramCode(code, savedState.redirectUri)
+    stage = 'fetch_profile'
     const profile = await fetchInstagramProfile(token.instagramUserId, token.accessToken)
     if (!profile.username) throw new Error('A conta profissional não pôde ser identificada.')
 
+    stage = 'load_connection'
     const admin = createAdminClient()
     const { data: existing } = await admin
       .from('instagram_connections')
@@ -83,6 +116,7 @@ export async function GET(request: NextRequest) {
       existingSecretId = null
     }
 
+    stage = 'save_token'
     const { data: secretId, error: secretError } = await admin.rpc('set_instagram_token', {
       p_secret_id: existingSecretId || null,
       p_token_value: token.accessToken,
@@ -108,6 +142,7 @@ export async function GET(request: NextRequest) {
       connected_at: new Date().toISOString(),
       last_error: null,
     }
+    stage = 'save_connection'
     const { data: connection, error: saveError } = await admin
       .from('instagram_connections')
       .upsert(payload, { onConflict: 'project_id' })
@@ -116,13 +151,21 @@ export async function GET(request: NextRequest) {
     if (saveError || !connection) throw new Error('Não foi possível salvar a conexão.')
 
     try {
+      stage = 'sync_connection'
       await syncInstagramConnection(connection.id, 'oauth')
       return dashboardRedirect(request, { instagram: 'connected' })
     } catch {
       return dashboardRedirect(request, { instagram: 'connected', sync: 'error' })
     }
   } catch (error) {
-    console.error('Instagram OAuth callback failed', error instanceof Error ? error.message : 'unknown')
+    console.error('Instagram OAuth callback failed', {
+      stage,
+      message: error instanceof Error ? error.message : 'unknown',
+      redirectUri: savedState.redirectUri,
+      codeLength: code.length,
+      codeHasWhitespace: /\s/.test(code),
+      codeHasPlus: code.includes('+'),
+    })
     return dashboardRedirect(request, { instagram: 'error' })
   }
 }
