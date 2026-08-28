@@ -22,6 +22,7 @@ import FormulariosModule from '@/components/modules/FormulariosModule'
 import CandidaturasModule from '@/components/modules/CandidaturasModule'
 import ClienteModule from '@/components/modules/ClienteModule'
 import MonitoramentoModule from '@/components/modules/MonitoramentoModule'
+import InstagramModule from '@/components/modules/InstagramModule'
 
 export default function Home() {
   const { activeModule } = useAppStore()
@@ -52,6 +53,8 @@ export default function Home() {
         return <ChipsModule />
       case 'formularios':
         return <FormulariosModule />
+      case 'instagram':
+        return <InstagramModule />
       case 'acesso':
         return <AcessoModule />
       case 'configuracoes':

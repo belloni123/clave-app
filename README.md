@@ -18,6 +18,7 @@ Para facilitar o desenvolvimento, a manutenção e o deploy do sistema, a docume
 *   **[Cliente e Evolução](./docs/requirements/2026-08-17-cliente-evolucao.md)**: Escopo consolidado dos áudios, campos do perfil, marco de entrada, cenário atual e integração conservadora com o briefing.
 *   **[Monitoramento Administrativo](./docs/requirements/2026-08-17-monitoramento-erros.md)**: Registro seguro de falhas, códigos de suporte, acesso administrativo e fluxo de resolução.
 *   **[Banco de Histórias e IA por Projeto](./docs/requirements/2026-08-24-banco-historias-ia-por-projeto.md)**: Entrada por texto ou áudio, transcrição local, armazenamento privado e credenciais OpenAI/Claude isoladas por projeto.
+*   **[PRD do Instagram Analytics](./docs/requirements/2026-08-28-instagram-analytics.md)**: Escopo, métricas, segurança, experiência e critérios de aceite da conexão por projeto.
 
 ---
 
@@ -58,6 +59,7 @@ A plataforma unifica diversos recursos de controle operacional e estratégico em
 16. **Cliente & Evolução por Projeto**: Cada projeto possui um perfil contratual, um cenário de entrada preservado e um cenário atual editável. O briefing público alimenta somente campos compatíveis ainda vazios no perfil e no marco zero; a equipe acompanha faturamento, audiência, operação e biografia atual sem duplicar o histórico do módulo Lançamentos.
 17. **Monitoramento Administrativo**: Falhas inesperadas dos formulários públicos, anexos, candidaturas e renderização do navegador são capturadas silenciosamente com um identificador interno. Somente administradores acessam a fila global e o diagnóstico completo, registram notas e controlam os estados Novo, Em análise e Resolvido; o visitante recebe apenas uma mensagem amigável e o responsável recebe um alerta por e-mail.
 18. **Banco de Histórias com Áudio**: Uma história pode ser digitada, gravada pelo microfone ou enviada como arquivo. A fala é transcrita localmente no navegador, o texto permanece editável e o áudio original é guardado em bucket privado. O Criador de Conteúdo usa somente a chave OpenAI ou Claude cadastrada no projeto ativo.
+19. **Instagram Analytics por Projeto**: Cada projeto conecta uma conta profissional pela API oficial da Meta e acompanha seguidores, crescimento, alcance, visualizações, engajamento e conteúdos de destaque. Os tokens ficam no Supabase Vault e os snapshots diários constroem o histórico próprio do Clave.
 
 ---
 
@@ -76,6 +78,11 @@ SUPABASE_SERVICE_ROLE_KEY=sua-service-role-key-privada
 SUPABASE_MANAGEMENT_ACCESS_TOKEN=seu-token-management-privado
 # Opcional; pode ser derivado da URL do Supabase
 SUPABASE_PROJECT_REF=seu-project-ref
+INSTAGRAM_APP_ID=seu-app-id-da-meta
+INSTAGRAM_APP_SECRET=seu-app-secret-da-meta
+# Opcional; o conector possui um padrão compatível
+INSTAGRAM_GRAPH_API_VERSION=v23.0
+CRON_SECRET=um-segredo-longo-para-a-sincronizacao-diaria
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` é usada apenas no servidor por rotas administrativas
@@ -89,6 +96,13 @@ no Git ou no chat.
 Não existe uma chave global de IA no ambiente. Um administrador cadastra a
 chave OpenAI ou Claude dentro do Criador de Conteúdo de cada projeto. O backend
 valida a credencial e guarda somente o segredo criptografado no Supabase Vault.
+
+No painel da Meta, cadastre a URL de callback
+`https://seu-dominio/api/instagram/callback` e solicite acesso avançado às
+permissões `instagram_business_basic` e
+`instagram_business_manage_insights`. A rotina diária deve fazer um `POST`
+para `/api/cron/instagram-sync` com o cabeçalho
+`Authorization: Bearer <CRON_SECRET>`.
 
 ### 3. Executando os Comandos
 ```bash
