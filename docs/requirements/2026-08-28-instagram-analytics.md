@@ -148,23 +148,25 @@ O menu lateral recebe o item **Instagram**, no grupo Ferramentas. O módulo poss
 - Toda leitura valida `user_has_project_module_access`.
 - Operações de vínculo validam `user_can_administer_project`.
 - Tokens são criptografados no Vault.
-- O callback usa `state` de uso único e cookie `SameSite=Lax`.
+- O callback usa `state` de uso único e cookies `HttpOnly`, `Secure` e `SameSite=Lax`.
+- O token retornado no fragmento oficial da Meta é removido imediatamente da URL,
+  enviado ao backend por HTTPS e protegido no Vault após a escolha da conta.
 - Solicitações de desautorização e exclusão validam a assinatura HMAC da Meta.
 - Revogar o acesso na Meta exclui a conexão, o token e os snapshots relacionados.
 - Logs não incluem token, código OAuth ou respostas completas da Meta.
 
 ## 12. Configuração necessária
 
-- `INSTAGRAM_APP_ID`
-- `INSTAGRAM_APP_SECRET`
-- `INSTAGRAM_GRAPH_API_VERSION` (opcional; padrão atual do conector)
+- `META_APP_ID`
+- `INSTAGRAM_GRAPH_API_VERSION` (opcional; padrão `v26.0`)
 - `CRON_SECRET` para a sincronização agendada
-- URL de callback cadastrada na Meta: `/api/instagram/callback`
+- URL de callback cadastrada no Login do Facebook para Empresas: `/instagram/conectar`
 - URL de desautorização: `/api/instagram/deauthorize`
 - URL de solicitação de exclusão: `/api/instagram/data-deletion`
 - Política de privacidade pública: `/privacidade`
 - Termos de serviço públicos: `/termos`
-- Permissões com acesso avançado: `instagram_business_basic` e `instagram_business_manage_insights`
+- Permissões: `instagram_basic`, `instagram_manage_insights`, `pages_show_list`
+  `pages_read_engagement` e `business_management`
 
 ## 13. Critérios de aceite
 

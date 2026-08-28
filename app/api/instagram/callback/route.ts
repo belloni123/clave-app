@@ -1,171 +1,238 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authorizeInstagramProject } from '@/utils/instagram/access'
-import { exchangeInstagramCode, fetchInstagramProfile, syncInstagramConnection } from '@/utils/instagram/server'
+import {
+  fetchFacebookGrantedScopes,
+  fetchFacebookInstagramAccounts,
+  syncInstagramConnection,
+  type FacebookInstagramAccount,
+} from '@/utils/instagram/server'
 import { getPublicAppOrigin } from '@/utils/http/public-app-origin'
+import {
+  INSTAGRAM_OAUTH_COOKIE,
+  INSTAGRAM_PENDING_COOKIE,
+  instagramOAuthCookieOptions,
+  readInstagramOAuthState,
+  readInstagramPendingAuthorization,
+  sealInstagramPendingAuthorization,
+  type InstagramOAuthState,
+  type InstagramPendingAuthorization,
+} from '@/utils/instagram/oauth'
 import { createAdminClient } from '@/utils/supabase/admin'
 
-const OAUTH_COOKIE = 'clave_instagram_oauth'
+const REQUIRED_SCOPES = [
+  'instagram_basic',
+  'instagram_manage_insights',
+  'pages_show_list',
+  'pages_read_engagement',
+  'business_management',
+]
 
-interface OAuthState {
-  state: string
-  projectId: string
-  userId: string
-  redirectUri: string
-  createdAt: number
+interface CallbackBody {
+  state?: string
+  accessToken?: string
+  selectedInstagramUserId?: string
+  expiresIn?: number
+  isLongLived?: boolean
 }
 
-function dashboardRedirect(request: NextRequest, params: Record<string, string>) {
-  const url = new URL('/', getPublicAppOrigin(request))
-  url.searchParams.set('activeModule', 'instagram')
-  Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value))
-  const response = NextResponse.redirect(url)
-  response.cookies.delete(OAUTH_COOKIE)
+function clearOAuthCookies(response: NextResponse) {
+  response.cookies.delete(INSTAGRAM_OAUTH_COOKIE)
+  response.cookies.delete(INSTAGRAM_PENDING_COOKIE)
   return response
 }
 
-function readOAuthState(request: NextRequest): OAuthState | null {
-  const value = request.cookies.get(OAUTH_COOKIE)?.value
-  if (!value) return null
-  try {
-    const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as OAuthState
-    if (!parsed.state || !parsed.projectId || !parsed.userId || !parsed.redirectUri || !parsed.createdAt) {
-      return null
-    }
-    if (Date.now() - parsed.createdAt > 10 * 60 * 1_000) return null
-    return parsed
-  } catch {
-    return null
-  }
+function errorResponse(message: string, status = 400, clear = false) {
+  const response = NextResponse.json({ error: message }, { status })
+  return clear ? clearOAuthCookies(response) : response
 }
 
-function readRawQueryParam(request: NextRequest, key: string): string | null {
-  const query = request.url.split('?', 2)[1]?.split('#', 1)[0]
-  if (!query) return null
+function tokenExpiration(body: CallbackBody) {
+  const fallbackSeconds = body.isLongLived ? 60 * 24 * 60 * 60 : 60 * 60
+  const seconds = Number.isFinite(body.expiresIn)
+    ? Math.max(60, Math.min(Number(body.expiresIn), 60 * 24 * 60 * 60))
+    : fallbackSeconds
+  return new Date(Date.now() + seconds * 1_000).toISOString()
+}
 
-  for (const part of query.split('&')) {
-    const separator = part.indexOf('=')
-    const rawKey = separator >= 0 ? part.slice(0, separator) : part
-    try {
-      if (decodeURIComponent(rawKey) !== key) continue
-      const rawValue = separator >= 0 ? part.slice(separator + 1) : ''
-      // Unlike URLSearchParams, decodeURIComponent preserves a literal `+`.
-      return decodeURIComponent(rawValue)
-    } catch {
-      return null
+async function validateOAuthUser(request: NextRequest, returnedState: string | undefined) {
+  const savedState = readInstagramOAuthState(request)
+  if (!savedState || !returnedState || savedState.state !== returnedState) {
+    throw new Error('A autorização expirou ou não pertence a esta sessão.')
+  }
+  const { user } = await authorizeInstagramProject(savedState.projectId, {
+    requireManager: true,
+  })
+  if (user.id !== savedState.userId) {
+    throw new Error('A autorização não pertence ao usuário conectado.')
+  }
+  return { savedState, user }
+}
+
+async function saveConnection(
+  savedState: InstagramOAuthState,
+  userId: string,
+  authorization: InstagramPendingAuthorization,
+  account: FacebookInstagramAccount,
+) {
+  const admin = createAdminClient()
+  const { data: existing } = await admin
+    .from('instagram_connections')
+    .select('id, instagram_user_id, token_secret_id')
+    .eq('project_id', savedState.projectId)
+    .maybeSingle()
+
+  let existingSecretId = existing?.token_secret_id as string | null | undefined
+  if (existing && existing.instagram_user_id !== account.instagramUserId) {
+    const oldSecretId = existingSecretId
+    const { error: deleteError } = await admin
+      .from('instagram_connections')
+      .delete()
+      .eq('id', existing.id)
+    if (deleteError) throw new Error('Não foi possível trocar a conta conectada.')
+    if (oldSecretId) {
+      const { error } = await admin.rpc('delete_instagram_token', {
+        p_secret_id: oldSecretId,
+      })
+      if (error) console.error('Instagram old Vault secret cleanup failed', error.message)
     }
+    existingSecretId = null
   }
 
-  return null
+  const { data: secretId, error: secretError } = await admin.rpc('set_instagram_token', {
+    p_secret_id: existingSecretId || null,
+    p_token_value: authorization.accessToken,
+  })
+  if (secretError || typeof secretId !== 'string') {
+    throw new Error('Não foi possível proteger a autorização do Instagram.')
+  }
+
+  const { data: connection, error: saveError } = await admin
+    .from('instagram_connections')
+    .upsert({
+      project_id: savedState.projectId,
+      instagram_user_id: account.instagramUserId,
+      username: account.username,
+      name: account.name,
+      account_type: account.accountType,
+      profile_picture_url: account.profilePictureUrl,
+      followers_count: account.followersCount,
+      media_count: account.mediaCount,
+      token_secret_id: secretId,
+      token_expires_at: authorization.tokenExpiresAt,
+      granted_scopes: authorization.grantedScopes,
+      status: 'connected',
+      connected_by: userId,
+      connected_at: new Date().toISOString(),
+      last_error: null,
+    }, { onConflict: 'project_id' })
+    .select('id')
+    .single()
+  if (saveError || !connection) throw new Error('Não foi possível salvar a conexão.')
+
+  try {
+    await syncInstagramConnection(connection.id, 'oauth')
+    return { syncError: false }
+  } catch (error) {
+    console.error('Instagram first sync failed', {
+      message: error instanceof Error ? error.message : 'unknown',
+      connectionId: connection.id,
+    })
+    return { syncError: true }
+  }
 }
 
 export async function GET(request: NextRequest) {
-  const returnedState = readRawQueryParam(request, 'state')
-  const code = readRawQueryParam(request, 'code')
-  const oauthError = request.nextUrl.searchParams.get('error')
-  const savedState = readOAuthState(request)
+  const url = new URL('/', getPublicAppOrigin(request))
+  url.searchParams.set('activeModule', 'instagram')
+  url.searchParams.set('instagram', 'invalid_state')
+  return clearOAuthCookies(NextResponse.redirect(url))
+}
 
-  if (oauthError) return dashboardRedirect(request, { instagram: 'cancelled' })
-  if (!savedState || !returnedState || savedState.state !== returnedState || !code) {
-    console.error('Instagram OAuth callback rejected', {
-      hasCookie: Boolean(savedState),
-      hasReturnedState: Boolean(returnedState),
-      stateMatches: Boolean(savedState && returnedState && savedState.state === returnedState),
-      hasCode: Boolean(code),
-      codeLength: code?.length ?? 0,
-      codeHasWhitespace: Boolean(code && /\s/.test(code)),
-      redirectUri: savedState?.redirectUri ?? null,
-    })
-    return dashboardRedirect(request, { instagram: 'invalid_state' })
-  }
-
-  let stage = 'authorize_project'
+export async function POST(request: NextRequest) {
+  let stage = 'read_body'
   try {
-    const { user } = await authorizeInstagramProject(savedState.projectId, {
-      requireManager: true,
-    })
-    if (user.id !== savedState.userId) {
-      return dashboardRedirect(request, { instagram: 'invalid_state' })
-    }
+    const body = await request.json() as CallbackBody
+    stage = 'validate_state'
+    const { savedState, user } = await validateOAuthUser(request, body.state)
 
-    stage = 'exchange_code'
-    const token = await exchangeInstagramCode(code, savedState.redirectUri)
-    stage = 'fetch_profile'
-    const profile = await fetchInstagramProfile(token.instagramUserId, token.accessToken)
-    if (!profile.username) throw new Error('A conta profissional não pôde ser identificada.')
-
-    stage = 'load_connection'
-    const admin = createAdminClient()
-    const { data: existing } = await admin
-      .from('instagram_connections')
-      .select('id, instagram_user_id, token_secret_id')
-      .eq('project_id', savedState.projectId)
-      .maybeSingle()
-
-    let existingSecretId = existing?.token_secret_id as string | null | undefined
-    if (existing && existing.instagram_user_id !== token.instagramUserId) {
-      const oldSecretId = existingSecretId
-      const { error: deleteError } = await admin
-        .from('instagram_connections')
-        .delete()
-        .eq('id', existing.id)
-      if (deleteError) throw new Error('Não foi possível trocar a conta conectada.')
-      if (oldSecretId) {
-        const { error } = await admin.rpc('delete_instagram_token', { p_secret_id: oldSecretId })
-        if (error) console.error('Instagram old Vault secret cleanup failed', error.message)
+    if (body.accessToken) {
+      stage = 'load_permissions'
+      const grantedScopes = await fetchFacebookGrantedScopes(body.accessToken)
+      const missingScopes = REQUIRED_SCOPES.filter((scope) => !grantedScopes.includes(scope))
+      if (missingScopes.length) {
+        return errorResponse(
+          `A Meta não liberou as permissões necessárias: ${missingScopes.join(', ')}.`,
+          403,
+          true,
+        )
       }
-      existingSecretId = null
+
+      stage = 'load_accounts'
+      const accounts = await fetchFacebookInstagramAccounts(body.accessToken)
+      if (!accounts.length) {
+        return errorResponse(
+          'Nenhuma conta profissional vinculada a uma Página da nossa BM foi encontrada.',
+          404,
+          true,
+        )
+      }
+
+      const authorization: InstagramPendingAuthorization = {
+        accessToken: body.accessToken,
+        tokenExpiresAt: tokenExpiration(body),
+        grantedScopes,
+        createdAt: Date.now(),
+      }
+      if (accounts.length === 1) {
+        stage = 'save_connection'
+        const result = await saveConnection(savedState, user.id, authorization, accounts[0])
+        return clearOAuthCookies(NextResponse.json({
+          connected: true,
+          syncError: result.syncError,
+        }))
+      }
+
+      const response = NextResponse.json({ connected: false, accounts })
+      response.cookies.set(
+        INSTAGRAM_PENDING_COOKIE,
+        sealInstagramPendingAuthorization(authorization),
+        instagramOAuthCookieOptions(),
+      )
+      return response
     }
 
-    stage = 'save_token'
-    const { data: secretId, error: secretError } = await admin.rpc('set_instagram_token', {
-      p_secret_id: existingSecretId || null,
-      p_token_value: token.accessToken,
-    })
-    if (secretError || typeof secretId !== 'string') {
-      throw new Error('Não foi possível proteger a autorização do Instagram.')
+    if (body.selectedInstagramUserId) {
+      stage = 'read_pending_authorization'
+      const authorization = readInstagramPendingAuthorization(request)
+      if (!authorization) {
+        return errorResponse('A escolha da conta expirou. Inicie a conexão novamente.', 400, true)
+      }
+      stage = 'validate_selected_account'
+      const accounts = await fetchFacebookInstagramAccounts(authorization.accessToken)
+      const account = accounts.find(
+        (item) => item.instagramUserId === body.selectedInstagramUserId,
+      )
+      if (!account) {
+        return errorResponse('A conta selecionada não está mais disponível na BM.', 404, true)
+      }
+      stage = 'save_connection'
+      const result = await saveConnection(savedState, user.id, authorization, account)
+      return clearOAuthCookies(NextResponse.json({
+        connected: true,
+        syncError: result.syncError,
+      }))
     }
 
-    const payload = {
-      project_id: savedState.projectId,
-      instagram_user_id: token.instagramUserId,
-      username: profile.username,
-      name: profile.name || null,
-      account_type: profile.account_type || null,
-      profile_picture_url: profile.profile_picture_url || null,
-      followers_count: profile.followers_count ?? null,
-      media_count: profile.media_count ?? null,
-      token_secret_id: secretId,
-      token_expires_at: token.expiresAt,
-      granted_scopes: token.grantedScopes,
-      status: 'connected',
-      connected_by: user.id,
-      connected_at: new Date().toISOString(),
-      last_error: null,
-    }
-    stage = 'save_connection'
-    const { data: connection, error: saveError } = await admin
-      .from('instagram_connections')
-      .upsert(payload, { onConflict: 'project_id' })
-      .select('id')
-      .single()
-    if (saveError || !connection) throw new Error('Não foi possível salvar a conexão.')
-
-    try {
-      stage = 'sync_connection'
-      await syncInstagramConnection(connection.id, 'oauth')
-      return dashboardRedirect(request, { instagram: 'connected' })
-    } catch {
-      return dashboardRedirect(request, { instagram: 'connected', sync: 'error' })
-    }
+    return errorResponse('A Meta não retornou uma autorização válida.', 400, true)
   } catch (error) {
-    console.error('Instagram OAuth callback failed', {
+    console.error('Instagram Facebook callback failed', {
       stage,
       message: error instanceof Error ? error.message : 'unknown',
-      redirectUri: savedState.redirectUri,
-      codeLength: code.length,
-      codeHasWhitespace: /\s/.test(code),
-      codeHasPlus: code.includes('+'),
     })
-    return dashboardRedirect(request, { instagram: 'error' })
+    return errorResponse(
+      error instanceof Error ? error.message : 'Não foi possível conectar o Instagram.',
+      500,
+      true,
+    )
   }
 }
