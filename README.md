@@ -101,8 +101,9 @@ No painel da Meta, cadastre a URL de callback
 `https://seu-dominio/api/instagram/callback`, o retorno de desautorização
 `https://seu-dominio/api/instagram/deauthorize` e a solicitação de exclusão
 `https://seu-dominio/api/instagram/data-deletion`. Use
-`https://seu-dominio/privacidade` como política de privacidade e solicite acesso
-avançado somente às permissões `instagram_business_basic` e
+`https://seu-dominio/privacidade` como política de privacidade,
+`https://seu-dominio/termos` como termos de serviço e solicite acesso avançado
+somente às permissões `instagram_business_basic` e
 `instagram_business_manage_insights`. A rotina diária deve fazer um `POST`
 para `/api/cron/instagram-sync` com o cabeçalho
 `Authorization: Bearer <CRON_SECRET>`.

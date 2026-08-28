@@ -163,6 +163,7 @@ O menu lateral recebe o item **Instagram**, no grupo Ferramentas. O módulo poss
 - URL de desautorização: `/api/instagram/deauthorize`
 - URL de solicitação de exclusão: `/api/instagram/data-deletion`
 - Política de privacidade pública: `/privacidade`
+- Termos de serviço públicos: `/termos`
 - Permissões com acesso avançado: `instagram_business_basic` e `instagram_business_manage_insights`
 
 ## 13. Critérios de aceite
