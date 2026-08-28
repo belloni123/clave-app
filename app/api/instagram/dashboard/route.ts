@@ -6,6 +6,7 @@ import type {
   InstagramDailyMetric,
   InstagramDashboardResponse,
   InstagramMediaMetric,
+  InstagramPeriodMetric,
 } from '@/types/instagram'
 
 interface ConnectionRow {
@@ -24,7 +25,29 @@ interface ConnectionRow {
   last_error: string | null
 }
 
+interface PeriodRow {
+  window_days: 7 | 30 | 90
+  window_kind: 'current' | 'previous'
+  period_start: string
+  period_end: string
+  reach: number | null
+  views: number | null
+  profile_views: number | null
+  profile_links_taps: number | null
+  accounts_engaged: number | null
+  total_interactions: number | null
+  likes: number | null
+  comments: number | null
+  shares: number | null
+  saves: number | null
+  replies: number | null
+  follows: number | null
+  unfollows: number | null
+  collected_at: string
+}
+
 const DAILY_SELECT = 'metric_date,followers_count,follows,unfollows,reach,views,profile_views,profile_links_taps,accounts_engaged,total_interactions,likes,comments,shares,saves,replies' as const
+const PERIOD_SELECT = 'window_days,window_kind,period_start,period_end,reach,views,profile_views,profile_links_taps,accounts_engaged,total_interactions,likes,comments,shares,saves,replies,follows,unfollows,collected_at' as const
 const MEDIA_SELECT = 'id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,posted_at,like_count,comments_count,is_story' as const
 const INSIGHTS_SELECT = 'media_id,collected_on,views,reach,plays,total_interactions,likes,comments,shares,saves,replies,average_watch_time_ms,total_watch_time_ms' as const
 
@@ -32,6 +55,29 @@ function numeric(value: unknown): number | null {
   if (value === null || value === undefined) return null
   const result = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(result) ? result : null
+}
+
+function mapPeriod(item: PeriodRow | undefined): InstagramPeriodMetric | null {
+  if (!item) return null
+  return {
+    windowDays: item.window_days,
+    periodStart: item.period_start,
+    periodEnd: item.period_end,
+    reach: numeric(item.reach),
+    views: numeric(item.views),
+    profileViews: numeric(item.profile_views),
+    profileLinksTaps: numeric(item.profile_links_taps),
+    accountsEngaged: numeric(item.accounts_engaged),
+    totalInteractions: numeric(item.total_interactions),
+    likes: numeric(item.likes),
+    comments: numeric(item.comments),
+    shares: numeric(item.shares),
+    saves: numeric(item.saves),
+    replies: numeric(item.replies),
+    follows: numeric(item.follows),
+    unfollows: numeric(item.unfollows),
+    collectedAt: item.collected_at,
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -73,6 +119,7 @@ export async function GET(request: NextRequest) {
         canManage: Boolean(canManage),
         days,
         daily: [],
+        summary: { current: null, previous: null },
         media: [],
       }
       return NextResponse.json(empty)
@@ -99,13 +146,18 @@ export async function GET(request: NextRequest) {
     historyStart.setUTCDate(historyStart.getUTCDate() - days * 2)
     const mediaStart = new Date()
     mediaStart.setUTCDate(mediaStart.getUTCDate() - days)
-    const [dailyResult, mediaResult] = await Promise.all([
+    const [dailyResult, periodResult, mediaResult] = await Promise.all([
       admin
         .from('instagram_account_daily')
         .select(DAILY_SELECT)
         .eq('connection_id', connectionRow.id)
         .gte('metric_date', historyStart.toISOString().slice(0, 10))
         .order('metric_date', { ascending: true }),
+      admin
+        .from('instagram_account_period_totals')
+        .select(PERIOD_SELECT)
+        .eq('connection_id', connectionRow.id)
+        .eq('window_days', days),
       admin
         .from('instagram_media')
         .select(MEDIA_SELECT)
@@ -115,6 +167,7 @@ export async function GET(request: NextRequest) {
         .limit(50),
     ])
     if (dailyResult.error) throw dailyResult.error
+    if (periodResult.error) throw periodResult.error
     if (mediaResult.error) throw mediaResult.error
 
     const mediaRows = mediaResult.data || []
@@ -154,6 +207,12 @@ export async function GET(request: NextRequest) {
       replies: numeric(item.replies),
     }))
 
+    const periodRows = (periodResult.data || []) as unknown as PeriodRow[]
+    const summary = {
+      current: mapPeriod(periodRows.find((item) => item.window_kind === 'current')),
+      previous: mapPeriod(periodRows.find((item) => item.window_kind === 'previous')),
+    }
+
     const media: InstagramMediaMetric[] = mediaRows.map((item) => {
       const insight = latestInsight.get(item.id)
       return {
@@ -189,6 +248,7 @@ export async function GET(request: NextRequest) {
       canManage: Boolean(canManage),
       days,
       daily,
+      summary,
       media,
     }
     return NextResponse.json(response)

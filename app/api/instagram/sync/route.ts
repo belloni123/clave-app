@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { after, NextRequest, NextResponse } from 'next/server'
 import { authorizeInstagramProject, InstagramAccessError } from '@/utils/instagram/access'
 import { syncInstagramConnection } from '@/utils/instagram/server'
 import { createAdminClient } from '@/utils/supabase/admin'
@@ -23,9 +23,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'A conta já está sendo sincronizada.' }, { status: 409 })
     }
 
-    const result = await syncInstagramConnection(connection.id, 'manual')
-    const response: InstagramSyncResponse = { ok: true, ...result }
-    return NextResponse.json(response)
+    after(async () => {
+      try {
+        await syncInstagramConnection(connection.id, 'manual')
+      } catch (syncError) {
+        console.error('Instagram manual sync failed', {
+          connectionId: connection.id,
+          message: syncError instanceof Error ? syncError.message : 'unknown',
+        })
+      }
+    })
+    const response: InstagramSyncResponse = { ok: true, queued: true }
+    return NextResponse.json(response, { status: 202 })
   } catch (error) {
     const status = error instanceof InstagramAccessError ? error.status : 500
     const message = error instanceof Error ? error.message : 'Não foi possível sincronizar.'
