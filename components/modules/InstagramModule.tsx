@@ -1,5 +1,7 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element */
+
 import React, { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAppStore } from '@/store/useAppStore'
@@ -198,7 +200,16 @@ function MediaCard({ media, rank }: { media: InstagramMediaMetric; rank: number 
   const views = media.insights?.views ?? media.insights?.plays ?? null
   return (
     <a href={media.permalink || '#'} target={media.permalink ? '_blank' : undefined} rel="noreferrer" className="group bg-surface2/60 border border-border-custom rounded-xl overflow-hidden min-w-0 hover:border-border2 hover:-translate-y-0.5 transition-all">
-      <div className="aspect-[4/5] relative bg-gradient-to-br from-purple-custom/30 via-coral-custom/20 to-amber-custom/30 bg-cover bg-center" style={imageUrl ? { backgroundImage: `url(${JSON.stringify(imageUrl).slice(1, -1)})` } : undefined}>
+      <div className="aspect-[4/5] relative overflow-hidden bg-gradient-to-br from-purple-custom/30 via-coral-custom/20 to-amber-custom/30">
+        {imageUrl && (
+          <img
+            src={imageUrl}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
         <span className="absolute top-2.5 left-2.5 w-6 h-6 rounded-full bg-black/65 text-white text-[10px] font-bold flex items-center justify-center backdrop-blur-sm">{rank}</span>
         <span className="absolute top-2.5 right-2.5 px-2 py-1 rounded-full bg-black/65 text-white text-[9px] font-semibold flex items-center gap-1 backdrop-blur-sm">
@@ -300,6 +311,9 @@ export default function InstagramModule() {
     queryFn: () => fetchDashboard(activeProjectId!, period),
     enabled: Boolean(activeProjectId),
     staleTime: 60_000,
+    refetchInterval: (currentQuery) => (
+      currentQuery.state.data?.connection?.status === 'syncing' ? 10_000 : false
+    ),
   })
 
   const analytics = useMemo(() => {
@@ -415,6 +429,7 @@ export default function InstagramModule() {
 
   const { connection } = query.data
   const best = rankedMedia[0]
+  const isSyncing = connection.status === 'syncing'
   const statusError = connection.status === 'error' || connection.status === 'expired'
   const topFormat = formatDistribution[0]
 
@@ -435,7 +450,7 @@ export default function InstagramModule() {
                 <span className="hidden sm:inline-flex px-2 py-0.5 rounded-full bg-purple-bg text-purple-t text-[9px] font-bold uppercase tracking-wide">{connection.accountType || 'Profissional'}</span>
               </div>
               <p className="text-xs text-text2 mt-0.5 truncate">@{connection.username} · {formatNumber(connection.followersCount, false)} seguidores</p>
-              <p className="text-[10px] text-text3 mt-1 flex items-center gap-1.5"><span className={`w-1.5 h-1.5 rounded-full ${statusError ? 'bg-red-t' : 'bg-green-custom'}`} />{statusError ? 'Atenção necessária' : 'Dados conectados'} · {formatRelativeDate(connection.lastSyncedAt)}</p>
+              <p className="text-[10px] text-text3 mt-1 flex items-center gap-1.5"><span className={`w-1.5 h-1.5 rounded-full ${statusError ? 'bg-red-t' : isSyncing ? 'bg-amber-custom animate-pulse' : 'bg-green-custom'}`} />{statusError ? 'Atenção necessária' : isSyncing ? 'Sincronizando dados' : 'Dados conectados'} · {formatRelativeDate(connection.lastSyncedAt)}</p>
             </div>
           </div>
 

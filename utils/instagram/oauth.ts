@@ -17,13 +17,15 @@ export interface InstagramOAuthState {
   projectId: string
   userId: string
   redirectUri: string
+  source: 'business' | 'oauth'
   createdAt: number
 }
 
 export interface InstagramPendingAuthorization {
   accessToken: string
-  tokenExpiresAt: string
+  tokenExpiresAt: string | null
   grantedScopes: string[]
+  source: 'business' | 'oauth'
   createdAt: number
 }
 
@@ -44,6 +46,7 @@ export function readInstagramOAuthState(request: NextRequest): InstagramOAuthSta
       || !parsed.projectId
       || !parsed.userId
       || !parsed.redirectUri
+      || !['business', 'oauth'].includes(parsed.source)
       || !parsed.createdAt
     ) {
       return null
@@ -97,8 +100,9 @@ export function readInstagramPendingAuthorization(
     const parsed = JSON.parse(decrypted) as InstagramPendingAuthorization
     if (
       !parsed.accessToken
-      || !parsed.tokenExpiresAt
+      || (parsed.tokenExpiresAt !== null && typeof parsed.tokenExpiresAt !== 'string')
       || !Array.isArray(parsed.grantedScopes)
+      || !['business', 'oauth'].includes(parsed.source)
       || !parsed.createdAt
     ) {
       return null

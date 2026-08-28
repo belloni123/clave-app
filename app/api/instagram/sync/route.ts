@@ -12,12 +12,14 @@ export async function POST(request: NextRequest) {
     const admin = createAdminClient()
     const { data: connection, error } = await admin
       .from('instagram_connections')
-      .select('id, status')
+      .select('id, status, updated_at')
       .eq('project_id', projectId)
       .maybeSingle()
     if (error) throw error
     if (!connection) return NextResponse.json({ error: 'Conecte uma conta primeiro.' }, { status: 404 })
-    if (connection.status === 'syncing') {
+    const syncingIsRecent = connection.status === 'syncing'
+      && Date.now() - new Date(connection.updated_at).getTime() < 15 * 60 * 1_000
+    if (syncingIsRecent) {
       return NextResponse.json({ error: 'A conta já está sendo sincronizada.' }, { status: 409 })
     }
 

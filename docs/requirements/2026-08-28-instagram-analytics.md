@@ -150,8 +150,12 @@ O menu lateral recebe o item **Instagram**, no grupo Ferramentas. O módulo poss
 - Toda rota valida a sessão real com `auth.getUser()`.
 - Toda leitura valida `user_has_project_module_access`.
 - Operações de vínculo validam `user_can_administer_project`.
+- O seletor alimentado pelo token central da BM é exclusivo de administradores
+  globais/da agência. No OAuth individual, as Páginas autorizadas pelo usuário
+  são intersectadas com os ativos da BM antes de aparecerem no seletor.
 - Tokens são criptografados no Vault.
-- O callback usa `state` de uso único e cookies `HttpOnly`, `Secure` e `SameSite=Lax`.
+- O callback correlaciona o `state` com um cookie `HttpOnly`, `Secure` e
+  `SameSite=Lax`, expira a tentativa em 15 minutos e remove os cookies ao concluir.
 - O token retornado no fragmento oficial da Meta é removido imediatamente da URL,
   enviado ao backend por HTTPS e protegido no Vault após a escolha da conta.
 - Solicitações de desautorização e exclusão validam a assinatura HMAC da Meta.
@@ -161,6 +165,9 @@ O menu lateral recebe o item **Instagram**, no grupo Ferramentas. O módulo poss
 ## 12. Configuração necessária
 
 - `META_APP_ID`
+- `INSTAGRAM_APP_SECRET`
+- `META_BUSINESS_ID` da BM autorizada
+- `META_SYSTEM_USER_TOKEN` do usuário de sistema da BM (modo recomendado)
 - `INSTAGRAM_GRAPH_API_VERSION` (opcional; padrão `v26.0`)
 - `CRON_SECRET` para a sincronização agendada
 - URL de callback cadastrada no Login do Facebook para Empresas: `/instagram/conectar`

@@ -1,6 +1,10 @@
 import { randomBytes } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { authorizeInstagramProject, InstagramAccessError } from '@/utils/instagram/access'
+import {
+  authorizeInstagramProject,
+  InstagramAccessError,
+  userCanUseInstagramBusinessToken,
+} from '@/utils/instagram/access'
 import { getPublicAppOrigin } from '@/utils/http/public-app-origin'
 import {
   encodeInstagramOAuthState,
@@ -12,7 +16,7 @@ export async function GET(request: NextRequest) {
   const projectId = request.nextUrl.searchParams.get('projectId')?.trim() || ''
 
   try {
-    const { user } = await authorizeInstagramProject(projectId, { requireManager: true })
+    const { user, supabase } = await authorizeInstagramProject(projectId, { requireManager: true })
     const appId = process.env.META_APP_ID?.trim()
     if (!appId) {
       return NextResponse.redirect(
@@ -23,19 +27,39 @@ export async function GET(request: NextRequest) {
     const state = randomBytes(32).toString('base64url')
     const origin = getPublicAppOrigin(request)
     const redirectUri = `${origin}/instagram/conectar`
+    const systemTokenConfigured = Boolean(process.env.META_SYSTEM_USER_TOKEN?.trim())
+    const canUseBusinessToken = systemTokenConfigured
+      && await userCanUseInstagramBusinessToken(supabase, user.id)
+    if (canUseBusinessToken) {
+      const businessConnectUrl = new URL(redirectUri)
+      businessConnectUrl.searchParams.set('source', 'business')
+      businessConnectUrl.searchParams.set('state', state)
+      const response = NextResponse.redirect(businessConnectUrl)
+      response.cookies.set(INSTAGRAM_OAUTH_COOKIE, encodeInstagramOAuthState({
+        state,
+        projectId,
+        userId: user.id,
+        redirectUri,
+        source: 'business',
+        createdAt: Date.now(),
+      }), instagramOAuthCookieOptions())
+      return response
+    }
+
     const version = process.env.INSTAGRAM_GRAPH_API_VERSION?.trim() || 'v26.0'
     const authorizeUrl = new URL(`https://www.facebook.com/${version}/dialog/oauth`)
     authorizeUrl.searchParams.set('client_id', appId)
     authorizeUrl.searchParams.set('display', 'page')
     authorizeUrl.searchParams.set('redirect_uri', redirectUri)
     authorizeUrl.searchParams.set('response_type', 'token')
-    authorizeUrl.searchParams.set('scope', [
+    const scopes = [
       'instagram_basic',
       'instagram_manage_insights',
       'pages_show_list',
       'pages_read_engagement',
-      'business_management',
-    ].join(','))
+    ]
+    if (!systemTokenConfigured) scopes.push('business_management')
+    authorizeUrl.searchParams.set('scope', scopes.join(','))
     authorizeUrl.searchParams.set('state', state)
 
     const response = NextResponse.redirect(authorizeUrl)
@@ -44,6 +68,7 @@ export async function GET(request: NextRequest) {
       projectId,
       userId: user.id,
       redirectUri,
+      source: 'oauth',
       createdAt: Date.now(),
     }), instagramOAuthCookieOptions())
     return response

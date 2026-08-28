@@ -76,6 +76,17 @@ export default function ProjectSwitcher() {
         return
       }
 
+      const requestedProjectId = typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('projectId')
+        : null
+      const requestedProjectIsAvailable = dbProjects.some(
+        (project) => project.id === requestedProjectId,
+      )
+      if (requestedProjectIsAvailable && requestedProjectId !== activeProjectId) {
+        setActiveProjectId(requestedProjectId)
+        return
+      }
+
       const activeProjectIsAvailable = dbProjects.some(
         (project) => project.id === activeProjectId,
       )

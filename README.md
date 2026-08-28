@@ -79,6 +79,9 @@ SUPABASE_MANAGEMENT_ACCESS_TOKEN=seu-token-management-privado
 # Opcional; pode ser derivado da URL do Supabase
 SUPABASE_PROJECT_REF=seu-project-ref
 META_APP_ID=seu-id-do-app-meta
+INSTAGRAM_APP_SECRET=seu-segredo-do-app-meta
+META_BUSINESS_ID=id-da-bm-autorizada
+META_SYSTEM_USER_TOKEN=token-do-usuario-de-sistema-da-bm
 # Opcional; o conector usa a versão oficial compatível atual
 INSTAGRAM_GRAPH_API_VERSION=v26.0
 CRON_SECRET=um-segredo-longo-para-a-sincronizacao-diaria
@@ -96,7 +99,12 @@ Não existe uma chave global de IA no ambiente. Um administrador cadastra a
 chave OpenAI ou Claude dentro do Criador de Conteúdo de cada projeto. O backend
 valida a credencial e guarda somente o segredo criptografado no Supabase Vault.
 
-No Login do Facebook para Empresas da Meta, cadastre a URL de callback
+O modo recomendado para uma operação restrita à própria BM usa
+`META_SYSTEM_USER_TOKEN`: o token fica somente no servidor e o usuário do Clave
+com perfil administrativo da agência abre diretamente o seletor de contas
+autorizadas. Administradores de projeto sem esse perfil usam o Login do Facebook
+para Empresas; as contas retornadas são sempre intersectadas com os ativos da BM
+para impedir exposição entre clientes. Nesse fallback, cadastre a URL de callback
 `https://seu-dominio/instagram/conectar`. O conector lista somente contas
 profissionais já ligadas a Páginas disponíveis na BM autorizada. Use
 `https://seu-dominio/privacidade` como política de privacidade,

@@ -24,6 +24,10 @@ interface ConnectionRow {
   last_error: string | null
 }
 
+const DAILY_SELECT = 'metric_date,followers_count,follows,unfollows,reach,views,profile_views,profile_links_taps,accounts_engaged,total_interactions,likes,comments,shares,saves,replies' as const
+const MEDIA_SELECT = 'id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,posted_at,like_count,comments_count,is_story' as const
+const INSIGHTS_SELECT = 'media_id,collected_on,views,reach,plays,total_interactions,likes,comments,shares,saves,replies,average_watch_time_ms,total_watch_time_ms' as const
+
 function numeric(value: unknown): number | null {
   if (value === null || value === undefined) return null
   const result = typeof value === 'number' ? value : Number(value)
@@ -98,13 +102,13 @@ export async function GET(request: NextRequest) {
     const [dailyResult, mediaResult] = await Promise.all([
       admin
         .from('instagram_account_daily')
-        .select('*')
+        .select(DAILY_SELECT)
         .eq('connection_id', connectionRow.id)
         .gte('metric_date', historyStart.toISOString().slice(0, 10))
         .order('metric_date', { ascending: true }),
       admin
         .from('instagram_media')
-        .select('*')
+        .select(MEDIA_SELECT)
         .eq('connection_id', connectionRow.id)
         .gte('posted_at', mediaStart.toISOString())
         .order('posted_at', { ascending: false })
@@ -115,11 +119,14 @@ export async function GET(request: NextRequest) {
 
     const mediaRows = mediaResult.data || []
     const mediaIds = mediaRows.map((item) => item.id)
+    const insightHistoryStart = new Date()
+    insightHistoryStart.setUTCDate(insightHistoryStart.getUTCDate() - 14)
     const insightsResult = mediaIds.length
       ? await admin
           .from('instagram_media_insights')
-          .select('*')
+          .select(INSIGHTS_SELECT)
           .in('media_id', mediaIds)
+          .gte('collected_on', insightHistoryStart.toISOString().slice(0, 10))
           .order('collected_on', { ascending: false })
       : { data: [], error: null }
     if (insightsResult.error) throw insightsResult.error

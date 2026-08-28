@@ -12,14 +12,20 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient()
   const { data: connections, error } = await admin
     .from('instagram_connections')
-    .select('id')
-    .in('status', ['connected', 'error'])
+    .select('id, status, updated_at')
+    .in('status', ['connected', 'error', 'syncing'])
     .order('last_synced_at', { ascending: true, nullsFirst: true })
-    .limit(5)
+    .limit(20)
   if (error) return NextResponse.json({ error: 'Falha ao listar conexões.' }, { status: 500 })
 
+  const eligibleConnections = (connections || [])
+    .filter((connection) => (
+      connection.status !== 'syncing'
+      || Date.now() - new Date(connection.updated_at).getTime() >= 15 * 60 * 1_000
+    ))
+    .slice(0, 2)
   const results = await Promise.allSettled(
-    (connections || []).map((connection) => syncInstagramConnection(connection.id, 'cron')),
+    eligibleConnections.map((connection) => syncInstagramConnection(connection.id, 'cron')),
   )
   const succeeded = results.filter((result) => result.status === 'fulfilled').length
   return NextResponse.json({
