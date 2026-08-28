@@ -274,14 +274,19 @@ export default function AppShell({ children }: AppShellProps) {
   useEffect(() => {
     const requestedModule = requestedModuleRef.current
     if (!requestedModule || !allowedModules.includes(requestedModule)) return
+    const isProjectModule = DEFAULT_PROJECT_MODULES.includes(
+      requestedModule as ProjectModuleKey,
+    )
+    if (isProjectModule && (!activeProjectId || projects.length === 0)) return
     setActiveModule(requestedModule)
     requestedModuleRef.current = null
     const url = new URL(window.location.href)
     url.searchParams.delete('activeModule')
     url.searchParams.delete('instagram')
     url.searchParams.delete('sync')
+    url.searchParams.delete('projectId')
     window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
-  }, [allowedModules, setActiveModule])
+  }, [activeProjectId, allowedModules, projects.length, setActiveModule])
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut()

@@ -16,6 +16,9 @@ uma imagem não aplica migrações no Supabase.
 | `APP_URL` | Recomendado | Somente backend/runtime | Origem pública usada nos e-mails, por exemplo `https://clave.agenciab16.com.br`. Em produção, o Clave usa esse domínio como fallback e nunca publica `0.0.0.0`. |
 | `ERROR_ALERT_EMAIL` | Opcional | Somente backend/runtime | Destinatário dos alertas de erro. Se omitido, usa `felipe@agenciab16.com.br`. |
 | `META_APP_ID` | Instagram | Somente backend/runtime | ID do app da Meta usado pelo Login do Facebook para Empresas. |
+| `INSTAGRAM_APP_SECRET` | Instagram | Somente backend/runtime | Segredo do app usado para validar solicitações e trocar a autorização curta por uma autorização de longa duração. Nunca use `NEXT_PUBLIC_`. |
+| `META_BUSINESS_ID` | Instagram | Somente backend/runtime | ID da BM autorizada. Somente Páginas próprias ou de clientes atribuídas a essa BM entram no seletor. |
+| `META_SYSTEM_USER_TOKEN` | Recomendado para Instagram | Somente backend/runtime | Token do usuário de sistema atribuído ao app e aos ativos da BM. Evita login pessoal por projeto e nunca deve usar `NEXT_PUBLIC_`. |
 | `INSTAGRAM_GRAPH_API_VERSION` | Opcional | Somente backend/runtime | Versão da Graph API. Se omitida, o conector usa `v26.0`. |
 | `CRON_SECRET` | Instagram | Somente backend/runtime | Segredo longo usado na sincronização diária e para criptografar a autorização temporária durante a seleção da conta. |
 
@@ -284,9 +287,13 @@ Resposta esperada: `{"status":"ok"}`.
    `https://clave.agenciab16.com.br`, nunca com o endereço interno do container.
 7. Cadastre `SUPABASE_MANAGEMENT_ACCESS_TOKEN` somente no runtime do Coolify;
    mantenha `SUPABASE_PROJECT_REF` como runtime ou deixe o sistema derivá-lo.
-8. Cadastre `META_APP_ID`, `INSTAGRAM_GRAPH_API_VERSION` e `CRON_SECRET`
-   somente no runtime. No Login do Facebook para Empresas da Meta, use
-   `/instagram/conectar` como URI de redirecionamento OAuth válida. A conta
+8. Cadastre `META_APP_ID`, `INSTAGRAM_APP_SECRET`, `META_BUSINESS_ID`,
+   `META_SYSTEM_USER_TOKEN`, `INSTAGRAM_GRAPH_API_VERSION` e `CRON_SECRET`
+   somente no runtime. O token do usuário de sistema é o modo recomendado para
+   contas administradas pela BM da agência e só pode ser usado por um
+   administrador global ou da agência. No fallback de Login do Facebook para
+   Empresas, use `/instagram/conectar` como URI de redirecionamento OAuth válida;
+   o backend intersecta as Páginas do usuário com os ativos da BM. A conta
    profissional precisa estar previamente ligada a uma Página disponível na BM
    da agência; o Clave não executa o onboarding ou a conversão da conta.
 9. Use o `Dockerfile` da raiz e porta `3000`.

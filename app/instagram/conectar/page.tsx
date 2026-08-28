@@ -24,7 +24,7 @@ interface InstagramAccountOption {
 
 interface CallbackResponse {
   connected?: boolean
-  syncError?: boolean
+  projectId?: string
   accounts?: InstagramAccountOption[]
   error?: string
 }
@@ -48,12 +48,12 @@ async function sendCallback(payload: Record<string, unknown>) {
   return body
 }
 
-function finishConnection(syncError = false) {
+function finishConnection(projectId?: string) {
   const params = new URLSearchParams({
     activeModule: 'instagram',
     instagram: 'connected',
   })
-  if (syncError) params.set('sync', 'error')
+  if (projectId) params.set('projectId', projectId)
   window.location.replace(`/?${params.toString()}`)
 }
 
@@ -69,18 +69,18 @@ export default function InstagramConnectPage() {
     started.current = true
 
     const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const query = new URLSearchParams(window.location.search)
+    const useBusinessToken = query.get('source') === 'business'
     const oauthError = fragment.get('error_description') || fragment.get('error')
-    const returnedState = fragment.get('state') || ''
-    const longLivedToken = fragment.get('long_lived_token')
-    const accessToken = longLivedToken || fragment.get('access_token')
-    const rawExpiresIn = Number(fragment.get('expires_in'))
+    const returnedState = (useBusinessToken ? query.get('state') : fragment.get('state')) || ''
+    const accessToken = fragment.get('access_token')
     window.history.replaceState(null, '', window.location.pathname)
 
     if (oauthError) {
       queueMicrotask(() => setError('A autorização foi cancelada ou recusada na Meta.'))
       return
     }
-    if (!returnedState || !accessToken) {
+    if (!returnedState || (!useBusinessToken && !accessToken)) {
       queueMicrotask(() => setError(
         'A Meta não retornou uma autorização válida. Inicie a conexão novamente.',
       ))
@@ -91,13 +91,10 @@ export default function InstagramConnectPage() {
     void sendCallback({
       state: returnedState,
       accessToken,
-      isLongLived: Boolean(longLivedToken),
-      expiresIn: longLivedToken
-        ? 60 * 24 * 60 * 60
-        : Number.isFinite(rawExpiresIn) ? rawExpiresIn : undefined,
+      useBusinessToken,
     }).then((result) => {
       if (result.connected) {
-        finishConnection(result.syncError)
+        finishConnection(result.projectId)
         return
       }
       if (!result.accounts?.length) {
@@ -118,7 +115,7 @@ export default function InstagramConnectPage() {
         selectedInstagramUserId: account.instagramUserId,
       })
       if (!result.connected) throw new Error('A conta não pôde ser confirmada.')
-      finishConnection(result.syncError)
+      finishConnection(result.projectId)
     } catch (reason) {
       setSelecting(null)
       setError(reason instanceof Error ? reason.message : 'Não foi possível selecionar a conta.')

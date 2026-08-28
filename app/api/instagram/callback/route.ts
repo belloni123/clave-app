@@ -1,8 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { authorizeInstagramProject } from '@/utils/instagram/access'
+import { after, NextRequest, NextResponse } from 'next/server'
+import {
+  authorizeInstagramProject,
+  requireInstagramBusinessTokenAccess,
+} from '@/utils/instagram/access'
 import {
   fetchFacebookGrantedScopes,
+  fetchFacebookInstagramAccount,
   fetchFacebookInstagramAccounts,
+  exchangeFacebookLongLivedToken,
+  inspectFacebookSystemUserToken,
   syncInstagramConnection,
   type FacebookInstagramAccount,
 } from '@/utils/instagram/server'
@@ -19,11 +25,15 @@ import {
 } from '@/utils/instagram/oauth'
 import { createAdminClient } from '@/utils/supabase/admin'
 
-const REQUIRED_SCOPES = [
+const USER_REQUIRED_SCOPES = [
   'instagram_basic',
   'instagram_manage_insights',
   'pages_show_list',
   'pages_read_engagement',
+]
+
+const BUSINESS_REQUIRED_SCOPES = [
+  ...USER_REQUIRED_SCOPES,
   'business_management',
 ]
 
@@ -31,8 +41,6 @@ interface CallbackBody {
   state?: string
   accessToken?: string
   selectedInstagramUserId?: string
-  expiresIn?: number
-  isLongLived?: boolean
 }
 
 function clearOAuthCookies(response: NextResponse) {
@@ -46,12 +54,24 @@ function errorResponse(message: string, status = 400, clear = false) {
   return clear ? clearOAuthCookies(response) : response
 }
 
-function tokenExpiration(body: CallbackBody) {
-  const fallbackSeconds = body.isLongLived ? 60 * 24 * 60 * 60 : 60 * 60
-  const seconds = Number.isFinite(body.expiresIn)
-    ? Math.max(60, Math.min(Number(body.expiresIn), 60 * 24 * 60 * 60))
-    : fallbackSeconds
+function tokenExpiration(expiresIn: number) {
+  const seconds = Number.isFinite(expiresIn)
+    ? Math.max(60, Math.min(expiresIn, 60 * 24 * 60 * 60))
+    : 60 * 24 * 60 * 60
   return new Date(Date.now() + seconds * 1_000).toISOString()
+}
+
+function scheduleInitialSync(connectionId: string) {
+  after(async () => {
+    try {
+      await syncInstagramConnection(connectionId, 'oauth')
+    } catch (error) {
+      console.error('Instagram first sync failed', {
+        message: error instanceof Error ? error.message : 'unknown',
+        connectionId,
+      })
+    }
+  })
 }
 
 async function validateOAuthUser(request: NextRequest, returnedState: string | undefined) {
@@ -59,13 +79,13 @@ async function validateOAuthUser(request: NextRequest, returnedState: string | u
   if (!savedState || !returnedState || savedState.state !== returnedState) {
     throw new Error('A autorização expirou ou não pertence a esta sessão.')
   }
-  const { user } = await authorizeInstagramProject(savedState.projectId, {
+  const { user, supabase } = await authorizeInstagramProject(savedState.projectId, {
     requireManager: true,
   })
   if (user.id !== savedState.userId) {
     throw new Error('A autorização não pertence ao usuário conectado.')
   }
-  return { savedState, user }
+  return { savedState, user, supabase }
 }
 
 async function saveConnection(
@@ -129,16 +149,7 @@ async function saveConnection(
     .single()
   if (saveError || !connection) throw new Error('Não foi possível salvar a conexão.')
 
-  try {
-    await syncInstagramConnection(connection.id, 'oauth')
-    return { syncError: false }
-  } catch (error) {
-    console.error('Instagram first sync failed', {
-      message: error instanceof Error ? error.message : 'unknown',
-      connectionId: connection.id,
-    })
-    return { syncError: true }
-  }
+  scheduleInitialSync(connection.id)
 }
 
 export async function GET(request: NextRequest) {
@@ -153,12 +164,32 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as CallbackBody
     stage = 'validate_state'
-    const { savedState, user } = await validateOAuthUser(request, body.state)
+    const { savedState, user, supabase } = await validateOAuthUser(request, body.state)
+    const source = savedState.source
 
-    if (body.accessToken) {
-      stage = 'load_permissions'
-      const grantedScopes = await fetchFacebookGrantedScopes(body.accessToken)
-      const missingScopes = REQUIRED_SCOPES.filter((scope) => !grantedScopes.includes(scope))
+    if (!body.selectedInstagramUserId && (source === 'business' || body.accessToken)) {
+      let authorizationToken: { accessToken: string; expiresIn: number | null }
+      let grantedScopes: string[]
+      if (source === 'business') {
+        await requireInstagramBusinessTokenAccess(supabase, user.id)
+        const systemToken = process.env.META_SYSTEM_USER_TOKEN?.trim()
+        if (!systemToken) {
+          return errorResponse('O acesso central da BM não foi configurado.', 503, true)
+        }
+        authorizationToken = { accessToken: systemToken, expiresIn: null }
+        stage = 'inspect_business_token'
+        grantedScopes = await inspectFacebookSystemUserToken(systemToken)
+      } else {
+        stage = 'exchange_token'
+        const longLived = await exchangeFacebookLongLivedToken(body.accessToken as string)
+        authorizationToken = longLived
+        stage = 'load_permissions'
+        grantedScopes = await fetchFacebookGrantedScopes(authorizationToken.accessToken)
+      }
+      const requiredScopes = source === 'business'
+        ? BUSINESS_REQUIRED_SCOPES
+        : USER_REQUIRED_SCOPES
+      const missingScopes = requiredScopes.filter((scope) => !grantedScopes.includes(scope))
       if (missingScopes.length) {
         return errorResponse(
           `A Meta não liberou as permissões necessárias: ${missingScopes.join(', ')}.`,
@@ -168,7 +199,10 @@ export async function POST(request: NextRequest) {
       }
 
       stage = 'load_accounts'
-      const accounts = await fetchFacebookInstagramAccounts(body.accessToken)
+      const accounts = await fetchFacebookInstagramAccounts(
+        authorizationToken.accessToken,
+        source,
+      )
       if (!accounts.length) {
         return errorResponse(
           'Nenhuma conta profissional vinculada a uma Página da nossa BM foi encontrada.',
@@ -178,17 +212,20 @@ export async function POST(request: NextRequest) {
       }
 
       const authorization: InstagramPendingAuthorization = {
-        accessToken: body.accessToken,
-        tokenExpiresAt: tokenExpiration(body),
+        accessToken: authorizationToken.accessToken,
+        tokenExpiresAt: authorizationToken.expiresIn === null
+          ? null
+          : tokenExpiration(authorizationToken.expiresIn),
         grantedScopes,
+        source,
         createdAt: Date.now(),
       }
       if (accounts.length === 1) {
         stage = 'save_connection'
-        const result = await saveConnection(savedState, user.id, authorization, accounts[0])
+        await saveConnection(savedState, user.id, authorization, accounts[0])
         return clearOAuthCookies(NextResponse.json({
           connected: true,
-          syncError: result.syncError,
+          projectId: savedState.projectId,
         }))
       }
 
@@ -207,19 +244,23 @@ export async function POST(request: NextRequest) {
       if (!authorization) {
         return errorResponse('A escolha da conta expirou. Inicie a conexão novamente.', 400, true)
       }
+      if (authorization.source === 'business') {
+        await requireInstagramBusinessTokenAccess(supabase, user.id)
+      }
       stage = 'validate_selected_account'
-      const accounts = await fetchFacebookInstagramAccounts(authorization.accessToken)
-      const account = accounts.find(
-        (item) => item.instagramUserId === body.selectedInstagramUserId,
+      const account = await fetchFacebookInstagramAccount(
+        authorization.accessToken,
+        body.selectedInstagramUserId,
+        authorization.source,
       )
       if (!account) {
         return errorResponse('A conta selecionada não está mais disponível na BM.', 404, true)
       }
       stage = 'save_connection'
-      const result = await saveConnection(savedState, user.id, authorization, account)
+      await saveConnection(savedState, user.id, authorization, account)
       return clearOAuthCookies(NextResponse.json({
         connected: true,
-        syncError: result.syncError,
+        projectId: savedState.projectId,
       }))
     }
 

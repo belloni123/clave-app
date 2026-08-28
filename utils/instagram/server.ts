@@ -26,6 +26,8 @@ interface ConnectionRow {
   instagram_user_id: string
   token_secret_id: string | null
   token_expires_at: string | null
+  status: 'connected' | 'syncing' | 'error' | 'expired'
+  updated_at: string
 }
 
 interface MetaErrorPayload {
@@ -86,6 +88,23 @@ interface FacebookPermissionsPayload extends MetaErrorPayload {
     permission?: string
     status?: string
   }>
+}
+
+interface FacebookTokenPayload extends MetaErrorPayload {
+  access_token?: string
+  token_type?: string
+  expires_in?: number
+}
+
+interface FacebookDebugTokenPayload extends MetaErrorPayload {
+  data?: {
+    app_id?: string
+    type?: string
+    is_valid?: boolean
+    expires_at?: number
+    data_access_expires_at?: number
+    scopes?: string[]
+  }
 }
 
 interface InstagramMediaPayload {
@@ -174,8 +193,37 @@ async function graphGet<T extends MetaErrorPayload>(
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
     cache: 'no-store',
+    signal: AbortSignal.timeout(15_000),
   })
   return readJson<T>(response)
+}
+
+export async function exchangeFacebookLongLivedToken(accessToken: string) {
+  const appId = process.env.META_APP_ID?.trim()
+  const appSecret = process.env.INSTAGRAM_APP_SECRET?.trim()
+  if (!appId || !appSecret) {
+    throw new Error('As credenciais do aplicativo da Meta não foram configuradas.')
+  }
+
+  const url = new URL(`${graphBase()}/oauth/access_token`)
+  url.searchParams.set('grant_type', 'fb_exchange_token')
+  url.searchParams.set('client_id', appId)
+  url.searchParams.set('client_secret', appSecret)
+  url.searchParams.set('fb_exchange_token', accessToken)
+  const response = await fetch(url, {
+    cache: 'no-store',
+    signal: AbortSignal.timeout(15_000),
+  })
+  const payload = await readJson<FacebookTokenPayload>(response)
+  if (!payload.access_token) {
+    throw new Error('A Meta não retornou uma autorização de longa duração.')
+  }
+  return {
+    accessToken: payload.access_token,
+    expiresIn: typeof payload.expires_in === 'number'
+      ? payload.expires_in
+      : 60 * 24 * 60 * 60,
+  }
 }
 
 export async function fetchInstagramProfile(
@@ -210,39 +258,132 @@ export async function fetchFacebookGrantedScopes(accessToken: string) {
     .map((item) => item.permission as string)
 }
 
-export async function fetchFacebookInstagramAccounts(
-  accessToken: string,
-): Promise<FacebookInstagramAccount[]> {
-  const payload = await graphGet<FacebookPagesPayload>('me/accounts', accessToken, {
+export async function inspectFacebookSystemUserToken(accessToken: string) {
+  const appId = process.env.META_APP_ID?.trim()
+  const appSecret = process.env.INSTAGRAM_APP_SECRET?.trim()
+  if (!appId || !appSecret) {
+    throw new Error('As credenciais do aplicativo da Meta não foram configuradas.')
+  }
+
+  const payload = await graphGet<FacebookDebugTokenPayload>(
+    'debug_token',
+    `${appId}|${appSecret}`,
+    { input_token: accessToken },
+  )
+  const token = payload.data
+  const nowSeconds = Math.floor(Date.now() / 1_000)
+  const expiresAt = token?.expires_at || 0
+  const dataAccessExpiresAt = token?.data_access_expires_at || 0
+  if (
+    !token?.is_valid
+    || String(token.app_id) !== appId
+    || token.type?.toUpperCase() !== 'SYSTEM_USER'
+    || (expiresAt > 0 && expiresAt <= nowSeconds)
+    || (dataAccessExpiresAt > 0 && dataAccessExpiresAt <= nowSeconds)
+  ) {
+    throw new Error('O acesso central da BM é inválido, expirou ou pertence a outro aplicativo.')
+  }
+  return token.scopes || []
+}
+
+async function fetchFacebookBusinessPageCandidates(accessToken: string) {
+  const businessId = process.env.META_BUSINESS_ID?.trim()
+  if (!businessId) {
+    throw new Error('A BM autorizada para o Instagram não foi configurada.')
+  }
+
+  const pageParams = {
     fields: 'id,name,instagram_business_account',
     limit: '100',
-  })
-  const candidates = (payload.data || []).flatMap((page) => {
+  }
+  const [ownedPages, clientPages] = await Promise.all([
+    graphGet<FacebookPagesPayload>(`${businessId}/owned_pages`, accessToken, pageParams),
+    graphGet<FacebookPagesPayload>(`${businessId}/client_pages`, accessToken, pageParams),
+  ])
+  const businessPages = Array.from(new Map(
+    [...(ownedPages.data || []), ...(clientPages.data || [])]
+      .filter((page) => page.id)
+      .map((page) => [page.id as string, page]),
+  ).values())
+  return businessPages.flatMap((page) => {
     const instagramUserId = page.instagram_business_account?.id
     if (!page.id || !page.name || !instagramUserId) return []
     return [{ pageId: page.id, pageName: page.name, instagramUserId }]
   })
+}
 
-  const profiles = await Promise.allSettled(candidates.map(async (candidate) => ({
-    ...candidate,
-    profile: await fetchInstagramProfile(candidate.instagramUserId, accessToken),
-  })))
+async function fetchFacebookUserPageCandidates(accessToken: string) {
+  const payload = await graphGet<FacebookPagesPayload>('me/accounts', accessToken, {
+    fields: 'id,name,instagram_business_account',
+    limit: '100',
+  })
+  return (payload.data || []).flatMap((page) => {
+    const instagramUserId = page.instagram_business_account?.id
+    if (!page.id || !page.name || !instagramUserId) return []
+    return [{ pageId: page.id, pageName: page.name, instagramUserId }]
+  })
+}
 
-  return profiles.flatMap((result) => {
-    if (result.status !== 'fulfilled') return []
-    const { profile, ...candidate } = result.value
-    const username = profile.username
-    if (!username) return []
-    return [{
+async function fetchFacebookAllowedPageCandidates(
+  accessToken: string,
+  source: 'business' | 'oauth',
+) {
+  if (source === 'business') return fetchFacebookBusinessPageCandidates(accessToken)
+
+  const businessToken = process.env.META_SYSTEM_USER_TOKEN?.trim() || accessToken
+  const [userPages, businessPages] = await Promise.all([
+    fetchFacebookUserPageCandidates(accessToken),
+    fetchFacebookBusinessPageCandidates(businessToken),
+  ])
+  const allowedInstagramIds = new Set(
+    businessPages.map((page) => page.instagramUserId),
+  )
+  return userPages.filter((page) => allowedInstagramIds.has(page.instagramUserId))
+}
+
+async function hydrateFacebookInstagramAccount(
+  candidate: { pageId: string; pageName: string; instagramUserId: string },
+  accessToken: string,
+): Promise<FacebookInstagramAccount | null> {
+  try {
+    const profile = await fetchInstagramProfile(candidate.instagramUserId, accessToken)
+    if (!profile.username) return null
+    return {
       ...candidate,
-      username,
+      username: profile.username,
       name: profile.name || null,
       accountType: profile.account_type || null,
       profilePictureUrl: profile.profile_picture_url || null,
       followersCount: profile.followers_count ?? null,
       mediaCount: profile.media_count ?? null,
-    }]
-  })
+    }
+  } catch {
+    return null
+  }
+}
+
+export async function fetchFacebookInstagramAccounts(
+  accessToken: string,
+  source: 'business' | 'oauth',
+): Promise<FacebookInstagramAccount[]> {
+  const candidates = await fetchFacebookAllowedPageCandidates(accessToken, source)
+  const accounts = await mapWithConcurrency(
+    candidates,
+    6,
+    (candidate) => hydrateFacebookInstagramAccount(candidate, accessToken),
+  )
+  return accounts.filter((account): account is FacebookInstagramAccount => Boolean(account))
+}
+
+export async function fetchFacebookInstagramAccount(
+  accessToken: string,
+  instagramUserId: string,
+  source: 'business' | 'oauth',
+) {
+  const candidates = await fetchFacebookAllowedPageCandidates(accessToken, source)
+  const candidate = candidates.find((item) => item.instagramUserId === instagramUserId)
+  if (!candidate) return null
+  return hydrateFacebookInstagramAccount(candidate, accessToken)
 }
 
 async function refreshTokenIfNeeded(connection: ConnectionRow, accessToken: string) {
@@ -479,12 +620,26 @@ export async function syncInstagramConnection(
   const admin = createAdminClient()
   const { data: connectionData, error: connectionError } = await admin
     .from('instagram_connections')
-    .select('id, project_id, instagram_user_id, token_secret_id, token_expires_at')
+    .select('id, project_id, instagram_user_id, token_secret_id, token_expires_at, status, updated_at')
     .eq('id', connectionId)
     .single()
   if (connectionError || !connectionData) throw new Error('Conexão do Instagram não encontrada.')
   const connection = connectionData as ConnectionRow
   if (!connection.token_secret_id) throw new Error('A conexão não possui uma autorização válida.')
+
+  const syncingIsRecent = connection.status === 'syncing'
+    && Date.now() - new Date(connection.updated_at).getTime() < 15 * 60 * 1_000
+  if (syncingIsRecent) throw new Error('A conta já está sendo sincronizada.')
+
+  const { data: claimed, error: claimError } = await admin
+    .from('instagram_connections')
+    .update({ status: 'syncing', last_error: null })
+    .eq('id', connection.id)
+    .eq('updated_at', connection.updated_at)
+    .select('id')
+    .maybeSingle()
+  if (claimError) throw new Error('Não foi possível bloquear a conexão para sincronização.')
+  if (!claimed) throw new Error('A conta já está sendo sincronizada.')
 
   const { data: run, error: runError } = await admin
     .from('instagram_sync_runs')
@@ -496,12 +651,13 @@ export async function syncInstagramConnection(
     })
     .select('id')
     .single()
-  if (runError || !run) throw new Error('Não foi possível iniciar a sincronização.')
-
-  await admin
-    .from('instagram_connections')
-    .update({ status: 'syncing', last_error: null })
-    .eq('id', connection.id)
+  if (runError || !run) {
+    await admin
+      .from('instagram_connections')
+      .update({ status: 'error', last_error: 'Não foi possível iniciar a sincronização.' })
+      .eq('id', connection.id)
+    throw new Error('Não foi possível iniciar a sincronização.')
+  }
 
   try {
     const { data: storedToken, error: tokenError } = await admin.rpc('get_instagram_token', {

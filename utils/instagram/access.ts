@@ -50,3 +50,37 @@ export async function authorizeInstagramProject(
 
   return { user, supabase }
 }
+
+export async function userCanUseInstagramBusinessToken(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+) {
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('role, agency_role, deleted_at')
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (error) {
+    console.error('Instagram business access validation failed', error.message)
+    throw new InstagramAccessError('Não foi possível validar o acesso administrativo.', 500)
+  }
+
+  return Boolean(
+    profile
+    && !profile.deleted_at
+    && (profile.role === 'admin' || profile.agency_role === 'admin'),
+  )
+}
+
+export async function requireInstagramBusinessTokenAccess(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+) {
+  if (!await userCanUseInstagramBusinessToken(supabase, userId)) {
+    throw new InstagramAccessError(
+      'Somente administradores da agência podem selecionar contas pela BM.',
+      403,
+    )
+  }
+}
