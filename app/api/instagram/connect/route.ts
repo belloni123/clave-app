@@ -36,6 +36,9 @@ export async function GET(request: NextRequest) {
       state,
       projectId,
       userId: user.id,
+      // Persist the literal value used in the authorization request. Meta
+      // requires this byte-for-byte again when exchanging the code.
+      redirectUri,
       createdAt: Date.now(),
     })).toString('base64url'), {
       httpOnly: true,

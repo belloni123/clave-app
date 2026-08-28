@@ -10,6 +10,7 @@ interface OAuthState {
   state: string
   projectId: string
   userId: string
+  redirectUri: string
   createdAt: number
 }
 
@@ -27,7 +28,9 @@ function readOAuthState(request: NextRequest): OAuthState | null {
   if (!value) return null
   try {
     const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as OAuthState
-    if (!parsed.state || !parsed.projectId || !parsed.userId || !parsed.createdAt) return null
+    if (!parsed.state || !parsed.projectId || !parsed.userId || !parsed.redirectUri || !parsed.createdAt) {
+      return null
+    }
     if (Date.now() - parsed.createdAt > 10 * 60 * 1_000) return null
     return parsed
   } catch {
@@ -54,8 +57,7 @@ export async function GET(request: NextRequest) {
       return dashboardRedirect(request, { instagram: 'invalid_state' })
     }
 
-    const origin = getPublicAppOrigin(request)
-    const token = await exchangeInstagramCode(code, `${origin}/api/instagram/callback`)
+    const token = await exchangeInstagramCode(code, savedState.redirectUri)
     const profile = await fetchInstagramProfile(token.instagramUserId, token.accessToken)
     if (!profile.username) throw new Error('A conta profissional não pôde ser identificada.')
 

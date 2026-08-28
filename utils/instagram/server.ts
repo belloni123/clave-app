@@ -173,16 +173,18 @@ export async function exchangeInstagramCode(
 ): Promise<InstagramTokenBundle> {
   const { appId, appSecret } = requiredInstagramConfig()
   const normalizedCode = code.replace(/#_$/, '')
+  const tokenForm = new FormData()
+  tokenForm.set('client_id', appId)
+  tokenForm.set('client_secret', appSecret)
+  tokenForm.set('grant_type', 'authorization_code')
+  tokenForm.set('redirect_uri', redirectUri)
+  tokenForm.set('code', normalizedCode)
+
   const shortResponse = await fetch('https://api.instagram.com/oauth/access_token', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: appId,
-      client_secret: appSecret,
-      grant_type: 'authorization_code',
-      redirect_uri: redirectUri,
-      code: normalizedCode,
-    }),
+    // Meta documents this endpoint as multipart form data. Let fetch provide
+    // the boundary so the payload matches the supported request shape.
+    body: tokenForm,
     cache: 'no-store',
   })
   type ShortToken = {
