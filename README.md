@@ -98,8 +98,11 @@ chave OpenAI ou Claude dentro do Criador de Conteúdo de cada projeto. O backend
 valida a credencial e guarda somente o segredo criptografado no Supabase Vault.
 
 No painel da Meta, cadastre a URL de callback
-`https://seu-dominio/api/instagram/callback` e solicite acesso avançado às
-permissões `instagram_business_basic` e
+`https://seu-dominio/api/instagram/callback`, o retorno de desautorização
+`https://seu-dominio/api/instagram/deauthorize` e a solicitação de exclusão
+`https://seu-dominio/api/instagram/data-deletion`. Use
+`https://seu-dominio/privacidade` como política de privacidade e solicite acesso
+avançado somente às permissões `instagram_business_basic` e
 `instagram_business_manage_insights`. A rotina diária deve fazer um `POST`
 para `/api/cron/instagram-sync` com o cabeçalho
 `Authorization: Bearer <CRON_SECRET>`.
