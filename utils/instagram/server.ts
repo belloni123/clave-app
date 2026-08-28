@@ -1,6 +1,10 @@
 import 'server-only'
 
 import { createAdminClient } from '@/utils/supabase/admin'
+import {
+  normalizeMetaCredentialError,
+  resolveMetaAppCredentials,
+} from '@/utils/instagram/config'
 
 const DEFAULT_API_VERSION = 'v26.0'
 const DAILY_TOTAL_METRICS = [
@@ -246,11 +250,7 @@ async function graphGet<T extends MetaErrorPayload>(
 }
 
 export async function exchangeFacebookLongLivedToken(accessToken: string) {
-  const appId = process.env.META_APP_ID?.trim()
-  const appSecret = process.env.INSTAGRAM_APP_SECRET?.trim()
-  if (!appId || !appSecret) {
-    throw new Error('As credenciais do aplicativo da Meta não foram configuradas.')
-  }
+  const { appId, appSecret } = resolveMetaAppCredentials()
 
   const url = new URL(`${graphBase()}/oauth/access_token`)
   url.searchParams.set('grant_type', 'fb_exchange_token')
@@ -261,7 +261,12 @@ export async function exchangeFacebookLongLivedToken(accessToken: string) {
     cache: 'no-store',
     signal: AbortSignal.timeout(15_000),
   })
-  const payload = await readJson<FacebookTokenPayload>(response)
+  let payload: FacebookTokenPayload
+  try {
+    payload = await readJson<FacebookTokenPayload>(response)
+  } catch (error) {
+    throw normalizeMetaCredentialError(error)
+  }
   if (!payload.access_token) {
     throw new Error('A Meta não retornou uma autorização de longa duração.')
   }
@@ -306,11 +311,7 @@ export async function fetchFacebookGrantedScopes(accessToken: string) {
 }
 
 export async function inspectFacebookSystemUserToken(accessToken: string) {
-  const appId = process.env.META_APP_ID?.trim()
-  const appSecret = process.env.INSTAGRAM_APP_SECRET?.trim()
-  if (!appId || !appSecret) {
-    throw new Error('As credenciais do aplicativo da Meta não foram configuradas.')
-  }
+  const { appId, appSecret } = resolveMetaAppCredentials()
 
   const payload = await graphGet<FacebookDebugTokenPayload>(
     'debug_token',

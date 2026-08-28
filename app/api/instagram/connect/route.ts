@@ -11,18 +11,17 @@ import {
   INSTAGRAM_OAUTH_COOKIE,
   instagramOAuthCookieOptions,
 } from '@/utils/instagram/oauth'
+import {
+  MetaAppConfigurationError,
+  resolveMetaAppCredentials,
+} from '@/utils/instagram/config'
 
 export async function GET(request: NextRequest) {
   const projectId = request.nextUrl.searchParams.get('projectId')?.trim() || ''
 
   try {
     const { user, supabase } = await authorizeInstagramProject(projectId, { requireManager: true })
-    const appId = process.env.META_APP_ID?.trim()
-    if (!appId) {
-      return NextResponse.redirect(
-        new URL('/?activeModule=instagram&instagram=not_configured', getPublicAppOrigin(request)),
-      )
-    }
+    const { appId } = resolveMetaAppCredentials()
 
     const state = randomBytes(32).toString('base64url')
     const origin = getPublicAppOrigin(request)
@@ -73,6 +72,12 @@ export async function GET(request: NextRequest) {
     }), instagramOAuthCookieOptions())
     return response
   } catch (error) {
+    if (error instanceof MetaAppConfigurationError) {
+      console.error('Instagram Meta app configuration invalid', { code: error.code })
+      return NextResponse.redirect(
+        new URL('/?activeModule=instagram&instagram=not_configured', getPublicAppOrigin(request)),
+      )
+    }
     const status = error instanceof InstagramAccessError ? error.status : 500
     const message = error instanceof Error ? error.message : 'Não foi possível iniciar a conexão.'
     return NextResponse.json({ error: message }, { status })
