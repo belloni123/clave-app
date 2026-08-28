@@ -27,6 +27,7 @@ const PERIOD_TOTAL_METRICS = [
 ] as const
 const INSIGHTS_RANGE_DAYS = 30
 const ACCOUNT_HISTORY_DAYS = 90
+const FOLLOWER_COUNT_HISTORY_DAYS = 30
 const RECENT_DAYS_TO_REFRESH = 3
 const DAILY_BACKFILL_BATCH_SIZE = 30
 
@@ -617,6 +618,22 @@ function applyDailyTotalPayload(row: DailyRow, payload: InsightPayload) {
   return returnedMetrics
 }
 
+function applyDailyTimeSeriesPayload(daily: Map<string, DailyRow>, payload: InsightPayload) {
+  payload.data?.forEach((series) => {
+    const metric = series.name || ''
+    const column = metricColumn(metric)
+    if (!column) return
+    series.values?.forEach((entry) => {
+      if (!entry.end_time || typeof entry.value !== 'number') return
+      const date = entry.end_time.slice(0, 10)
+      const row = daily.get(date) || emptyDailyRow()
+      setDailyMetric(row, column, entry.value)
+      row.raw_metrics[metric] = { value: entry.value, end_time: entry.end_time }
+      daily.set(date, row)
+    })
+  })
+}
+
 async function fetchAccountDaily(
   instagramUserId: string,
   accessToken: string,
@@ -639,30 +656,36 @@ async function fetchAccountDaily(
         `${instagramUserId}/insights`,
         accessToken,
         {
-          metric: 'reach,follower_count',
+          metric: 'reach',
           period: 'day',
           metric_type: 'time_series',
           since: unixSeconds(chunk.start),
           until: unixSeconds(chunk.end),
         },
       )
-      payload.data?.forEach((series) => {
-        const metric = series.name || ''
-        const column = metricColumn(metric)
-        if (!column) return
-        series.values?.forEach((entry) => {
-          if (!entry.end_time || typeof entry.value !== 'number') return
-          const date = entry.end_time.slice(0, 10)
-          const row = daily.get(date) || emptyDailyRow()
-          setDailyMetric(row, column, entry.value)
-          row.raw_metrics[metric] = { value: entry.value, end_time: entry.end_time }
-          daily.set(date, row)
-        })
-      })
+      applyDailyTimeSeriesPayload(daily, payload)
     } catch (error) {
-      addWarning(warnings, `time_series/${isoDate(chunk.start)}`, error)
+      addWarning(warnings, `time_series/reach/${isoDate(chunk.start)}`, error)
     }
   })
+
+  const followerCountStart = addUtcDays(todayStart, -(FOLLOWER_COUNT_HISTORY_DAYS - 1))
+  try {
+    const payload = await graphGet<InsightPayload>(
+      `${instagramUserId}/insights`,
+      accessToken,
+      {
+        metric: 'follower_count',
+        period: 'day',
+        metric_type: 'time_series',
+        since: unixSeconds(followerCountStart),
+        until: unixSeconds(now),
+      },
+    )
+    applyDailyTimeSeriesPayload(daily, payload)
+  } catch (error) {
+    addWarning(warnings, `time_series/follower_count/${isoDate(followerCountStart)}`, error)
+  }
 
   const allDates = Array.from({ length: ACCOUNT_HISTORY_DAYS }, (_, index) => (
     isoDate(addUtcDays(historyStart, index))
