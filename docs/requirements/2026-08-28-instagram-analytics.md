@@ -30,7 +30,6 @@ Agências e especialistas precisam alternar entre o Clave, o Instagram e planilh
 - Gestão de comentários ou mensagens.
 - Métricas de anúncios, campanhas e investimento da Meta Ads.
 - Contas pessoais do Instagram.
-- Contas profissionais fora das BMs autorizadas pela agência.
 - Benchmarking com contas que não autorizaram o Clave.
 
 ## 5. Personas e permissões
@@ -44,7 +43,7 @@ Agências e especialistas precisam alternar entre o Clave, o Instagram e planilh
 ### Colaborador com acesso ao módulo Instagram
 
 - Visualiza o painel e o status da integração.
-- Pode solicitar uma atualização manual.
+- Recebe os dados das sincronizações automáticas.
 - Não troca nem remove a conta conectada.
 
 ### Colaborador sem acesso ao módulo
@@ -55,7 +54,7 @@ Agências e especialistas precisam alternar entre o Clave, o Instagram e planilh
 
 1. Um projeto possui no máximo uma conexão ativa do Instagram.
 2. A conta deve ser profissional: Comercial ou Criador de conteúdo.
-3. A conta deve estar previamente vinculada a uma Página disponível em uma BM autorizada.
+3. A conta deve estar vinculada a uma Página da BM no fluxo central ou a uma Página administrada pelo usuário no OAuth individual.
 4. A conexão é feita por OAuth oficial da Meta; o Clave nunca coleta a senha.
 5. O token de acesso é removido imediatamente do fragmento de retorno e armazenado no Supabase Vault.
 6. O histórico é segregado por `project_id` em todas as tabelas.
@@ -152,7 +151,7 @@ O menu lateral recebe o item **Instagram**, no grupo Ferramentas. O módulo poss
 - Operações de vínculo validam `user_can_administer_project`.
 - O seletor alimentado pelo token central da BM é exclusivo de administradores
   globais/da agência. No OAuth individual, as Páginas autorizadas pelo usuário
-  são intersectadas com os ativos da BM antes de aparecerem no seletor.
+  são retornadas pelo próprio token do usuário e não expõem ativos de terceiros.
 - Tokens são criptografados no Vault.
 - O callback correlaciona o `state` com um cookie `HttpOnly`, `Secure` e
   `SameSite=Lax`, expira a tentativa em 15 minutos e remove os cookies ao concluir.
@@ -166,6 +165,7 @@ O menu lateral recebe o item **Instagram**, no grupo Ferramentas. O módulo poss
 
 - `META_APP_ID`
 - `INSTAGRAM_APP_SECRET`
+- `META_APP_ACCESS_TOKEN` (alternativa ao segredo apenas no modo de token central)
 - `META_BUSINESS_ID` da BM autorizada
 - `META_SYSTEM_USER_TOKEN` do usuário de sistema da BM (modo recomendado)
 - `INSTAGRAM_GRAPH_API_VERSION` (opcional; padrão `v26.0`)
@@ -175,8 +175,9 @@ O menu lateral recebe o item **Instagram**, no grupo Ferramentas. O módulo poss
 - URL de solicitação de exclusão: `/api/instagram/data-deletion`
 - Política de privacidade pública: `/privacidade`
 - Termos de serviço públicos: `/termos`
-- Permissões: `instagram_basic`, `instagram_manage_insights`, `pages_show_list`
-  `pages_read_engagement` e `business_management`
+- Permissões do OAuth individual: `instagram_basic`, `instagram_manage_insights`,
+  `pages_show_list` e `pages_read_engagement`
+- Permissão adicional do token central: `business_management`
 
 ## 13. Critérios de aceite
 

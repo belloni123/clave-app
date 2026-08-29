@@ -469,10 +469,12 @@ export default function InstagramModule() {
             <div className="flex items-center p-1 rounded-lg bg-surface2 border border-border-custom">
               {PERIODS.map((value) => <button key={value} onClick={() => setPeriod(value)} className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all ${period === value ? 'bg-surface text-text-custom shadow-sm' : 'text-text3 hover:text-text2'}`}>{value} dias</button>)}
             </div>
-            <button onClick={handleSync} disabled={syncing} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border2 text-[10px] font-bold text-text-custom hover:bg-surface2 disabled:opacity-60 transition-colors">
-              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? 'Atualizando' : 'Atualizar'}
-            </button>
+            {query.data.canManage && (
+              <button onClick={handleSync} disabled={syncing} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border2 text-[10px] font-bold text-text-custom hover:bg-surface2 disabled:opacity-60 transition-colors">
+                <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? 'Atualizando' : 'Atualizar'}
+              </button>
+            )}
             {query.data.canManage && <button onClick={() => setShowSettings(true)} className="w-8 h-8 rounded-lg border border-border2 flex items-center justify-center text-text2 hover:bg-surface2 hover:text-text-custom"><Settings2 className="w-4 h-4" /></button>}
           </div>
         </div>

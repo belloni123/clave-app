@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({})) as { projectId?: string }
     const projectId = body.projectId?.trim() || ''
-    await authorizeInstagramProject(projectId)
+    await authorizeInstagramProject(projectId, { requireManager: true })
     const admin = createAdminClient()
     const { data: connection, error } = await admin
       .from('instagram_connections')

@@ -11,25 +11,26 @@ import {
   INSTAGRAM_OAUTH_COOKIE,
   instagramOAuthCookieOptions,
 } from '@/utils/instagram/oauth'
+import {
+  MetaAppConfigurationError,
+  resolveMetaAppId,
+  resolveMetaAppCredentials,
+} from '@/utils/instagram/config'
 
 export async function GET(request: NextRequest) {
   const projectId = request.nextUrl.searchParams.get('projectId')?.trim() || ''
 
   try {
     const { user, supabase } = await authorizeInstagramProject(projectId, { requireManager: true })
-    const appId = process.env.META_APP_ID?.trim()
-    if (!appId) {
-      return NextResponse.redirect(
-        new URL('/?activeModule=instagram&instagram=not_configured', getPublicAppOrigin(request)),
-      )
-    }
-
     const state = randomBytes(32).toString('base64url')
     const origin = getPublicAppOrigin(request)
     const redirectUri = `${origin}/instagram/conectar`
     const systemTokenConfigured = Boolean(process.env.META_SYSTEM_USER_TOKEN?.trim())
     const canUseBusinessToken = systemTokenConfigured
       && await userCanUseInstagramBusinessToken(supabase, user.id)
+    const appId = canUseBusinessToken
+      ? resolveMetaAppId()
+      : resolveMetaAppCredentials().appId
     if (canUseBusinessToken) {
       const businessConnectUrl = new URL(redirectUri)
       businessConnectUrl.searchParams.set('source', 'business')
@@ -58,7 +59,6 @@ export async function GET(request: NextRequest) {
       'pages_show_list',
       'pages_read_engagement',
     ]
-    if (!systemTokenConfigured) scopes.push('business_management')
     authorizeUrl.searchParams.set('scope', scopes.join(','))
     authorizeUrl.searchParams.set('state', state)
 
@@ -73,6 +73,12 @@ export async function GET(request: NextRequest) {
     }), instagramOAuthCookieOptions())
     return response
   } catch (error) {
+    if (error instanceof MetaAppConfigurationError) {
+      console.error('Instagram Meta app configuration invalid', { code: error.code })
+      return NextResponse.redirect(
+        new URL('/?activeModule=instagram&instagram=not_configured', getPublicAppOrigin(request)),
+      )
+    }
     const status = error instanceof InstagramAccessError ? error.status : 500
     const message = error instanceof Error ? error.message : 'Não foi possível iniciar a conexão.'
     return NextResponse.json({ error: message }, { status })

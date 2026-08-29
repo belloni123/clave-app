@@ -205,7 +205,9 @@ export async function POST(request: NextRequest) {
       )
       if (!accounts.length) {
         return errorResponse(
-          'Nenhuma conta profissional vinculada a uma Página da nossa BM foi encontrada.',
+          source === 'business'
+            ? 'Nenhuma conta profissional vinculada a uma Página da nossa BM foi encontrada.'
+            : 'Nenhuma conta profissional vinculada a uma Página que você administra foi encontrada.',
           404,
           true,
         )
@@ -254,7 +256,13 @@ export async function POST(request: NextRequest) {
         authorization.source,
       )
       if (!account) {
-        return errorResponse('A conta selecionada não está mais disponível na BM.', 404, true)
+        return errorResponse(
+          authorization.source === 'business'
+            ? 'A conta selecionada não está mais disponível na BM.'
+            : 'A conta selecionada não está mais disponível para este usuário.',
+          404,
+          true,
+        )
       }
       stage = 'save_connection'
       await saveConnection(savedState, user.id, authorization, account)
