@@ -130,9 +130,9 @@ export default function InstagramConnectPage() {
             <Camera className="w-6 h-6" />
           </div>
           <p className="mt-6 text-[11px] uppercase tracking-[0.16em] font-bold text-purple-700">Clave · Instagram Analytics</p>
-          <h1 className="mt-2 text-2xl md:text-3xl font-bold tracking-tight">Conectar conta da BM</h1>
+          <h1 className="mt-2 text-2xl md:text-3xl font-bold tracking-tight">Conectar Instagram profissional</h1>
           <p className="mt-3 text-sm leading-relaxed text-black/55 max-w-xl">
-            A Meta está validando as permissões e procurando as contas profissionais ligadas às Páginas disponíveis para a agência.
+            A Meta está validando as permissões e procurando as contas profissionais ligadas às Páginas que você autorizou.
           </p>
         </div>
 

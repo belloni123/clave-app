@@ -80,6 +80,8 @@ SUPABASE_MANAGEMENT_ACCESS_TOKEN=seu-token-management-privado
 SUPABASE_PROJECT_REF=seu-project-ref
 META_APP_ID=seu-id-do-app-meta
 INSTAGRAM_APP_SECRET=seu-segredo-do-app-meta
+# Alternativa ao segredo apenas para validar o token central da BM
+META_APP_ACCESS_TOKEN=token-de-acesso-do-app-meta
 META_BUSINESS_ID=id-da-bm-autorizada
 META_SYSTEM_USER_TOKEN=token-do-usuario-de-sistema-da-bm
 # Opcional; o conector usa a versão oficial compatível atual
@@ -103,15 +105,16 @@ O modo recomendado para uma operação restrita à própria BM usa
 `META_SYSTEM_USER_TOKEN`: o token fica somente no servidor e o usuário do Clave
 com perfil administrativo da agência abre diretamente o seletor de contas
 autorizadas. Administradores de projeto sem esse perfil usam o Login do Facebook
-para Empresas; as contas retornadas são sempre intersectadas com os ativos da BM
-para impedir exposição entre clientes. Nesse fallback, cadastre a URL de callback
-`https://seu-dominio/instagram/conectar`. O conector lista somente contas
-profissionais já ligadas a Páginas disponíveis na BM autorizada. Use
+para Empresas e veem somente as contas profissionais ligadas às Páginas que
+autorizaram. Nesse fallback, cadastre a URL de callback
+`https://seu-dominio/instagram/conectar`. Use
 `https://seu-dominio/privacidade` como política de privacidade,
 `https://seu-dominio/termos` como termos de serviço. Para liberar usuários fora
 das funções do app, solicite acesso avançado a `instagram_basic`,
 `instagram_manage_insights`, `pages_show_list` e `pages_read_engagement`.
-Para ativos administrados pela BM, o fluxo também solicita `business_management`.
+O token central da BM também precisa de `business_management`.
+`META_APP_ACCESS_TOKEN` pode substituir `INSTAGRAM_APP_SECRET` somente para
+validar esse token central; o OAuth individual continua exigindo o segredo real.
 A rotina diária deve fazer um `POST`
 para `/api/cron/instagram-sync` com o cabeçalho
 `Authorization: Bearer <CRON_SECRET>`.

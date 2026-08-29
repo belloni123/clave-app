@@ -3,6 +3,7 @@ import 'server-only'
 import { createAdminClient } from '@/utils/supabase/admin'
 import {
   normalizeMetaCredentialError,
+  resolveMetaAppAccessToken,
   resolveMetaAppCredentials,
 } from '@/utils/instagram/config'
 
@@ -311,11 +312,11 @@ export async function fetchFacebookGrantedScopes(accessToken: string) {
 }
 
 export async function inspectFacebookSystemUserToken(accessToken: string) {
-  const { appId, appSecret } = resolveMetaAppCredentials()
+  const { appId, appAccessToken } = resolveMetaAppAccessToken()
 
   const payload = await graphGet<FacebookDebugTokenPayload>(
     'debug_token',
-    `${appId}|${appSecret}`,
+    appAccessToken,
     { input_token: accessToken },
   )
   const token = payload.data
@@ -377,16 +378,7 @@ async function fetchFacebookAllowedPageCandidates(
   source: 'business' | 'oauth',
 ) {
   if (source === 'business') return fetchFacebookBusinessPageCandidates(accessToken)
-
-  const businessToken = process.env.META_SYSTEM_USER_TOKEN?.trim() || accessToken
-  const [userPages, businessPages] = await Promise.all([
-    fetchFacebookUserPageCandidates(accessToken),
-    fetchFacebookBusinessPageCandidates(businessToken),
-  ])
-  const allowedInstagramIds = new Set(
-    businessPages.map((page) => page.instagramUserId),
-  )
-  return userPages.filter((page) => allowedInstagramIds.has(page.instagramUserId))
+  return fetchFacebookUserPageCandidates(accessToken)
 }
 
 async function hydrateFacebookInstagramAccount(

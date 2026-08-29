@@ -3,6 +3,7 @@ export interface MetaAppEnvironment {
   META_APP_ID?: string
   INSTAGRAM_APP_ID?: string
   INSTAGRAM_APP_SECRET?: string
+  META_APP_ACCESS_TOKEN?: string
 }
 
 type MetaAppConfigurationErrorCode =
@@ -28,12 +29,11 @@ function clean(value: string | undefined) {
   return value?.trim() || ''
 }
 
-export function resolveMetaAppCredentials(
+export function resolveMetaAppId(
   environment: MetaAppEnvironment = process.env,
 ) {
   const canonicalAppId = clean(environment.META_APP_ID)
   const legacyAppId = clean(environment.INSTAGRAM_APP_ID)
-  const appSecret = clean(environment.INSTAGRAM_APP_SECRET)
 
   if (canonicalAppId && legacyAppId && canonicalAppId !== legacyAppId) {
     throw new MetaAppConfigurationError(
@@ -49,6 +49,16 @@ export function resolveMetaAppCredentials(
       'missing_app_id',
     )
   }
+
+  return appId
+}
+
+export function resolveMetaAppCredentials(
+  environment: MetaAppEnvironment = process.env,
+) {
+  const appId = resolveMetaAppId(environment)
+  const appSecret = clean(environment.INSTAGRAM_APP_SECRET)
+
   if (!appSecret) {
     throw new MetaAppConfigurationError(
       'A chave secreta do aplicativo da Meta não foi configurada.',
@@ -57,6 +67,24 @@ export function resolveMetaAppCredentials(
   }
 
   return { appId, appSecret }
+}
+
+export function resolveMetaAppAccessToken(
+  environment: MetaAppEnvironment = process.env,
+) {
+  const appId = resolveMetaAppId(environment)
+  const configuredToken = clean(environment.META_APP_ACCESS_TOKEN)
+  if (configuredToken) return { appId, appAccessToken: configuredToken }
+
+  const appSecret = clean(environment.INSTAGRAM_APP_SECRET)
+  if (!appSecret) {
+    throw new MetaAppConfigurationError(
+      'Configure META_APP_ACCESS_TOKEN ou a chave secreta do aplicativo da Meta.',
+      'missing_app_secret',
+    )
+  }
+
+  return { appId, appAccessToken: `${appId}|${appSecret}` }
 }
 
 export function normalizeMetaCredentialError(error: unknown) {
