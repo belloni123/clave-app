@@ -132,7 +132,7 @@ export default function InstagramConnectPage() {
           <p className="mt-6 text-[11px] uppercase tracking-[0.16em] font-bold text-purple-700">Clave · Instagram Analytics</p>
           <h1 className="mt-2 text-2xl md:text-3xl font-bold tracking-tight">Conectar Instagram profissional</h1>
           <p className="mt-3 text-sm leading-relaxed text-black/55 max-w-xl">
-            A Meta está validando as permissões e procurando as contas profissionais ligadas às Páginas que você autorizou.
+            A Meta está validando as permissões e procurando as contas profissionais disponíveis para a sua agência.
           </p>
         </div>
 
@@ -176,7 +176,7 @@ export default function InstagramConnectPage() {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-bold truncate">{account.name || account.username}</p>
                       <p className="text-xs text-black/50 truncate">@{account.username} · {formatNumber(account.followersCount)}</p>
-                      <p className="text-[10px] text-black/40 mt-1 truncate">Página: {account.pageName}</p>
+                      <p className="text-[10px] text-black/40 mt-1 truncate">Disponível via: {account.pageName}</p>
                     </div>
                     {selecting === account.instagramUserId
                       ? <Loader2 className="w-5 h-5 animate-spin text-purple-700" />

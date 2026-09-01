@@ -101,6 +101,14 @@ interface FacebookPagesPayload extends MetaErrorPayload {
   }>
 }
 
+interface FacebookInstagramBusinessAssetsPayload extends MetaErrorPayload {
+  data?: Array<{
+    id?: string
+    ig_user_id?: string
+    ig_username?: string
+  }>
+}
+
 interface FacebookPermissionsPayload extends MetaErrorPayload {
   data?: Array<{
     permission?: string
@@ -345,20 +353,55 @@ async function fetchFacebookBusinessPageCandidates(accessToken: string) {
     fields: 'id,name,instagram_business_account',
     limit: '100',
   }
-  const [ownedPages, clientPages] = await Promise.all([
+  const [ownedPages, clientPages, clientInstagramAssets] = await Promise.all([
     graphGet<FacebookPagesPayload>(`${businessId}/owned_pages`, accessToken, pageParams),
     graphGet<FacebookPagesPayload>(`${businessId}/client_pages`, accessToken, pageParams),
+    graphGet<FacebookInstagramBusinessAssetsPayload>(
+      `${businessId}/client_instagram_assets`,
+      accessToken,
+      {
+        fields: 'id,ig_user_id,ig_username',
+        limit: '100',
+      },
+    ).catch((error) => {
+      console.warn('Meta client Instagram assets discovery failed', {
+        message: error instanceof Error ? error.message : 'unknown',
+      })
+      return { data: [] } as FacebookInstagramBusinessAssetsPayload
+    }),
   ])
   const businessPages = Array.from(new Map(
     [...(ownedPages.data || []), ...(clientPages.data || [])]
       .filter((page) => page.id)
       .map((page) => [page.id as string, page]),
   ).values())
-  return businessPages.flatMap((page) => {
+
+  const candidates = new Map<string, {
+    pageId: string
+    pageName: string
+    instagramUserId: string
+  }>()
+  businessPages.forEach((page) => {
     const instagramUserId = page.instagram_business_account?.id
-    if (!page.id || !page.name || !instagramUserId) return []
-    return [{ pageId: page.id, pageName: page.name, instagramUserId }]
+    if (!page.id || !page.name || !instagramUserId) return
+    candidates.set(instagramUserId, {
+      pageId: page.id,
+      pageName: page.name,
+      instagramUserId,
+    })
   })
+
+  ;(clientInstagramAssets.data || []).forEach((asset) => {
+    const instagramUserId = asset.ig_user_id
+    if (!asset.id || !instagramUserId || candidates.has(instagramUserId)) return
+    candidates.set(instagramUserId, {
+      pageId: asset.id,
+      pageName: 'portfólio da agência',
+      instagramUserId,
+    })
+  })
+
+  return Array.from(candidates.values())
 }
 
 async function fetchFacebookUserPageCandidates(accessToken: string) {

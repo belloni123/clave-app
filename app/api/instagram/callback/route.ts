@@ -206,7 +206,7 @@ export async function POST(request: NextRequest) {
       if (!accounts.length) {
         return errorResponse(
           source === 'business'
-            ? 'Nenhuma conta profissional vinculada a uma Página da nossa BM foi encontrada.'
+            ? 'Nenhuma conta profissional disponível para a nossa BM foi encontrada.'
             : 'Nenhuma conta profissional vinculada a uma Página que você administra foi encontrada.',
           404,
           true,
