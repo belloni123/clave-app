@@ -11,8 +11,15 @@ import type {
 } from '@/types/social'
 import { getSocialCapabilities } from '@/utils/social/capabilities'
 import { SocialPublishingError } from '@/utils/social/errors'
-import { verifyUploadedMedia } from '@/utils/social/media-validation'
 import { assertUuid, validateSocialPostInput } from '@/utils/social/validation'
+
+async function verifyUploadedMedia(
+  admin: SupabaseClient,
+  input: SocialPostInput,
+) {
+  const mediaValidation = await import('@/utils/social/media-validation')
+  return mediaValidation.verifyUploadedMedia(admin, input)
+}
 
 interface PostRow {
   id: string
