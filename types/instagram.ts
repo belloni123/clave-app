@@ -1,3 +1,5 @@
+import type { SocialFeatureFlags } from '@/types/social'
+
 export type InstagramConnectionStatus = 'connected' | 'syncing' | 'error' | 'expired'
 
 export interface InstagramConnectionPublic {
@@ -85,6 +87,7 @@ export interface InstagramDashboardResponse {
   connection: InstagramConnectionPublic | null
   canManage: boolean
   canUseBusinessAccounts: boolean
+  socialPublishing: SocialFeatureFlags
   days: number
   daily: InstagramDailyMetric[]
   summary: {

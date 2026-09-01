@@ -110,6 +110,7 @@ export default function AppShell({ children }: AppShellProps) {
     const params = new URLSearchParams(window.location.search)
     const instagramStatus = params.get('instagram')
     if (instagramStatus === 'connected') showToast('Instagram conectado com sucesso')
+    if (instagramStatus === 'publishing_authorized') showToast('Publicação autorizada com sucesso')
     if (instagramStatus === 'cancelled') showToast('Conexão com o Instagram cancelada', 'err')
     if (instagramStatus === 'invalid_state') showToast('A conexão expirou. Tente novamente.', 'err')
     if (instagramStatus === 'not_configured') showToast('Configure as chaves do Instagram no servidor.', 'err')
@@ -281,7 +282,9 @@ export default function AppShell({ children }: AppShellProps) {
     setActiveModule(requestedModule)
     requestedModuleRef.current = null
     const url = new URL(window.location.href)
-    url.searchParams.delete('activeModule')
+    if (requestedModule !== 'instagram' || !url.searchParams.has('instagramView')) {
+      url.searchParams.delete('activeModule')
+    }
     url.searchParams.delete('instagram')
     url.searchParams.delete('sync')
     url.searchParams.delete('projectId')

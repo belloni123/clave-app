@@ -375,6 +375,23 @@ precisam ser removidas durante um rollback da aplicação.
 Não reverta migrações apagando tabelas ou snapshots. Caso seja necessário
 alterar o banco, faça uma nova migração revisada e preserve o histórico.
 
+### Publicação social: ativação futura e rollback
+
+1. Faça backup e aplique `20260901175238_meta_social_publishing.sql` primeiro em
+   staging, com todas as flags desligadas.
+2. Confirme no Meta App Review os escopos usados pela rede escolhida e cadastre
+   `https://<dominio>/instagram/conectar` como URI OAuth válida.
+3. Instale `ffmpeg` no runtime (o `Dockerfile` já inclui o pacote) e cadastre
+   `SOCIAL_CRON_SECRET` somente no runtime.
+4. Configure no Coolify um `POST /api/cron/social-publish` por minuto com bearer
+   secret. Não execute o cron antes da migration.
+5. Ative `SOCIAL_PUBLISHING_ENABLED=true` e somente uma flag de rede por vez;
+   valide com projeto, conta e conteúdo de teste antes de ampliar.
+
+Para rollback da aplicação, desligue as três flags e restaure a imagem anterior.
+Preserve as tabelas e tentativas para auditoria; não apague mídia nem posts como
+parte de um rollback emergencial.
+
 ## 8. Vercel
 
 Na Vercel, conecte o mesmo repositório, configure as variáveis da seção 1 e use
