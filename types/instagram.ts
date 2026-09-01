@@ -84,6 +84,7 @@ export interface InstagramMediaMetric {
 export interface InstagramDashboardResponse {
   connection: InstagramConnectionPublic | null
   canManage: boolean
+  canUseBusinessAccounts: boolean
   days: number
   daily: InstagramDailyMetric[]
   summary: {
