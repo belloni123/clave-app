@@ -1,26 +1,22 @@
 import 'server-only'
 
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
+import { createRequire } from 'node:module'
 import sharp from 'sharp'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { MediaInfo } from 'mediainfo.js'
 import type { SocialPostInput } from '@/types/social'
 import { SocialPublishingError } from '@/utils/social/errors'
 
-const execFileAsync = promisify(execFile)
+const nodeRequire = createRequire(import.meta.url)
+const mediaInfoFactory = (nodeRequire('mediainfo.js') as typeof import('mediainfo.js')).default
+let mediaInfoWasmPath: string | null = null
 
 type InputMedia = SocialPostInput['media'][number]
 
-interface ProbePayload {
-  streams?: Array<{
-    codec_type?: string
-    width?: number
-    height?: number
-  }>
-  format?: {
-    duration?: string
-    format_name?: string
-  }
+function getMediaInfoWasmPath() {
+  const wasmSpecifier = ['mediainfo.js', 'MediaInfoModule.wasm'].join('/')
+  mediaInfoWasmPath ||= nodeRequire.resolve(wasmSpecifier)
+  return mediaInfoWasmPath
 }
 
 async function signedObjectUrl(admin: SupabaseClient, path: string) {
@@ -64,40 +60,57 @@ async function inspectImage(admin: SupabaseClient, media: InputMedia): Promise<I
 
 async function inspectVideo(admin: SupabaseClient, media: InputMedia): Promise<InputMedia> {
   const url = await signedObjectUrl(admin, media.storagePath)
-  let stdout: string
+  let mediaInfo: MediaInfo<'object'> | undefined
   try {
-    const result = await execFileAsync('ffprobe', [
-      '-v', 'error',
-      '-show_entries', 'format=duration,format_name:stream=codec_type,width,height',
-      '-of', 'json',
-      url,
-    ], { timeout: 30_000, maxBuffer: 1024 * 1024 })
-    stdout = result.stdout
-  } catch {
+    mediaInfo = await mediaInfoFactory({
+      chunkSize: 512 * 1024,
+      format: 'object',
+      locateFile: getMediaInfoWasmPath,
+    })
+    const result = await mediaInfo.analyzeData(media.fileSize, async (size: number, offset: number) => {
+      const end = Math.min(media.fileSize - 1, offset + size - 1)
+      const response = await fetch(url, {
+        headers: { Range: `bytes=${offset}-${end}` },
+        signal: AbortSignal.timeout(20_000),
+      })
+      const completeSmallFile = response.status === 200 && offset === 0 && media.fileSize <= size
+      const contentRange = response.headers.get('content-range') || ''
+      if (!completeSmallFile && (response.status !== 206 || !contentRange.startsWith(`bytes ${offset}-`))) {
+        throw new Error('Storage did not honor the requested byte range')
+      }
+      const bytes = new Uint8Array(await response.arrayBuffer())
+      if (bytes.byteLength === 0 || bytes.byteLength > size) {
+        throw new Error('Storage returned an invalid byte range')
+      }
+      return bytes
+    })
+    const tracks = result.media?.track || []
+    const general = tracks.find((track) => track['@type'] === 'General')
+    const video = tracks.find((track) => track['@type'] === 'Video')
+    const duration = Number(video?.Duration ?? general?.Duration)
+    const format = [general?.Format, general?.Format_Extensions, general?.InternetMediaType]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    if (!video?.Width || !video.Height || !Number.isFinite(duration) || duration <= 0 || !/(mpeg-4|quicktime|mp4|mov)/.test(format)) {
+      throw new SocialPublishingError('O conteúdo do vídeo não é compatível.', 'social_video_invalid_content', 'validation')
+    }
+    return {
+      ...media,
+      width: video.Width,
+      height: video.Height,
+      durationMs: Math.round(duration * 1_000),
+    }
+  } catch (error) {
+    if (error instanceof SocialPublishingError) throw error
     throw new SocialPublishingError(
       'Não foi possível validar o vídeo enviado.',
       'social_video_probe_failed',
       'validation',
       422,
     )
-  }
-  let payload: ProbePayload
-  try {
-    payload = JSON.parse(stdout) as ProbePayload
-  } catch {
-    throw new SocialPublishingError('O contêiner do vídeo é inválido.', 'social_video_invalid_container', 'validation')
-  }
-  const stream = payload.streams?.find((item) => item.codec_type === 'video')
-  const duration = Number(payload.format?.duration)
-  const format = payload.format?.format_name || ''
-  if (!stream?.width || !stream.height || !Number.isFinite(duration) || duration <= 0 || !/(^|,)mov(,|$)|(^|,)mp4(,|$)/.test(format)) {
-    throw new SocialPublishingError('O conteúdo do vídeo não é compatível.', 'social_video_invalid_content', 'validation')
-  }
-  return {
-    ...media,
-    width: stream.width,
-    height: stream.height,
-    durationMs: Math.round(duration * 1_000),
+  } finally {
+    mediaInfo?.close()
   }
 }
 
