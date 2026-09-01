@@ -8,6 +8,7 @@ import {
   Camera,
   CheckCircle2,
   Loader2,
+  UserRoundCheck,
 } from 'lucide-react'
 
 interface InstagramAccountOption {
@@ -63,6 +64,7 @@ export default function InstagramConnectPage() {
   const [accounts, setAccounts] = useState<InstagramAccountOption[]>([])
   const [selecting, setSelecting] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [businessProjectId, setBusinessProjectId] = useState('')
 
   useEffect(() => {
     if (started.current) return
@@ -71,6 +73,9 @@ export default function InstagramConnectPage() {
     const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''))
     const query = new URLSearchParams(window.location.search)
     const useBusinessToken = query.get('source') === 'business'
+    if (useBusinessToken) {
+      queueMicrotask(() => setBusinessProjectId(query.get('projectId') || ''))
+    }
     const oauthError = fragment.get('error_description') || fragment.get('error')
     const returnedState = (useBusinessToken ? query.get('state') : fragment.get('state')) || ''
     const accessToken = fragment.get('access_token')
@@ -132,7 +137,7 @@ export default function InstagramConnectPage() {
           <p className="mt-6 text-[11px] uppercase tracking-[0.16em] font-bold text-purple-700">Clave · Instagram Analytics</p>
           <h1 className="mt-2 text-2xl md:text-3xl font-bold tracking-tight">Conectar Instagram profissional</h1>
           <p className="mt-3 text-sm leading-relaxed text-black/55 max-w-xl">
-            A Meta está validando as permissões e procurando as contas profissionais disponíveis para a sua agência.
+            A Meta está validando as permissões e procurando as contas profissionais disponíveis para este projeto.
           </p>
         </div>
 
@@ -150,6 +155,15 @@ export default function InstagramConnectPage() {
                 Voltar ao Clave
                 <ArrowRight className="w-4 h-4" />
               </Link>
+              {businessProjectId && (
+                <a
+                  href={`/api/instagram/connect?projectId=${encodeURIComponent(businessProjectId)}&mode=oauth`}
+                  className="mt-3 ml-0 sm:ml-2 inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-xs font-bold text-red-800"
+                >
+                  Tentar outra conta pelo Facebook
+                  <UserRoundCheck className="w-4 h-4" />
+                </a>
+              )}
             </div>
           ) : accounts.length ? (
             <div>
@@ -184,6 +198,21 @@ export default function InstagramConnectPage() {
                   </button>
                 ))}
               </div>
+              {businessProjectId && (
+                <div className="mt-6 rounded-2xl border border-purple-200 bg-purple-50/60 p-4 sm:flex sm:items-center sm:justify-between sm:gap-4">
+                  <div>
+                    <p className="text-xs font-bold text-purple-900">A conta não está na lista da agência?</p>
+                    <p className="text-[11px] text-purple-900/60 mt-1">Entre com o Facebook que administra diretamente o Instagram do cliente.</p>
+                  </div>
+                  <a
+                    href={`/api/instagram/connect?projectId=${encodeURIComponent(businessProjectId)}&mode=oauth`}
+                    className="mt-3 sm:mt-0 shrink-0 inline-flex items-center gap-2 rounded-lg bg-purple-700 px-4 py-2.5 text-xs font-bold text-white"
+                  >
+                    Conectar outra conta
+                    <UserRoundCheck className="w-4 h-4" />
+                  </a>
+                </div>
+              )}
             </div>
           ) : (
             <div className="py-10 text-center">

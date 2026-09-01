@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { authorizeInstagramProject, InstagramAccessError } from '@/utils/instagram/access'
+import {
+  authorizeInstagramProject,
+  InstagramAccessError,
+  userCanUseInstagramBusinessToken,
+} from '@/utils/instagram/access'
 import { createAdminClient } from '@/utils/supabase/admin'
 import type {
   InstagramConnectionPublic,
@@ -91,6 +95,9 @@ export async function GET(request: NextRequest) {
       proj_id: projectId,
       usr_id: user.id,
     })
+    const canUseBusinessAccounts = Boolean(canManage)
+      && Boolean(process.env.META_SYSTEM_USER_TOKEN?.trim())
+      && await userCanUseInstagramBusinessToken(supabase, user.id)
     const admin = createAdminClient()
     const { data: row, error: connectionError } = await admin
       .from('instagram_connections')
@@ -117,6 +124,7 @@ export async function GET(request: NextRequest) {
       const empty: InstagramDashboardResponse = {
         connection: null,
         canManage: Boolean(canManage),
+        canUseBusinessAccounts,
         days,
         daily: [],
         summary: { current: null, previous: null },
@@ -246,6 +254,7 @@ export async function GET(request: NextRequest) {
     const response: InstagramDashboardResponse = {
       connection,
       canManage: Boolean(canManage),
+      canUseBusinessAccounts,
       days,
       daily,
       summary,

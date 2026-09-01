@@ -291,11 +291,13 @@ Resposta esperada: `{"status":"ok"}`.
    `META_SYSTEM_USER_TOKEN`, `INSTAGRAM_GRAPH_API_VERSION` e `CRON_SECRET`
    somente no runtime. O token do usuário de sistema é o modo recomendado para
    contas administradas pela BM da agência e só pode ser usado por um
-   administrador global ou da agência. No fallback de Login do Facebook para
-   Empresas, use `/instagram/conectar` como URI de redirecionamento OAuth válida;
-   o backend intersecta as Páginas do usuário com os ativos da BM. A conta
-   profissional precisa estar previamente ligada a uma Página disponível na BM
-   da agência; o Clave não executa o onboarding ou a conversão da conta.
+   administrador global ou da agência. O seletor central reúne as contas ligadas
+   às Páginas da BM e os ativos de Instagram compartilhados diretamente com ela.
+   Para clientes que ainda estão fora da BM, mantenha `/instagram/conectar` como
+   URI de redirecionamento OAuth válida: um gestor pode escolher **Conectar outra
+   conta pelo Facebook** e autorizar o perfil que administra diretamente a Página
+   vinculada ao Instagram profissional. O Clave não executa o onboarding ou a
+   conversão da conta.
 9. Use o `Dockerfile` da raiz e porta `3000`.
 10. Dispare o redeploy manual no Coolify.
 11. Aguarde o healthcheck ficar saudável antes de encerrar a versão anterior.

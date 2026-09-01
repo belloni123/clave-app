@@ -19,6 +19,7 @@ import {
 
 export async function GET(request: NextRequest) {
   const projectId = request.nextUrl.searchParams.get('projectId')?.trim() || ''
+  const requestedMode = request.nextUrl.searchParams.get('mode')
 
   try {
     const { user, supabase } = await authorizeInstagramProject(projectId, { requireManager: true })
@@ -28,13 +29,21 @@ export async function GET(request: NextRequest) {
     const systemTokenConfigured = Boolean(process.env.META_SYSTEM_USER_TOKEN?.trim())
     const canUseBusinessToken = systemTokenConfigured
       && await userCanUseInstagramBusinessToken(supabase, user.id)
-    const appId = canUseBusinessToken
+    if (requestedMode === 'business' && !canUseBusinessToken) {
+      throw new InstagramAccessError(
+        'Somente administradores da agência podem selecionar contas da BM.',
+        403,
+      )
+    }
+    const useBusinessToken = canUseBusinessToken && requestedMode !== 'oauth'
+    const appId = useBusinessToken
       ? resolveMetaAppId()
       : resolveMetaAppCredentials().appId
-    if (canUseBusinessToken) {
+    if (useBusinessToken) {
       const businessConnectUrl = new URL(redirectUri)
       businessConnectUrl.searchParams.set('source', 'business')
       businessConnectUrl.searchParams.set('state', state)
+      businessConnectUrl.searchParams.set('projectId', projectId)
       const response = NextResponse.redirect(businessConnectUrl)
       response.cookies.set(INSTAGRAM_OAUTH_COOKIE, encodeInstagramOAuthState({
         state,

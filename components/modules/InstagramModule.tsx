@@ -16,6 +16,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   BarChart3,
+  Building2,
   CalendarDays,
   Check,
   ChevronRight,
@@ -33,6 +34,7 @@ import {
   TrendingUp,
   Unplug,
   UserPlus,
+  UserRoundCheck,
   Users,
   X,
 } from 'lucide-react'
@@ -249,7 +251,19 @@ function LoadingPanel() {
   )
 }
 
-function EmptyState({ projectId, canManage }: { projectId: string; canManage: boolean }) {
+function instagramConnectUrl(projectId: string, mode: 'business' | 'oauth') {
+  return `/api/instagram/connect?projectId=${encodeURIComponent(projectId)}&mode=${mode}`
+}
+
+function EmptyState({
+  projectId,
+  canManage,
+  canUseBusinessAccounts,
+}: {
+  projectId: string
+  canManage: boolean
+  canUseBusinessAccounts: boolean
+}) {
   return (
     <div className="space-y-5">
       <div className="relative overflow-hidden rounded-2xl border border-purple-custom/20 bg-surface p-6 md:p-9">
@@ -263,11 +277,20 @@ function EmptyState({ projectId, canManage }: { projectId: string; canManage: bo
           <h3 className="text-2xl md:text-3xl font-bold tracking-tight text-text-custom mt-2 leading-tight">Transforme conteúdo em decisões.</h3>
           <p className="text-sm text-text2 leading-relaxed mt-3 max-w-xl">Conecte a conta profissional deste projeto para acompanhar crescimento, alcance, visualizações e os conteúdos que mais movimentam a audiência.</p>
           {canManage ? (
-            <a href={`/api/instagram/connect?projectId=${encodeURIComponent(projectId)}`} className="inline-flex items-center gap-2 mt-6 px-5 py-2.5 rounded-lg bg-text-custom text-bg text-xs font-bold hover:opacity-90 transition-opacity shadow-sm">
-              <InstagramIcon className="w-4 h-4" />
-              Conectar Instagram
-              <ChevronRight className="w-4 h-4" />
-            </a>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 mt-6">
+              {canUseBusinessAccounts && (
+                <a href={instagramConnectUrl(projectId, 'business')} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-text-custom text-bg text-xs font-bold hover:opacity-90 transition-opacity shadow-sm">
+                  <Building2 className="w-4 h-4" />
+                  Escolher conta da agência
+                  <ChevronRight className="w-4 h-4" />
+                </a>
+              )}
+              <a href={instagramConnectUrl(projectId, 'oauth')} className={`inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold transition-colors ${canUseBusinessAccounts ? 'border border-border2 text-text-custom hover:bg-surface2' : 'bg-text-custom text-bg hover:opacity-90 shadow-sm'}`}>
+                <UserRoundCheck className="w-4 h-4" />
+                Conectar outra conta pelo Facebook
+                <ChevronRight className="w-4 h-4" />
+              </a>
+            </div>
           ) : (
             <div className="inline-flex items-center gap-2 mt-6 px-4 py-2.5 rounded-lg bg-amber-bg text-amber-t text-xs font-semibold">
               <AlertCircle className="w-4 h-4" />
@@ -436,7 +459,15 @@ export default function InstagramModule() {
   if (query.error) {
     return <div className="bg-red-bg border border-red-t/20 rounded-xl p-6 text-center"><AlertCircle className="w-7 h-7 text-red-t mx-auto" /><p className="text-sm font-semibold text-red-t mt-3">Não foi possível abrir o painel</p><p className="text-xs text-text2 mt-1">{query.error.message}</p><button onClick={() => query.refetch()} className="mt-4 px-4 py-2 rounded-md border border-border2 text-xs font-semibold">Tentar novamente</button></div>
   }
-  if (!query.data?.connection) return <EmptyState projectId={activeProjectId} canManage={Boolean(query.data?.canManage)} />
+  if (!query.data?.connection) {
+    return (
+      <EmptyState
+        projectId={activeProjectId}
+        canManage={Boolean(query.data?.canManage)}
+        canUseBusinessAccounts={Boolean(query.data?.canUseBusinessAccounts)}
+      />
+    )
+  }
 
   const { connection } = query.data
   const best = rankedMedia[0]
@@ -484,7 +515,7 @@ export default function InstagramModule() {
         <div className="bg-amber-bg border border-amber-custom/20 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center gap-3">
           <AlertCircle className="w-5 h-5 text-amber-t shrink-0" />
           <div className="flex-1"><p className="text-xs font-bold text-amber-t">A sincronização precisa de atenção</p><p className="text-[10px] text-text2 mt-0.5">{connection.lastError || 'Reconecte a conta para continuar atualizando os dados.'}</p></div>
-          {query.data.canManage && <a href={`/api/instagram/connect?projectId=${encodeURIComponent(activeProjectId)}`} className="px-3 py-2 rounded-md bg-amber-custom text-white text-[10px] font-bold text-center">Reconectar</a>}
+          {query.data.canManage && <a href={instagramConnectUrl(activeProjectId, 'oauth')} className="px-3 py-2 rounded-md bg-amber-custom text-white text-[10px] font-bold text-center">Reconectar pelo Facebook</a>}
         </div>
       )}
 
@@ -555,7 +586,8 @@ export default function InstagramModule() {
           <div className="w-full max-w-md bg-surface border border-border2 rounded-2xl shadow-2xl overflow-hidden">
             <div className="p-5 border-b border-border-custom flex items-center justify-between"><div><h4 className="text-sm font-bold text-text-custom">Configurar Instagram</h4><p className="text-[10px] text-text3 mt-1">@{connection.username}</p></div><button onClick={() => setShowSettings(false)} className="w-8 h-8 rounded-lg hover:bg-surface2 flex items-center justify-center text-text3"><X className="w-4 h-4" /></button></div>
             <div className="p-5 space-y-3">
-              <a href={`/api/instagram/connect?projectId=${encodeURIComponent(activeProjectId)}`} className="w-full flex items-center gap-3 p-3 rounded-xl border border-border-custom hover:bg-surface2 transition-colors"><div className="w-9 h-9 rounded-lg bg-purple-bg text-purple-t flex items-center justify-center"><RefreshCw className="w-4 h-4" /></div><div className="text-left flex-1"><p className="text-xs font-bold text-text-custom">Reconectar ou trocar conta</p><p className="text-[10px] text-text3 mt-0.5">Abre novamente a autorização da Meta</p></div><ChevronRight className="w-4 h-4 text-text3" /></a>
+              {query.data.canUseBusinessAccounts && <a href={instagramConnectUrl(activeProjectId, 'business')} className="w-full flex items-center gap-3 p-3 rounded-xl border border-border-custom hover:bg-surface2 transition-colors"><div className="w-9 h-9 rounded-lg bg-purple-bg text-purple-t flex items-center justify-center"><Building2 className="w-4 h-4" /></div><div className="text-left flex-1"><p className="text-xs font-bold text-text-custom">Trocar por conta da agência</p><p className="text-[10px] text-text3 mt-0.5">Escolha entre os ativos disponíveis na BM</p></div><ChevronRight className="w-4 h-4 text-text3" /></a>}
+              <a href={instagramConnectUrl(activeProjectId, 'oauth')} className="w-full flex items-center gap-3 p-3 rounded-xl border border-border-custom hover:bg-surface2 transition-colors"><div className="w-9 h-9 rounded-lg bg-blue-bg text-blue-t flex items-center justify-center"><UserRoundCheck className="w-4 h-4" /></div><div className="text-left flex-1"><p className="text-xs font-bold text-text-custom">Conectar outra conta pelo Facebook</p><p className="text-[10px] text-text3 mt-0.5">Use o Facebook que administra o Instagram do cliente</p></div><ChevronRight className="w-4 h-4 text-text3" /></a>
               <button onClick={handleDisconnect} disabled={disconnecting} className="w-full flex items-center gap-3 p-3 rounded-xl border border-red-t/20 hover:bg-red-bg transition-colors disabled:opacity-60"><div className="w-9 h-9 rounded-lg bg-red-bg text-red-t flex items-center justify-center">{disconnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unplug className="w-4 h-4" />}</div><div className="text-left"><p className="text-xs font-bold text-red-t">Desconectar Instagram</p><p className="text-[10px] text-text3 mt-0.5">Remove a conexão e o histórico deste projeto</p></div></button>
             </div>
             <div className="px-5 py-3 bg-surface2/50 border-t border-border-custom flex items-center gap-2 text-[9px] text-text3"><Link2 className="w-3.5 h-3.5" />Uma conta por projeto</div>
