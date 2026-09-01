@@ -29,6 +29,15 @@ function clean(value: string | undefined) {
   return value?.trim() || ''
 }
 
+function secretFromAppAccessToken(appId: string, appAccessToken: string) {
+  const separator = appAccessToken.indexOf('|')
+  if (separator <= 0) return ''
+
+  const tokenAppId = appAccessToken.slice(0, separator).trim()
+  const tokenSecret = appAccessToken.slice(separator + 1).trim()
+  return tokenAppId === appId ? tokenSecret : ''
+}
+
 export function resolveMetaAppId(
   environment: MetaAppEnvironment = process.env,
 ) {
@@ -57,7 +66,9 @@ export function resolveMetaAppCredentials(
   environment: MetaAppEnvironment = process.env,
 ) {
   const appId = resolveMetaAppId(environment)
-  const appSecret = clean(environment.INSTAGRAM_APP_SECRET)
+  const configuredAppAccessToken = clean(environment.META_APP_ACCESS_TOKEN)
+  const appSecret = secretFromAppAccessToken(appId, configuredAppAccessToken)
+    || clean(environment.INSTAGRAM_APP_SECRET)
 
   if (!appSecret) {
     throw new MetaAppConfigurationError(
