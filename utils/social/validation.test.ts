@@ -32,8 +32,8 @@ function input(overrides: Partial<SocialPostInput> = {}): SocialPostInput {
 
 describe('social publishing validation', () => {
   it('keeps official capabilities provider-specific', () => {
-    expect(getSocialCapabilities('instagram')).toMatchObject({ textOnly: false, reels: true, maxMedia: 10 })
-    expect(getSocialCapabilities('facebook')).toMatchObject({ textOnly: true, links: true, reels: true })
+    expect(getSocialCapabilities('instagram')).toMatchObject({ textOnly: false, reels: true, stories: true, maxMedia: 10 })
+    expect(getSocialCapabilities('facebook')).toMatchObject({ textOnly: true, links: true, reels: true, stories: false })
   })
 
   it('converts São Paulo wall time without relying on the machine timezone', () => {
@@ -101,5 +101,51 @@ describe('social publishing validation', () => {
       input({ media: [], saveAsDraft: true, scheduledAt: null }),
       [{ provider: 'instagram' }],
     )).toEqual({ timezone: 'America/Sao_Paulo', scheduledAt: null })
+  })
+
+  it('requires exactly one video for Instagram and Facebook Reels', () => {
+    expect(() => validateSocialPostInput(input(), [{
+      provider: 'instagram',
+      providerSettings: { instagramFormat: 'reel' },
+    }])).toThrowError(/único vídeo/)
+
+    const video = input({
+      media: [{
+        ...input().media[0],
+        storagePath: `${projectId}/${idempotencyKey}/reel.mp4`,
+        mediaType: 'video',
+        mimeType: 'video/mp4',
+      }],
+    })
+    expect(() => validateSocialPostInput(video, [{
+      provider: 'facebook',
+      providerSettings: { facebookFormat: 'reel' },
+    }])).not.toThrow()
+  })
+
+  it('accepts one Instagram Story and rejects a Story carousel', () => {
+    expect(() => validateSocialPostInput(input(), [{
+      provider: 'instagram',
+      providerSettings: { instagramFormat: 'story' },
+    }])).not.toThrow()
+
+    const carousel = input({
+      media: [0, 1].map((position) => ({
+        ...input().media[0],
+        storagePath: `${projectId}/${idempotencyKey}/story-${position}.jpg`,
+        position,
+      })),
+    })
+    expect(() => validateSocialPostInput(carousel, [{
+      provider: 'instagram',
+      providerSettings: { instagramFormat: 'story' },
+    }])).toThrowError(/uma única imagem ou vídeo/)
+  })
+
+  it('rejects unknown publishing channels', () => {
+    expect(() => validateSocialPostInput(input(), [{
+      provider: 'instagram',
+      providerSettings: { instagramFormat: 'direct' },
+    }])).toThrowError(/Canal de publicação inválido/)
   })
 })

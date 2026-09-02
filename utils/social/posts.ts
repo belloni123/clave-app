@@ -291,6 +291,7 @@ export async function createSocialPost(
   const schedule = validateSocialPostInput(input, accounts.map((account) => ({
     provider: account.provider as SocialProviderName,
     customCaption: inputByAccount.get(account.id)?.customCaption,
+    providerSettings: inputByAccount.get(account.id)?.providerSettings,
   })))
   const verifiedMedia = await verifyUploadedMedia(admin, input)
 
@@ -346,6 +347,7 @@ export async function updateSocialPost(
   const schedule = validateSocialPostInput(input, accounts.map((account) => ({
     provider: account.provider as SocialProviderName,
     customCaption: inputByAccount.get(account.id)?.customCaption,
+    providerSettings: inputByAccount.get(account.id)?.providerSettings,
   })))
   const verifiedMedia = await verifyUploadedMedia(admin, input)
   const { error: updateError } = await admin.rpc('update_social_post', {

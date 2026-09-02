@@ -141,4 +141,49 @@ describe('Meta provider checkpoints', () => {
       },
     })
   })
+
+  it('creates an Instagram Story without unsupported caption or alt text fields', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json({ data: [{ quota_usage: 1, config: { quota_total: 100 } }] }))
+      .mockResolvedValueOnce(json({ id: 'story-container' }))
+      .mockResolvedValueOnce(json({ status_code: 'IN_PROGRESS' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(instagramProvider.publish(baseInput({
+      settings: { instagramFormat: 'story' },
+      media: [{ ...baseInput().media[0], altText: 'Descrição da imagem' }],
+    }))).resolves.toMatchObject({ status: 'processing', remoteContainerId: 'story-container' })
+
+    const request = fetchMock.mock.calls[1]?.[1] as RequestInit
+    const body = request.body as URLSearchParams
+    expect(body.get('media_type')).toBe('STORIES')
+    expect(body.get('image_url')).toBe('https://storage.invalid/media.jpg')
+    expect(body.has('caption')).toBe(false)
+    expect(body.has('alt_text')).toBe(false)
+  })
+
+  it('creates an Instagram Reel without also sharing it to Feed', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json({ data: [{ quota_usage: 1, config: { quota_total: 100 } }] }))
+      .mockResolvedValueOnce(json({ id: 'reel-container' }))
+      .mockResolvedValueOnce(json({ status_code: 'IN_PROGRESS' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(instagramProvider.publish(baseInput({
+      settings: { instagramFormat: 'reel' },
+      media: [{
+        ...baseInput().media[0],
+        mediaType: 'video',
+        mimeType: 'video/mp4',
+        signedUrl: 'https://storage.invalid/reel.mp4',
+      }],
+    }))).resolves.toMatchObject({ status: 'processing', remoteContainerId: 'reel-container' })
+
+    const request = fetchMock.mock.calls[1]?.[1] as RequestInit
+    const body = request.body as URLSearchParams
+    expect(body.get('media_type')).toBe('REELS')
+    expect(body.get('video_url')).toBe('https://storage.invalid/reel.mp4')
+    expect(body.get('share_to_feed')).toBe('false')
+    expect(body.get('caption')).toBe('Legenda')
+  })
 })

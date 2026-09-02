@@ -1,6 +1,12 @@
 import type { SocialPostInput, SocialProviderName } from '@/types/social'
 import { getSocialCapabilities, maxSocialUploadBytes } from '@/utils/social/capabilities'
 import { SocialPublishingError } from '@/utils/social/errors'
+import {
+  getFacebookPublishingFormat,
+  getInstagramPublishingFormat,
+  isFacebookPublishingFormat,
+  isInstagramPublishingFormat,
+} from '@/utils/social/formats'
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const STORAGE_PATH_PATTERN = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\/[A-Za-z0-9._-]+$/
@@ -27,7 +33,11 @@ export function parseScheduledAt(value: string, timezone: string) {
 
 export function validateSocialPostInput(
   input: SocialPostInput,
-  targets: Array<{ provider: SocialProviderName; customCaption?: string | null }>,
+  targets: Array<{
+    provider: SocialProviderName
+    customCaption?: string | null
+    providerSettings?: Record<string, unknown>
+  }>,
 ) {
   assertUuid(input.projectId, 'Projeto')
   assertUuid(input.idempotencyKey, 'Chave de idempotência')
@@ -62,9 +72,18 @@ export function validateSocialPostInput(
     throw new SocialPublishingError('O Instagram exige uma mídia.', 'social_instagram_media_required', 'validation')
   }
 
-  targets.forEach(({ provider, customCaption }) => {
+  targets.forEach(({ provider, customCaption, providerSettings = {} }) => {
     const capabilities = getSocialCapabilities(provider)
     const caption = customCaption ?? input.baseCaption
+    const rawFormat = provider === 'instagram'
+      ? providerSettings.instagramFormat
+      : providerSettings.facebookFormat
+    const validFormat = provider === 'instagram'
+      ? isInstagramPublishingFormat(rawFormat)
+      : isFacebookPublishingFormat(rawFormat)
+    if (rawFormat !== undefined && !validFormat) {
+      throw new SocialPublishingError('Canal de publicação inválido.', 'social_invalid_publishing_format', 'validation')
+    }
     if (caption.length > capabilities.maxCaptionLength) {
       throw new SocialPublishingError(
         `A legenda excede o limite do ${provider === 'instagram' ? 'Instagram' : 'Facebook'}.`,
@@ -89,6 +108,25 @@ export function validateSocialPostInput(
         throw new SocialPublishingError('A mídia excede o limite do destino.', 'social_media_too_large', 'validation')
       }
     })
+
+    if (input.saveAsDraft) return
+    const format = provider === 'instagram'
+      ? getInstagramPublishingFormat(providerSettings)
+      : getFacebookPublishingFormat(providerSettings)
+    if (format === 'reel' && (input.media.length !== 1 || input.media[0]?.mediaType !== 'video')) {
+      throw new SocialPublishingError(
+        `Reels do ${provider === 'instagram' ? 'Instagram' : 'Facebook'} exigem um único vídeo.`,
+        'social_reel_video_required',
+        'validation',
+      )
+    }
+    if (provider === 'instagram' && format === 'story' && input.media.length !== 1) {
+      throw new SocialPublishingError(
+        'Stories do Instagram aceitam uma única imagem ou vídeo por publicação.',
+        'social_story_single_media_required',
+        'validation',
+      )
+    }
   })
 
   const timezone = input.timezone || 'America/Sao_Paulo'

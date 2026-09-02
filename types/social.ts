@@ -1,5 +1,7 @@
 export type SocialProviderName = 'instagram' | 'facebook'
 export type SocialMediaType = 'image' | 'video'
+export type InstagramPublishingFormat = 'feed' | 'reel' | 'story'
+export type FacebookPublishingFormat = 'feed' | 'reel'
 export type SocialPostStatus =
   | 'draft'
   | 'scheduled'
@@ -34,6 +36,7 @@ export interface SocialProviderCapabilities {
   images: boolean
   videos: boolean
   reels: boolean
+  stories: boolean
   carousels: boolean
   maxMedia: number
   maxCaptionLength: number
