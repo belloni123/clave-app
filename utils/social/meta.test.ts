@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SocialPublishingError, safeErrorDetails } from '@/utils/social/errors'
 import { metaGet, metaPost } from '@/utils/social/providers/meta'
-import { socialFeatureFlags } from '@/utils/social/config'
+import { socialFeatureFlags, socialPublishingOAuthScopes } from '@/utils/social/config'
 import { instagramProvider } from '@/utils/social/providers/instagram'
 import type { ProviderPublishInput } from '@/utils/social/providers/types'
 
@@ -29,6 +29,13 @@ describe('social feature flags and safe Meta errors', () => {
     vi.stubEnv('SOCIAL_INSTAGRAM_PUBLISHING_ENABLED', 'TRUE')
     vi.stubEnv('SOCIAL_FACEBOOK_ENABLED', 'false')
     expect(socialFeatureFlags()).toEqual({ enabled: true, instagram: true, facebook: false })
+  })
+
+  it('requests only the publishing scopes used by this phase', () => {
+    expect(socialPublishingOAuthScopes({ enabled: true, instagram: true, facebook: true })).toEqual([
+      'instagram_content_publish',
+      'pages_manage_posts',
+    ])
   })
 
   it('classifies rate limits as retryable and honors Retry-After', async () => {
