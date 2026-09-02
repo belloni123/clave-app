@@ -46,8 +46,6 @@ function publishingRequiredScopes() {
       ? [
           'pages_manage_posts',
           'pages_manage_engagement',
-          'pages_read_user_engagement',
-          'publish_video',
         ]
       : []),
   ]

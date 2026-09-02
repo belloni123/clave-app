@@ -92,7 +92,9 @@ Permissões a confirmar novamente no App Dashboard antes do teste real:
 - fluxo atual com Facebook Login: `instagram_basic`,
   `instagram_manage_insights`, `instagram_content_publish`, `pages_show_list`,
   `pages_read_engagement`, `pages_manage_posts`, `pages_manage_engagement`,
-  `pages_read_user_engagement` e `publish_video`, conforme as redes habilitadas;
+  conforme as redes habilitadas. Na Graph API v26, `pages_read_user_engagement`
+  e `publish_video` são rejeitadas pelo OAuth; vídeos de Página usam
+  `pages_manage_posts`;
 - `business_management` no modo de BM central;
 - tarefas da Página que incluam criação de conteúdo;
 - permissões adicionais de vídeo somente se a versão oficial exigir.
