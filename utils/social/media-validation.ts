@@ -6,6 +6,10 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { MediaInfo } from 'mediainfo.js'
 import type { SocialPostInput } from '@/types/social'
 import { SocialPublishingError } from '@/utils/social/errors'
+import {
+  ensureInstagramJpeg,
+  requiresInstagramJpegDerivative,
+} from '@/utils/social/instagram-image'
 
 const nodeRequire = createRequire(import.meta.url)
 const mediaInfoFactory = (nodeRequire('mediainfo.js') as typeof import('mediainfo.js')).default
@@ -34,7 +38,11 @@ async function signedObjectUrl(admin: SupabaseClient, path: string) {
   return data.signedUrl
 }
 
-async function inspectImage(admin: SupabaseClient, media: InputMedia): Promise<InputMedia> {
+async function inspectImage(
+  admin: SupabaseClient,
+  media: InputMedia,
+  prepareInstagram: boolean,
+): Promise<InputMedia> {
   const url = await signedObjectUrl(admin, media.storagePath)
   const response = await fetch(url, { signal: AbortSignal.timeout(20_000) })
   if (!response.ok) {
@@ -54,6 +62,9 @@ async function inspectImage(admin: SupabaseClient, media: InputMedia): Promise<I
         : null
   if (!actualMime || actualMime !== media.mimeType || !metadata.width || !metadata.height) {
     throw new SocialPublishingError('O conteúdo real da imagem não corresponde ao formato informado.', 'social_media_content_mismatch', 'validation')
+  }
+  if (prepareInstagram && requiresInstagramJpegDerivative(actualMime, bytes.byteLength)) {
+    await ensureInstagramJpeg(admin, media.storagePath, bytes)
   }
   return { ...media, width: metadata.width, height: metadata.height, durationMs: null }
 }
@@ -117,6 +128,7 @@ async function inspectVideo(admin: SupabaseClient, media: InputMedia): Promise<I
 export async function verifyUploadedMedia(
   admin: SupabaseClient,
   input: SocialPostInput,
+  options: { prepareInstagram?: boolean } = {},
 ): Promise<InputMedia[]> {
   const verified: InputMedia[] = []
   for (const media of input.media) {
@@ -137,7 +149,7 @@ export async function verifyUploadedMedia(
       throw new SocialPublishingError('O tipo real da mídia não corresponde ao arquivo informado.', 'social_media_mime_mismatch', 'validation')
     }
     verified.push(media.mediaType === 'image'
-      ? await inspectImage(admin, media)
+      ? await inspectImage(admin, media, Boolean(options.prepareInstagram))
       : await inspectVideo(admin, media))
   }
   return verified

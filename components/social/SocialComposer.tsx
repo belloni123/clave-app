@@ -584,6 +584,7 @@ export default function SocialComposer({ projectId, accounts, editingPost, onSav
               {uploading ? <Loader2 className="h-6 w-6 animate-spin text-purple-t" /> : <Upload className="h-6 w-6 text-purple-t" />}
               <span className="mt-3 text-xs font-bold text-text-custom">{uploading ? 'Enviando mídia…' : 'Imagens ou vídeos'}</span>
               <span className="mt-1 max-w-xs text-[10px] leading-relaxed text-text3">Clique ou arraste até 10 arquivos. Um arquivo para Reels e Stories.</span>
+              <span className="mt-1 max-w-xs text-[9px] leading-relaxed text-text3">PNG para Instagram é convertido automaticamente; o original permanece preservado.</span>
               <input
                 type="file"
                 multiple

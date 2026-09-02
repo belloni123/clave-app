@@ -17,7 +17,7 @@ const CAPABILITIES: Record<SocialProviderName, SocialProviderCapabilities> = {
     maxCaptionLength: 2_200,
     maxImageBytes: SOCIAL_MAX_IMAGE_BYTES,
     maxVideoBytes: SOCIAL_MAX_VIDEO_BYTES,
-    acceptedMimeTypes: ['image/jpeg', 'video/mp4', 'video/quicktime'],
+    acceptedMimeTypes: ['image/jpeg', 'image/png', 'video/mp4', 'video/quicktime'],
     asynchronousVideo: true,
   },
   facebook: {

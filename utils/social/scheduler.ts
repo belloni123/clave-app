@@ -6,6 +6,10 @@ import type { SocialProviderName } from '@/types/social'
 import { createAdminClient } from '@/utils/supabase/admin'
 import { requireSocialPublishingEnabled } from '@/utils/social/config'
 import { safeErrorDetails, SocialPublishingError } from '@/utils/social/errors'
+import {
+  ensureInstagramJpeg,
+  requiresInstagramJpegDerivative,
+} from '@/utils/social/instagram-image'
 import { getSocialProvider } from '@/utils/social/providers'
 import type { ProviderMedia } from '@/utils/social/providers/types'
 import { readSocialAccessToken } from '@/utils/social/vault'
@@ -90,9 +94,15 @@ async function loadWork(admin: SupabaseClient, target: ClaimedTarget): Promise<W
 async function signedMedia(admin: SupabaseClient, work: WorkContext): Promise<ProviderMedia[]> {
   const result: ProviderMedia[] = []
   for (const media of work.media) {
+    const useInstagramDerivative = work.target.provider === 'instagram'
+      && media.media_type === 'image'
+      && requiresInstagramJpegDerivative(media.mime_type, Number(media.file_size))
+    const storagePath = useInstagramDerivative
+      ? await ensureInstagramJpeg(admin, media.storage_path)
+      : media.storage_path
     const { data, error } = await admin.storage
       .from('social-publishing')
-      .createSignedUrl(media.storage_path, 60 * 60)
+      .createSignedUrl(storagePath, 60 * 60)
     if (error || !data?.signedUrl) {
       throw new SocialPublishingError(
         'A mídia não está mais disponível para publicação.',
@@ -104,7 +114,7 @@ async function signedMedia(admin: SupabaseClient, work: WorkContext): Promise<Pr
     result.push({
       id: media.id,
       mediaType: media.media_type,
-      mimeType: media.mime_type,
+      mimeType: useInstagramDerivative ? 'image/jpeg' : media.mime_type,
       signedUrl: data.signedUrl,
       position: media.position,
       altText: media.alt_text,

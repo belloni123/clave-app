@@ -16,9 +16,10 @@ import { assertUuid, validateSocialPostInput } from '@/utils/social/validation'
 async function verifyUploadedMedia(
   admin: SupabaseClient,
   input: SocialPostInput,
+  options: { prepareInstagram?: boolean } = {},
 ) {
   const mediaValidation = await import('@/utils/social/media-validation')
-  return mediaValidation.verifyUploadedMedia(admin, input)
+  return mediaValidation.verifyUploadedMedia(admin, input, options)
 }
 
 interface PostRow {
@@ -293,7 +294,9 @@ export async function createSocialPost(
     customCaption: inputByAccount.get(account.id)?.customCaption,
     providerSettings: inputByAccount.get(account.id)?.providerSettings,
   })))
-  const verifiedMedia = await verifyUploadedMedia(admin, input)
+  const verifiedMedia = await verifyUploadedMedia(admin, input, {
+    prepareInstagram: accounts.some((account) => account.provider === 'instagram'),
+  })
 
   const { data: postId, error: createError } = await admin.rpc('create_social_post', {
     p_project_id: input.projectId,
@@ -349,7 +352,9 @@ export async function updateSocialPost(
     customCaption: inputByAccount.get(account.id)?.customCaption,
     providerSettings: inputByAccount.get(account.id)?.providerSettings,
   })))
-  const verifiedMedia = await verifyUploadedMedia(admin, input)
+  const verifiedMedia = await verifyUploadedMedia(admin, input, {
+    prepareInstagram: accounts.some((account) => account.provider === 'instagram'),
+  })
   const { error: updateError } = await admin.rpc('update_social_post', {
     p_post_id: postId,
     p_project_id: input.projectId,

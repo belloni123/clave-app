@@ -80,10 +80,16 @@ describe('social publishing validation', () => {
     ])).toMatchObject({ timezone: 'America/Sao_Paulo' })
   })
 
-  it('rejects PNG for Instagram while allowing it for Facebook', () => {
+  it('accepts PNG for Instagram and Facebook because Instagram receives a private JPEG derivative', () => {
     const png = input({ media: [{ ...input().media[0], storagePath: `${projectId}/${idempotencyKey}/post.png`, mimeType: 'image/png' }] })
-    expect(() => validateSocialPostInput(png, [{ provider: 'instagram' }])).toThrowError(/Formato de mídia incompatível/)
+    expect(() => validateSocialPostInput(png, [{ provider: 'instagram' }])).not.toThrow()
     expect(() => validateSocialPostInput(png, [{ provider: 'facebook' }])).not.toThrow()
+  })
+
+  it('still rejects WebP for Instagram while allowing it for Facebook', () => {
+    const webp = input({ media: [{ ...input().media[0], storagePath: `${projectId}/${idempotencyKey}/post.webp`, mimeType: 'image/webp' }] })
+    expect(() => validateSocialPostInput(webp, [{ provider: 'instagram' }])).toThrowError(/Formato de mídia incompatível/)
+    expect(() => validateSocialPostInput(webp, [{ provider: 'facebook' }])).not.toThrow()
   })
 
   it('rejects a schedule in the past', () => {

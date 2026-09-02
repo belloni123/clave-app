@@ -62,6 +62,7 @@ describe('social composer channels', () => {
     expect(screen.queryByText(/Criar legenda/)).toBeNull()
     expect(screen.queryByText(/Integrações/)).toBeNull()
     expect(screen.queryByText(/Editor/)).toBeNull()
+    expect(screen.getByText(/PNG para Instagram é convertido automaticamente/)).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { expanded: false }))
     fireEvent.click(screen.getByRole('button', { name: /Facebook Page Teste/ }))
