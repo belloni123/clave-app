@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { createAdminClient } from '@/utils/supabase/admin'
-import { socialFeatureFlags } from '@/utils/social/config'
+import { socialFeatureFlags, socialPublishingOAuthScopes } from '@/utils/social/config'
 import { getSocialCapabilities } from '@/utils/social/capabilities'
 import { metaGet } from '@/utils/social/providers/meta'
 import { readSocialAccessToken } from '@/utils/social/vault'
@@ -58,16 +58,7 @@ function publicAccount(row: SocialAccountRow): SocialAccountPublic {
 }
 
 function requiredScopes() {
-  const flags = socialFeatureFlags()
-  return [
-    ...(flags.instagram ? ['instagram_content_publish'] : []),
-    ...(flags.facebook
-      ? [
-          'pages_manage_posts',
-          'pages_manage_engagement',
-        ]
-      : []),
-  ]
+  return socialPublishingOAuthScopes()
 }
 
 export async function discoverSocialAccounts(projectId: string): Promise<SocialAccountsResponse> {

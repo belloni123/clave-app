@@ -15,6 +15,13 @@ export function socialFeatureFlags(): SocialFeatureFlags {
   }
 }
 
+export function socialPublishingOAuthScopes(flags = socialFeatureFlags()) {
+  return [
+    ...(flags.instagram ? ['instagram_content_publish'] : []),
+    ...(flags.facebook ? ['pages_manage_posts'] : []),
+  ]
+}
+
 export function requireSocialPublishingEnabled(provider?: 'instagram' | 'facebook') {
   const flags = socialFeatureFlags()
   if (!flags.enabled || (provider && !flags[provider])) {

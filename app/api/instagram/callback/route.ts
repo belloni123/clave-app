@@ -24,7 +24,7 @@ import {
   type InstagramPendingAuthorization,
 } from '@/utils/instagram/oauth'
 import { createAdminClient } from '@/utils/supabase/admin'
-import { socialFeatureFlags } from '@/utils/social/config'
+import { socialPublishingOAuthScopes } from '@/utils/social/config'
 
 const USER_REQUIRED_SCOPES = [
   'instagram_basic',
@@ -39,16 +39,7 @@ const BUSINESS_REQUIRED_SCOPES = [
 ]
 
 function publishingRequiredScopes() {
-  const flags = socialFeatureFlags()
-  return [
-    ...(flags.instagram ? ['instagram_content_publish'] : []),
-    ...(flags.facebook
-      ? [
-          'pages_manage_posts',
-          'pages_manage_engagement',
-        ]
-      : []),
-  ]
+  return socialPublishingOAuthScopes()
 }
 
 interface CallbackBody {

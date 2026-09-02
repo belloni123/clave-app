@@ -16,7 +16,7 @@ import {
   resolveMetaAppId,
   resolveMetaAppCredentials,
 } from '@/utils/instagram/config'
-import { socialFeatureFlags } from '@/utils/social/config'
+import { socialFeatureFlags, socialPublishingOAuthScopes } from '@/utils/social/config'
 
 export async function GET(request: NextRequest) {
   const projectId = request.nextUrl.searchParams.get('projectId')?.trim() || ''
@@ -74,15 +74,7 @@ export async function GET(request: NextRequest) {
       'pages_show_list',
       'pages_read_engagement',
       ...(purpose === 'publishing'
-        ? [
-            ...(publishingFlags.instagram ? ['instagram_content_publish'] : []),
-            ...(publishingFlags.facebook
-              ? [
-                  'pages_manage_posts',
-                  'pages_manage_engagement',
-                ]
-              : []),
-          ]
+        ? socialPublishingOAuthScopes(publishingFlags)
         : []),
     ]
     authorizeUrl.searchParams.set('scope', scopes.join(','))
