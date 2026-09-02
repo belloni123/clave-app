@@ -62,7 +62,12 @@ function requiredScopes() {
   return [
     ...(flags.instagram ? ['instagram_content_publish'] : []),
     ...(flags.facebook
-      ? ['pages_manage_posts', 'pages_manage_engagement', 'pages_read_user_engagement']
+      ? [
+          'pages_manage_posts',
+          'pages_manage_engagement',
+          'pages_read_user_engagement',
+          'publish_video',
+        ]
       : []),
   ]
 }

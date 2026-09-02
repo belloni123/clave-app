@@ -91,8 +91,8 @@ Permissões a confirmar novamente no App Dashboard antes do teste real:
 
 - fluxo atual com Facebook Login: `instagram_basic`,
   `instagram_manage_insights`, `instagram_content_publish`, `pages_show_list`,
-  `pages_read_engagement`, `pages_manage_posts`, `pages_manage_engagement` e
-  `pages_read_user_engagement`, conforme as redes habilitadas;
+  `pages_read_engagement`, `pages_manage_posts`, `pages_manage_engagement`,
+  `pages_read_user_engagement` e `publish_video`, conforme as redes habilitadas;
 - `business_management` no modo de BM central;
 - tarefas da Página que incluam criação de conteúdo;
 - permissões adicionais de vídeo somente se a versão oficial exigir.
