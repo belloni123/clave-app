@@ -27,7 +27,7 @@
     "mediainfo.js": "^0.3.7",
     "next": "16.2.11",
     "nodemailer": "^9.0.3",
-    "react": "19.2.4",
+    "react": "19.2.8",
     "react-dom": "19.2.4",
     "sharp": "0.35.4",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
