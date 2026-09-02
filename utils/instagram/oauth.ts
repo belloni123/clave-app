@@ -18,6 +18,7 @@ export interface InstagramOAuthState {
   userId: string
   redirectUri: string
   source: 'business' | 'oauth'
+  purpose: 'analytics' | 'publishing'
   createdAt: number
 }
 
@@ -54,7 +55,10 @@ export function readInstagramOAuthState(request: NextRequest): InstagramOAuthSta
     if (Date.now() - parsed.createdAt > INSTAGRAM_OAUTH_MAX_AGE_SECONDS * 1_000) {
       return null
     }
-    return parsed
+    return {
+      ...parsed,
+      purpose: parsed.purpose === 'publishing' ? 'publishing' : 'analytics',
+    }
   } catch {
     return null
   }

@@ -395,3 +395,21 @@ Para atender aos padrões modernos de design e acessibilidade, a plataforma util
 ### Regra de Logotipo Dinâmico B16:
 *   O sistema carrega o logotipo oficial da B16. Quando o fundo é branco (`theme === 'light'`), renderiza-se o logotipo em preto (`/logo_black.svg`). Quando o fundo é escuro/preto (`theme === 'dark'`), renderiza-se o logotipo em branco (`/logo_white.svg`).
 *   Caso a barra lateral esteja colapsada, a imagem renderiza dinamicamente o ícone compacto `favicon.svg` (um quadrado amarelo com o símbolo `/` e letra `C`).
+
+## 9. Publicação Meta dentro do Instagram
+
+O `InstagramModule` continua iniciando no Analytics. Uma navegação interna por
+query string abre compositor, lista/calendário e detalhes sem criar item lateral.
+O servidor só expõe a entrada quando a flag está habilitada e `canManage` é
+verdadeiro; cada rota de escrita repete a autorização do projeto.
+
+`instagram_connections` continua sendo a fonte da credencial Meta no Vault.
+`social_connections` referencia essa conexão, `social_accounts` representa a
+conta profissional e as Páginas, e adapters em `utils/social/providers` isolam
+as chamadas oficiais. O post comum possui destinos independentes. Um worker
+reivindica itens vencidos com lease e `FOR UPDATE SKIP LOCKED`, grava checkpoints
+antes de chamadas ambíguas e nunca repete automaticamente um estado `unknown`.
+
+O upload é direto para o bucket privado `social-publishing`. O servidor valida
+o objeto armazenado, inspeciona imagens com Sharp e vídeos por streaming com
+`ffprobe`; URLs para a Meta são assinadas apenas no momento da execução.

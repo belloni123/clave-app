@@ -60,6 +60,7 @@ A plataforma unifica diversos recursos de controle operacional e estratégico em
 17. **Monitoramento Administrativo**: Falhas inesperadas dos formulários públicos, anexos, candidaturas e renderização do navegador são capturadas silenciosamente com um identificador interno. Somente administradores acessam a fila global e o diagnóstico completo, registram notas e controlam os estados Novo, Em análise e Resolvido; o visitante recebe apenas uma mensagem amigável e o responsável recebe um alerta por e-mail.
 18. **Banco de Histórias com Áudio**: Uma história pode ser digitada, gravada pelo microfone ou enviada como arquivo. A fala é transcrita localmente no navegador, o texto permanece editável e o áudio original é guardado em bucket privado. O Criador de Conteúdo usa somente a chave OpenAI ou Claude cadastrada no projeto ativo.
 19. **Instagram Analytics por Projeto**: Cada projeto conecta uma conta profissional pela API oficial da Meta e acompanha seguidores, crescimento, alcance, visualizações, engajamento e conteúdos de destaque. Os tokens ficam no Supabase Vault e os snapshots diários constroem o histórico próprio do Clave.
+20. **Publicação Meta no Instagram**: Com flags explícitas, gestores criam rascunhos, publicam ou agendam posts para Instagram profissional e Facebook Pages dentro do módulo atual. O Analytics permanece como tela inicial; mídia fica privada e o executor persistente trata cada destino separadamente.
 
 ---
 
@@ -87,6 +88,10 @@ META_SYSTEM_USER_TOKEN=token-do-usuario-de-sistema-da-bm
 # Opcional; o conector usa a versão oficial compatível atual
 INSTAGRAM_GRAPH_API_VERSION=v26.0
 CRON_SECRET=um-segredo-longo-para-a-sincronizacao-diaria
+SOCIAL_PUBLISHING_ENABLED=false
+SOCIAL_INSTAGRAM_PUBLISHING_ENABLED=false
+SOCIAL_FACEBOOK_ENABLED=false
+SOCIAL_CRON_SECRET=um-segredo-dedicado-para-o-cron-social
 ```
 
 `SUPABASE_SERVICE_ROLE_KEY` é usada apenas no servidor por rotas administrativas
@@ -119,6 +124,12 @@ A rotina diária deve fazer um `POST`
 para `/api/cron/instagram-sync` com o cabeçalho
 `Authorization: Bearer <CRON_SECRET>`.
 
+A publicação social permanece desligada quando qualquer flag necessária estiver
+ausente. O OAuth de publicação pede escopos adicionais somente para as redes
+habilitadas. O executor deve receber `POST /api/cron/social-publish` a cada
+minuto com `Authorization: Bearer <SOCIAL_CRON_SECRET>`; não reutilize o segredo
+em URLs ou no navegador.
+
 ### 3. Executando os Comandos
 ```bash
 # Instalar exatamente as dependências registradas no lockfile
@@ -138,6 +149,9 @@ npm run audit:prod
 
 # Gerar build de produção local
 npm run build
+
+# Executar testes automatizados
+npm test
 
 # Executar a aplicação compilada em modo de produção
 npm run start

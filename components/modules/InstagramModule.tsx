@@ -2,7 +2,8 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useQuery } from '@tanstack/react-query'
 import { useAppStore } from '@/store/useAppStore'
 import type {
@@ -18,6 +19,7 @@ import {
   BarChart3,
   Building2,
   CalendarDays,
+  CalendarPlus,
   Check,
   ChevronRight,
   Eye,
@@ -38,10 +40,28 @@ import {
   Users,
   X,
 } from 'lucide-react'
+import type { InstagramPublishingView } from '@/components/social/SocialPublishingModule'
+
+const SocialPublishingModule = dynamic(
+  () => import('@/components/social/SocialPublishingModule'),
+)
 
 const PERIODS = [7, 30, 90] as const
 type Period = (typeof PERIODS)[number]
 type NumericMetric = Exclude<keyof InstagramDailyMetric, 'date'>
+type InstagramView = 'analytics' | InstagramPublishingView
+
+function readInstagramNavigation() {
+  if (typeof window === 'undefined') return { view: 'analytics' as InstagramView, postId: null as string | null }
+  const params = new URLSearchParams(window.location.search)
+  const requested = params.get('instagramView')
+  const view: InstagramView = requested === 'novo-post'
+    || requested === 'agendamentos'
+    || requested === 'detalhes'
+    ? requested
+    : 'analytics'
+  return { view, postId: params.get('postId') }
+}
 
 function formatNumber(value: number | null, compact = true) {
   if (value === null || !Number.isFinite(value)) return '—'
@@ -331,7 +351,30 @@ export default function InstagramModule() {
   const [syncing, setSyncing] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
+  const [navigation, setNavigation] = useState(readInstagramNavigation)
   const activeProject = getActiveProject()
+
+  useEffect(() => {
+    const handlePopState = () => setNavigation(readInstagramNavigation())
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  const navigateInstagram = (view: InstagramView, postId: string | null = null) => {
+    const url = new URL(window.location.href)
+    if (view === 'analytics') {
+      url.searchParams.delete('activeModule')
+      url.searchParams.delete('instagramView')
+      url.searchParams.delete('postId')
+    } else {
+      url.searchParams.set('activeModule', 'instagram')
+      url.searchParams.set('instagramView', view)
+      if (postId) url.searchParams.set('postId', postId)
+      else url.searchParams.delete('postId')
+    }
+    window.history.pushState({}, '', `${url.pathname}${url.search}${url.hash}`)
+    setNavigation({ view, postId })
+  }
 
   const query = useQuery({
     queryKey: ['instagram-dashboard', activeProjectId, period],
@@ -342,6 +385,10 @@ export default function InstagramModule() {
       currentQuery.state.data?.connection?.status === 'syncing' ? 10_000 : false
     ),
   })
+  const publishingAvailable = Boolean(
+    query.data?.socialPublishing.enabled
+    && (query.data.socialPublishing.instagram || query.data.socialPublishing.facebook),
+  )
 
   const analytics = useMemo(() => {
     const daily = query.data?.daily || []
@@ -469,6 +516,28 @@ export default function InstagramModule() {
     )
   }
 
+  if (navigation.view !== 'analytics') {
+    if (!query.data.canManage || !publishingAvailable) {
+      return (
+        <div className="rounded-xl border border-border-custom bg-surface p-8 text-center">
+          <AlertCircle className="mx-auto h-7 w-7 text-text3" />
+          <p className="mt-3 text-sm font-bold text-text-custom">Publicação indisponível</p>
+          <p className="mt-1 text-xs text-text2">Este recurso não está habilitado para este usuário ou ambiente.</p>
+          <button type="button" onClick={() => navigateInstagram('analytics')} className="mt-4 rounded-lg border border-border2 px-4 py-2 text-xs font-bold">Voltar ao Analytics</button>
+        </div>
+      )
+    }
+    return (
+      <SocialPublishingModule
+        projectId={activeProjectId}
+        projectName={activeProject?.name || 'Projeto'}
+        view={navigation.view}
+        postId={navigation.postId}
+        onNavigate={navigateInstagram}
+      />
+    )
+  }
+
   const { connection } = query.data
   const best = rankedMedia[0]
   const isSyncing = connection.status === 'syncing'
@@ -497,6 +566,16 @@ export default function InstagramModule() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {query.data.canManage && publishingAvailable && (
+              <button
+                type="button"
+                onClick={() => navigateInstagram('novo-post')}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-text-custom px-3 py-2 text-[10px] font-bold text-bg shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-custom focus-visible:ring-offset-2"
+              >
+                <CalendarPlus className="h-3.5 w-3.5" />
+                Agendar post
+              </button>
+            )}
             <div className="flex items-center p-1 rounded-lg bg-surface2 border border-border-custom">
               {PERIODS.map((value) => <button key={value} onClick={() => setPeriod(value)} className={`px-3 py-1.5 rounded-md text-[10px] font-bold transition-all ${period === value ? 'bg-surface text-text-custom shadow-sm' : 'text-text3 hover:text-text2'}`}>{value} dias</button>)}
             </div>

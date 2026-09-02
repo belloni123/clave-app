@@ -24,6 +24,7 @@ import {
   type InstagramPendingAuthorization,
 } from '@/utils/instagram/oauth'
 import { createAdminClient } from '@/utils/supabase/admin'
+import { socialFeatureFlags } from '@/utils/social/config'
 
 const USER_REQUIRED_SCOPES = [
   'instagram_basic',
@@ -36,6 +37,21 @@ const BUSINESS_REQUIRED_SCOPES = [
   ...USER_REQUIRED_SCOPES,
   'business_management',
 ]
+
+function publishingRequiredScopes() {
+  const flags = socialFeatureFlags()
+  return [
+    ...(flags.instagram ? ['instagram_content_publish'] : []),
+    ...(flags.facebook
+      ? [
+          'pages_manage_posts',
+          'pages_manage_engagement',
+          'pages_read_user_engagement',
+          'publish_video',
+        ]
+      : []),
+  ]
+}
 
 interface CallbackBody {
   state?: string
@@ -102,6 +118,13 @@ async function saveConnection(
     .maybeSingle()
 
   let existingSecretId = existing?.token_secret_id as string | null | undefined
+  if (
+    savedState.purpose === 'publishing'
+    && existing
+    && existing.instagram_user_id !== account.instagramUserId
+  ) {
+    throw new Error('Para preservar o Analytics, autorize a mesma conta do Instagram já conectada.')
+  }
   if (existing && existing.instagram_user_id !== account.instagramUserId) {
     const oldSecretId = existingSecretId
     const { error: deleteError } = await admin
@@ -189,7 +212,11 @@ export async function POST(request: NextRequest) {
       const requiredScopes = source === 'business'
         ? BUSINESS_REQUIRED_SCOPES
         : USER_REQUIRED_SCOPES
-      const missingScopes = requiredScopes.filter((scope) => !grantedScopes.includes(scope))
+      const purposeScopes = savedState.purpose === 'publishing'
+        ? publishingRequiredScopes()
+        : []
+      const missingScopes = [...requiredScopes, ...purposeScopes]
+        .filter((scope) => !grantedScopes.includes(scope))
       if (missingScopes.length) {
         return errorResponse(
           `A Meta não liberou as permissões necessárias: ${missingScopes.join(', ')}.`,
@@ -228,6 +255,7 @@ export async function POST(request: NextRequest) {
         return clearOAuthCookies(NextResponse.json({
           connected: true,
           projectId: savedState.projectId,
+          purpose: savedState.purpose,
         }))
       }
 
@@ -269,6 +297,7 @@ export async function POST(request: NextRequest) {
       return clearOAuthCookies(NextResponse.json({
         connected: true,
         projectId: savedState.projectId,
+        purpose: savedState.purpose,
       }))
     }
 

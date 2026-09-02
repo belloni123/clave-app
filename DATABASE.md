@@ -395,5 +395,20 @@ As migrações devem ser aplicadas em ordem crescente:
 O deploy da aplicação não executa essas migrações. Consulte
 [DEPLOYMENT.md](./DEPLOYMENT.md) para o procedimento de produção.
 
+## 5. Publicação social
+
+`20260901175238_meta_social_publishing.sql` é uma migration aditiva e cria
+`social_connections`, `social_accounts`, `social_posts`,
+`social_post_targets`, `social_post_media` e `social_publish_attempts`. As
+tabelas têm RLS habilitado, não concedem acesso a `anon`/`authenticated` e são
+acessadas apenas pelas rotas server-side com `service_role` após autorização.
+
+As RPCs `create_social_post` e `update_social_post` mantêm conteúdo, destinos e
+mídia na mesma transação. `claim_social_publish_targets` usa lock concorrente,
+lease e worker ID. O bucket `social-publishing` é privado. Tokens não são
+copiados: a conexão social referencia `instagram_connections` e lê o segredo no
+Vault. A migration foi validada apenas em PostgreSQL temporário local; sua
+aplicação em qualquer ambiente continua sendo um passo manual.
+
 A rota pública `/onboarding` é institucional e não possui tabela, função,
 política ou migração. Ela não lê nem grava dados no Supabase.

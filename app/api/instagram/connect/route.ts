@@ -16,10 +16,14 @@ import {
   resolveMetaAppId,
   resolveMetaAppCredentials,
 } from '@/utils/instagram/config'
+import { socialFeatureFlags } from '@/utils/social/config'
 
 export async function GET(request: NextRequest) {
   const projectId = request.nextUrl.searchParams.get('projectId')?.trim() || ''
   const requestedMode = request.nextUrl.searchParams.get('mode')
+  const purpose = request.nextUrl.searchParams.get('purpose') === 'publishing'
+    ? 'publishing'
+    : 'analytics'
 
   try {
     const { user, supabase } = await authorizeInstagramProject(projectId, { requireManager: true })
@@ -51,6 +55,7 @@ export async function GET(request: NextRequest) {
         userId: user.id,
         redirectUri,
         source: 'business',
+        purpose,
         createdAt: Date.now(),
       }), instagramOAuthCookieOptions())
       return response
@@ -62,11 +67,25 @@ export async function GET(request: NextRequest) {
     authorizeUrl.searchParams.set('display', 'page')
     authorizeUrl.searchParams.set('redirect_uri', redirectUri)
     authorizeUrl.searchParams.set('response_type', 'token')
+    const publishingFlags = socialFeatureFlags()
     const scopes = [
       'instagram_basic',
       'instagram_manage_insights',
       'pages_show_list',
       'pages_read_engagement',
+      ...(purpose === 'publishing'
+        ? [
+            ...(publishingFlags.instagram ? ['instagram_content_publish'] : []),
+            ...(publishingFlags.facebook
+              ? [
+                  'pages_manage_posts',
+                  'pages_manage_engagement',
+                  'pages_read_user_engagement',
+                  'publish_video',
+                ]
+              : []),
+          ]
+        : []),
     ]
     authorizeUrl.searchParams.set('scope', scopes.join(','))
     authorizeUrl.searchParams.set('state', state)
@@ -78,6 +97,7 @@ export async function GET(request: NextRequest) {
       userId: user.id,
       redirectUri,
       source: 'oauth',
+      purpose,
       createdAt: Date.now(),
     }), instagramOAuthCookieOptions())
     return response

@@ -12,6 +12,7 @@ import type {
   InstagramMediaMetric,
   InstagramPeriodMetric,
 } from '@/types/instagram'
+import { socialFeatureFlags } from '@/utils/social/config'
 
 interface ConnectionRow {
   id: string
@@ -125,6 +126,7 @@ export async function GET(request: NextRequest) {
         connection: null,
         canManage: Boolean(canManage),
         canUseBusinessAccounts,
+        socialPublishing: socialFeatureFlags(),
         days,
         daily: [],
         summary: { current: null, previous: null },
@@ -255,6 +257,7 @@ export async function GET(request: NextRequest) {
       connection,
       canManage: Boolean(canManage),
       canUseBusinessAccounts,
+      socialPublishing: socialFeatureFlags(),
       days,
       daily,
       summary,

@@ -28,6 +28,7 @@ interface CallbackResponse {
   projectId?: string
   accounts?: InstagramAccountOption[]
   error?: string
+  purpose?: 'analytics' | 'publishing'
 }
 
 function formatNumber(value: number | null) {
@@ -49,12 +50,13 @@ async function sendCallback(payload: Record<string, unknown>) {
   return body
 }
 
-function finishConnection(projectId?: string) {
+function finishConnection(projectId?: string, purpose?: 'analytics' | 'publishing') {
   const params = new URLSearchParams({
     activeModule: 'instagram',
-    instagram: 'connected',
+    instagram: purpose === 'publishing' ? 'publishing_authorized' : 'connected',
   })
   if (projectId) params.set('projectId', projectId)
+  if (purpose === 'publishing') params.set('instagramView', 'novo-post')
   window.location.replace(`/?${params.toString()}`)
 }
 
@@ -99,7 +101,7 @@ export default function InstagramConnectPage() {
       useBusinessToken,
     }).then((result) => {
       if (result.connected) {
-        finishConnection(result.projectId)
+        finishConnection(result.projectId, result.purpose)
         return
       }
       if (!result.accounts?.length) {
@@ -120,7 +122,7 @@ export default function InstagramConnectPage() {
         selectedInstagramUserId: account.instagramUserId,
       })
       if (!result.connected) throw new Error('A conta não pôde ser confirmada.')
-      finishConnection(result.projectId)
+      finishConnection(result.projectId, result.purpose)
     } catch (reason) {
       setSelecting(null)
       setError(reason instanceof Error ? reason.message : 'Não foi possível selecionar a conta.')
