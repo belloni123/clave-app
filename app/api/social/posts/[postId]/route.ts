@@ -10,6 +10,7 @@ import {
   updateSocialPost,
 } from '@/utils/social/posts'
 import { assertUuid } from '@/utils/social/validation'
+import { runSocialPublisher } from '@/utils/social/scheduler'
 import { createAdminClient } from '@/utils/supabase/admin'
 
 interface Context { params: Promise<{ postId: string }> }
@@ -39,9 +40,16 @@ export async function PATCH(request: NextRequest, context: Context) {
     await authorizeSocialProject(input?.projectId || '', { requireManager: true })
     const { postId } = await context.params
     assertUuid(postId, 'Publicação')
-    return NextResponse.json({
-      post: await updateSocialPost(createAdminClient(), postId, input),
-    })
+    const admin = createAdminClient()
+    let post = await updateSocialPost(admin, postId, input)
+    const delivery = input.publishNow && !input.saveAsDraft
+      ? await runSocialPublisher({ postId, limit: post.targets.length })
+      : null
+    if (delivery) {
+      const [updatedPost] = await getSocialPosts(admin, input.projectId, { postId })
+      if (updatedPost) post = updatedPost
+    }
+    return NextResponse.json({ post, delivery })
   } catch (error) {
     const status = error instanceof SocialPublishingError ? error.status : 500
     return NextResponse.json(publicSocialError(error), { status })

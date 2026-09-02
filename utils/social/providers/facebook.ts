@@ -2,6 +2,7 @@ import 'server-only'
 
 import { getSocialCapabilities } from '@/utils/social/capabilities'
 import { SocialPublishingError } from '@/utils/social/errors'
+import { getFacebookPublishingFormat } from '@/utils/social/formats'
 import { metaGet, metaPost, metaPostJson } from '@/utils/social/providers/meta'
 import type {
   ProviderPublishInput,
@@ -136,11 +137,15 @@ export const facebookProvider: SocialProvider = {
   },
 
   validateDraft(input) {
+    const format = getFacebookPublishingFormat(input.settings)
     if (input.media.length > 10) {
       throw new SocialPublishingError('O Facebook aceita no máximo 10 mídias nesta fase.', 'facebook_media_limit', 'validation')
     }
     if (input.media.some((media) => media.mediaType === 'video') && input.media.length > 1) {
       throw new SocialPublishingError('Vídeo não pode ser combinado com outras mídias no Facebook nesta fase.', 'facebook_video_mix_unsupported', 'validation')
+    }
+    if (format === 'reel' && (input.media.length !== 1 || input.media[0]?.mediaType !== 'video')) {
+      throw new SocialPublishingError('Reels do Facebook exigem um único vídeo.', 'facebook_reel_video_required', 'validation')
     }
   },
 
@@ -148,7 +153,7 @@ export const facebookProvider: SocialProvider = {
     this.validateDraft(input)
     const token = await pageToken(input.externalAccountId, input.accessToken)
     const media = input.media
-    if (media.length === 1 && media[0].mediaType === 'video' && input.settings.facebookFormat === 'reel') {
+    if (media.length === 1 && media[0].mediaType === 'video' && getFacebookPublishingFormat(input.settings) === 'reel') {
       return publishFacebookReel(input, token)
     }
     if (media.length === 1 && media[0].mediaType === 'video' && input.remoteContainerId) {

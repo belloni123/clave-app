@@ -3,6 +3,7 @@ import { authorizeSocialProject } from '@/utils/social/access'
 import { requireSocialPublishingEnabled } from '@/utils/social/config'
 import { publicSocialError, SocialPublishingError } from '@/utils/social/errors'
 import { assertUuid } from '@/utils/social/validation'
+import { instagramJpegPath } from '@/utils/social/instagram-image'
 import { createAdminClient } from '@/utils/supabase/admin'
 
 export async function DELETE(request: NextRequest) {
@@ -35,7 +36,10 @@ export async function DELETE(request: NextRequest) {
         409,
       )
     }
-    const { error } = await admin.storage.from('social-publishing').remove([storagePath])
+    const paths = /\.(?:png|jpe?g)$/i.test(storagePath)
+      ? [storagePath, instagramJpegPath(storagePath)]
+      : [storagePath]
+    const { error } = await admin.storage.from('social-publishing').remove(paths)
     if (error) throw error
     return NextResponse.json({ removed: true })
   } catch (error) {

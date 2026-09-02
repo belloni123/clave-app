@@ -2,6 +2,7 @@ import 'server-only'
 
 import { getSocialCapabilities } from '@/utils/social/capabilities'
 import { SocialPublishingError } from '@/utils/social/errors'
+import { getInstagramPublishingFormat } from '@/utils/social/formats'
 import { metaGet, metaPost } from '@/utils/social/providers/meta'
 import type {
   ProviderPublishInput,
@@ -64,6 +65,7 @@ function assertContainerCanContinue(payload: ContainerResponse) {
 }
 
 async function createMediaContainer(input: ProviderPublishInput) {
+  const publishingFormat = getInstagramPublishingFormat(input.settings)
   if (input.media.length > 1) {
     let children = Array.isArray(input.settings.instagramChildren)
       ? input.settings.instagramChildren.filter((value): value is string => typeof value === 'string')
@@ -109,13 +111,14 @@ async function createMediaContainer(input: ProviderPublishInput) {
     throw new SocialPublishingError('O Instagram exige uma mídia.', 'instagram_media_required', 'validation')
   }
   const isVideo = media.mediaType === 'video'
-  const format = input.settings.instagramFormat === 'feed' ? 'VIDEO' : 'REELS'
+  const isStory = publishingFormat === 'story'
+  const mediaType = isStory ? 'STORIES' : publishingFormat === 'reel' ? 'REELS' : 'VIDEO'
   const payload = await metaPost<IdResponse>(`${input.externalAccountId}/media`, input.accessToken, {
     ...(isVideo
-      ? { video_url: media.signedUrl, media_type: format }
-      : { image_url: media.signedUrl, ...(media.altText ? { alt_text: media.altText } : {}) }),
-    caption: input.caption,
-    ...(isVideo && format === 'REELS' ? { share_to_feed: 'true' } : {}),
+      ? { video_url: media.signedUrl, media_type: mediaType }
+      : { image_url: media.signedUrl, ...(isStory ? { media_type: 'STORIES' } : {}), ...(!isStory && media.altText ? { alt_text: media.altText } : {}) }),
+    ...(!isStory ? { caption: input.caption } : {}),
+    ...(publishingFormat === 'reel' ? { share_to_feed: 'false' } : {}),
   })
   return requireId(payload, 'instagram_container_missing')
 }
@@ -128,11 +131,18 @@ export const instagramProvider: SocialProvider = {
   },
 
   validateDraft(input) {
+    const format = getInstagramPublishingFormat(input.settings)
     if (!input.media.length) {
       throw new SocialPublishingError('O Instagram exige uma mídia.', 'instagram_media_required', 'validation')
     }
     if (input.media.length > 10) {
       throw new SocialPublishingError('O Instagram aceita no máximo 10 mídias.', 'instagram_media_limit', 'validation')
+    }
+    if (format === 'reel' && (input.media.length !== 1 || input.media[0]?.mediaType !== 'video')) {
+      throw new SocialPublishingError('Reels do Instagram exigem um único vídeo.', 'instagram_reel_video_required', 'validation')
+    }
+    if (format === 'story' && input.media.length !== 1) {
+      throw new SocialPublishingError('Stories do Instagram aceitam uma única imagem ou vídeo.', 'instagram_story_single_media_required', 'validation')
     }
   },
 
