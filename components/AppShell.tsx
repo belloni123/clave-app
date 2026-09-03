@@ -100,6 +100,7 @@ export default function AppShell({ children }: AppShellProps) {
   } = useAppStore()
 
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [projectReadOnly, setProjectReadOnly] = useState(false)
   const requestedModuleRef = useRef<AppModuleKey | null>(
     typeof window === 'undefined'
       ? null
@@ -204,6 +205,7 @@ export default function AppShell({ children }: AppShellProps) {
     let cancelled = false
 
     async function loadAllowedModules() {
+      setProjectReadOnly(false)
       if (!profile) {
         setAllowedModules(['home'])
         return
@@ -213,6 +215,7 @@ export default function AppShell({ children }: AppShellProps) {
         setAllowedModules([
           'home',
           ...DEFAULT_PROJECT_MODULES,
+          'equipe',
           'candidaturas',
           'monitoramento',
           'configuracoes',
@@ -252,6 +255,7 @@ export default function AppShell({ children }: AppShellProps) {
         return
       }
 
+      setProjectReadOnly(data.permission_level === 'viewer')
       const modules = ((data.allowed_modules || []) as string[]).filter(
         (module: string): module is ProjectModuleKey =>
           DEFAULT_PROJECT_MODULES.includes(module as ProjectModuleKey),
@@ -347,6 +351,7 @@ export default function AppShell({ children }: AppShellProps) {
     {
       group: 'ADMINISTRAÇÃO',
       items: [
+        { id: 'equipe', name: 'Equipe e acessos', icon: Users },
         { id: 'candidaturas', name: 'Candidaturas', icon: FileUser },
         { id: 'monitoramento', name: 'Monitoramento', icon: Activity },
         { id: 'configuracoes', name: 'Configurações', icon: Settings },
@@ -498,6 +503,7 @@ export default function AppShell({ children }: AppShellProps) {
                 {activeModule === 'formularios' && 'Links públicos, respostas e briefings do projeto'}
                 {activeModule === 'instagram' && 'Crescimento, alcance e performance de conteúdo'}
                 {activeModule === 'acesso' && 'Permissões e equipe'}
+                {activeModule === 'equipe' && 'Colaboradores, projetos e permissões da agência'}
                 {activeModule === 'candidaturas' && 'Avaliação de experts e conversão em projetos'}
                 {activeModule === 'monitoramento' && 'Erros, ocorrências e acompanhamento operacional'}
                 {activeModule === 'configuracoes' && 'Configurações globais e integrações administrativas'}
@@ -535,7 +541,10 @@ export default function AppShell({ children }: AppShellProps) {
 
         {/* Content Area */}
         <div className="flex-1 overflow-y-auto p-4 md:p-6 scrollbar-thin print:overflow-visible print:p-0">
-          <div className="max-w-6xl mx-auto w-full print:max-w-none">{children}</div>
+          <div className="max-w-6xl mx-auto w-full print:max-w-none">
+            {projectReadOnly && activeModule !== 'home' && <p role="status" className="mb-4 rounded-lg border border-amber-custom/30 bg-amber-bg p-3 text-sm text-amber-t">Você tem acesso de visualização neste projeto. Alterações não serão salvas.</p>}
+            {children}
+          </div>
         </div>
       </main>
 

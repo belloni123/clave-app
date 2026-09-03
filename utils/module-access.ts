@@ -17,6 +17,7 @@ export const PROJECT_MODULES = [
 export type ProjectModuleKey = (typeof PROJECT_MODULES)[number]['key']
 export type AppModuleKey =
   | 'home'
+  | 'equipe'
   | 'candidaturas'
   | 'monitoramento'
   | 'configuracoes'

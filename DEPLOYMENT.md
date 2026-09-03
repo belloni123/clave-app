@@ -397,3 +397,16 @@ parte de um rollback emergencial.
 Na Vercel, conecte o mesmo repositório, configure as variáveis da seção 1 e use
 o fluxo padrão de build do Next.js. As migrações do Supabase continuam sendo um
 passo separado e obrigatório antes da promoção para produção.
+
+## Equipe e acessos
+
+Apply `20260903231510_enforce_project_viewer_access.sql` before deploying the
+agency-team UI. It adds restrictive write policies for project viewers and
+prevents legacy collaborator assignments from overriding a revoked membership.
+It does not change existing memberships or roles. Validate on staging first.
+
+Administrators open **Administração → Equipe e acessos**. New invitations allow
+up to 50 people, with a shared project selection and optional per-project
+exceptions. Existing members can be edited individually, including revocations.
+Selecting all includes only current projects. Project ownership and global/agency
+admin access remain explicit and cannot be restricted in this screen.

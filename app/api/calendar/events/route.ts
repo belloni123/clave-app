@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { getGoogleAccessToken } from '@/utils/google-calendar'
 
+async function canWriteCalendar(supabase: Awaited<ReturnType<typeof createClient>>, projectId: string, userId: string) {
+  const [edit, module] = await Promise.all([
+    supabase.rpc('user_can_edit_project', { proj_id: projectId }),
+    supabase.rpc('user_has_project_module_access', { proj_id: projectId, module_key: 'planejador', usr_id: userId }),
+  ])
+  return !edit.error && !module.error && edit.data === true && module.data === true
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -16,6 +24,10 @@ export async function POST(request: NextRequest) {
     const { project_id, title, date, type, attendees = [] } = await request.json()
     if (!project_id || !title || !date || !type) {
       return NextResponse.json({ error: 'Campos obrigatórios ausentes.' }, { status: 400 })
+    }
+
+    if (!await canWriteCalendar(supabase, project_id, user.id)) {
+      return NextResponse.json({ error: 'Você não pode editar o calendário deste projeto.' }, { status: 403 })
     }
 
     let gcalEventId = null
@@ -106,12 +118,16 @@ export async function PUT(request: NextRequest) {
     // Buscar o gcal_event_id atual do evento
     const { data: existingEvent, error: fetchError } = await supabase
       .from('calendar_events')
-      .select('gcal_event_id')
+      .select('gcal_event_id, project_id')
       .eq('id', id)
       .single()
 
     if (fetchError || !existingEvent) {
       return NextResponse.json({ error: 'Evento não encontrado.' }, { status: 404 })
+    }
+
+    if (!await canWriteCalendar(supabase, existingEvent.project_id, user.id)) {
+      return NextResponse.json({ error: 'Você não pode editar o calendário deste projeto.' }, { status: 403 })
     }
 
     let gcalEventId = existingEvent.gcal_event_id
@@ -214,12 +230,16 @@ export async function DELETE(request: NextRequest) {
     // Buscar o gcal_event_id atual do evento
     const { data: existingEvent, error: fetchError } = await supabase
       .from('calendar_events')
-      .select('gcal_event_id')
+      .select('gcal_event_id, project_id')
       .eq('id', id)
       .single()
 
     if (fetchError || !existingEvent) {
       return NextResponse.json({ error: 'Evento não encontrado.' }, { status: 404 })
+    }
+
+    if (!await canWriteCalendar(supabase, existingEvent.project_id, user.id)) {
+      return NextResponse.json({ error: 'Você não pode editar o calendário deste projeto.' }, { status: 403 })
     }
 
     // Deletar no Google Calendar se integrado
