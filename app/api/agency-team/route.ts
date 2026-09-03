@@ -235,4 +235,3 @@ async function changeStatus(request: NextRequest, action: unknown) {
     return respond({ saved: true, action, warning })
   } catch (error) { return failure(error) }
 }
-
