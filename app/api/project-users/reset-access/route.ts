@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
         .maybeSingle(),
       admin
         .from('profiles')
-        .select('nome, email')
+        .select('nome, email, blocked_at')
         .eq('id', userId)
         .is('deleted_at', null)
         .maybeSingle(),
@@ -103,6 +103,8 @@ export async function POST(request: NextRequest) {
     if (!membership || !profile?.email) {
       return jsonError('Este usuário ativo não possui um e-mail de acesso.', 404)
     }
+
+    if (profile.blocked_at) return jsonError('Desbloqueie a pessoa em Equipe e acessos antes de redefinir o acesso.', 409)
 
     const actionLink = new URL('/login', getPublicAppOrigin(request)).toString()
 

@@ -24,9 +24,9 @@ async function authorize() {
   const { data: { user }, error: authError } = await client.auth.getUser()
   if (authError || !user) throw new TeamError('Não autorizado.', 401)
   const { data: profile, error } = await client.from('profiles')
-    .select('id, role, agency_role, agency_id').eq('id', user.id).is('deleted_at', null).maybeSingle()
+    .select('id, role, agency_role, agency_id, blocked_at').eq('id', user.id).is('deleted_at', null).maybeSingle()
   if (error) throw error
-  if (!isAgencyAdmin(profile) || !profile?.agency_id) {
+  if (!isAgencyAdmin(profile) || !profile?.agency_id || profile.blocked_at) {
     throw new TeamError('Somente administradores da agência podem gerenciar a equipe.', 403)
   }
   return { actorId: user.id, agencyId: profile.agency_id as string, admin: createAdminClient() }
@@ -63,7 +63,7 @@ export async function GET() {
     const members = []
     for (let page = 0; ; page += 1) {
       const { data, error } = await context.admin.from('profiles')
-        .select('id, nome, email, role, agency_role').eq('agency_id', context.agencyId)
+        .select('id, nome, email, role, agency_role, blocked_at').eq('agency_id', context.agencyId)
         .is('deleted_at', null).order('id').range(page * 1000, page * 1000 + 999)
       if (error) throw error
       members.push(...data)
@@ -104,10 +104,11 @@ async function save(request: NextRequest, replace: boolean) {
     if (replace) {
       if (typeof body.userId !== 'string') throw new TeamError('Colaborador inválido.')
       const { data: member, error } = await admin.from('profiles')
-        .select('id, nome, email, role, agency_role').eq('id', body.userId)
+        .select('id, nome, email, role, agency_role, blocked_at').eq('id', body.userId)
         .eq('agency_id', agencyId).is('deleted_at', null).maybeSingle()
       if (error) throw error
       if (!member) throw new TeamError('Colaborador não encontrado.', 404)
+      if (member.blocked_at) throw new TeamError('Desbloqueie o colaborador antes de alterar seus acessos.', 409)
       if (isAgencyAdmin(member)) throw new TeamError('Administradores já possuem acesso total à agência.', 409)
       targetId = member.id
       name = member.nome || ''
@@ -120,9 +121,9 @@ async function save(request: NextRequest, replace: boolean) {
       // Escape LIKE metacharacters; never allow wildcard emails to match another account.
       const escapedEmail = email.replace(/[\\%_]/g, '\\$&')
       const { data: existing, error: lookupError } = await admin.from('profiles')
-        .select('id, agency_id, role, agency_role, deleted_at').ilike('email', escapedEmail).maybeSingle()
+        .select('id, agency_id, role, agency_role, deleted_at, blocked_at').ilike('email', escapedEmail).maybeSingle()
       if (lookupError) throw lookupError
-      if (existing && (existing.agency_id !== agencyId || existing.deleted_at)) {
+      if (existing && (existing.agency_id !== agencyId || existing.deleted_at || existing.blocked_at)) {
         throw new TeamError('Este e-mail não está disponível para cadastro nesta agência.', 409)
       }
       if (existing && isAgencyAdmin(existing)) throw new TeamError('Este administrador já possui acesso total.', 409)
@@ -188,4 +189,50 @@ async function save(request: NextRequest, replace: boolean) {
   } catch (error) { return failure(error) }
 }
 export async function POST(request: NextRequest) { return save(request, false) }
-export async function PATCH(request: NextRequest) { return save(request, true) }
+export async function PATCH(request: NextRequest) {
+  // Clone keeps the access-editing body available after choosing the action.
+  let body
+  try { body = await readBody(request.clone()) } catch (error) { return failure(error) }
+  return body.action ? changeStatus(request, body.action) : save(request, true)
+}
+export async function DELETE(request: NextRequest) { return changeStatus(request, 'delete') }
+
+async function changeStatus(request: NextRequest, action: unknown) {
+  try {
+    const { admin, agencyId, actorId } = await authorize()
+    if (!['block', 'unblock', 'delete'].includes(String(action))) throw new TeamError('Ação inválida.')
+    const body = await readBody(request)
+    if (typeof body.userId !== 'string') throw new TeamError('Colaborador inválido.')
+    const { data: member, error } = await admin.from('profiles')
+      .select('id, email, role, agency_role, blocked_at, deleted_at')
+      .eq('id', body.userId).eq('agency_id', agencyId).maybeSingle()
+    if (error) throw error
+    if (!member) throw new TeamError('Colaborador não encontrado.', 404)
+    if (member.id === actorId || isAgencyAdmin(member)) throw new TeamError('Contas administrativas estão protegidas contra bloqueio e exclusão.', 409)
+    if (member.deleted_at) throw new TeamError('Este colaborador já foi excluído.', 409)
+    if (action === 'delete' && (typeof body.confirmEmail !== 'string' || body.confirmEmail.trim().toLowerCase() !== member.email?.toLowerCase())) {
+      throw new TeamError('Digite o e-mail do colaborador para confirmar a exclusão.')
+    }
+    // Unban first; a failed DB write leaves the durable access gate closed.
+    if (action === 'unblock') {
+      const { error } = await admin.auth.admin.updateUserById(member.id, { ban_duration: 'none' })
+      if (error) throw error
+    }
+    const now = new Date().toISOString()
+    const { data: updated, error: writeError } = await admin.from('profiles')
+      .update({ blocked_at: action === 'unblock' ? null : now, ...(action === 'delete' ? { deleted_at: now } : {}) })
+      .eq('id', member.id).eq('agency_id', agencyId).is('deleted_at', null)
+      .select('id').maybeSingle()
+    if (writeError) throw writeError
+    if (!updated) throw new TeamError('A conta mudou durante a operação. Atualize a lista.', 409)
+    // Soft deletion preserves authorship and projects. Database guards immediately
+    // deny old JWTs; Auth ban additionally prevents login and session renewal.
+    let warning = null
+    if (action !== 'unblock') {
+      const { error } = await admin.auth.admin.updateUserById(member.id, { ban_duration: '876000h' })
+      if (error) warning = 'O acesso já foi suspenso, mas houve falha ao sincronizar o login. O bloqueio do sistema permanece ativo.'
+    }
+    return respond({ saved: true, action, warning })
+  } catch (error) { return failure(error) }
+}
+

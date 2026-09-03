@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest } from 'next/server'
-import { GET, PATCH, POST } from './route'
+import { DELETE, GET, PATCH, POST } from './route'
 
 const mock = vi.hoisted(() => ({
   getUser: vi.fn(), profile: vi.fn(), admin: vi.fn(), from: vi.fn(),
-  createUser: vi.fn(), getUserById: vi.fn(), deleteUser: vi.fn(), mail: vi.fn(), link: vi.fn(),
+  updateUserById: vi.fn(), createUser: vi.fn(), getUserById: vi.fn(), deleteUser: vi.fn(), mail: vi.fn(), link: vi.fn(),
 }))
 vi.mock('@/utils/supabase/server', () => ({ createClient: async () => ({ auth: { getUser: mock.getUser }, from: mock.profile }) }))
 vi.mock('@/utils/supabase/admin', () => ({ createAdminClient: () => { mock.admin(); return {
-  from: mock.from, auth: { admin: { createUser: mock.createUser, getUserById: mock.getUserById, deleteUser: mock.deleteUser } },
+  from: mock.from, auth: { admin: { updateUserById: mock.updateUserById, createUser: mock.createUser, getUserById: mock.getUserById, deleteUser: mock.deleteUser } },
 } } }))
 vi.mock('@/utils/supabase/access-mailer', () => ({ sendAccessCredentialsEmail: mock.mail, sendAccessLinkEmail: mock.link }))
 
@@ -23,6 +23,7 @@ let memberships: unknown[]
 function chain(data: unknown, error: unknown = null, table = '') {
   const value: Record<string, unknown> = {}
   for (const method of ['select', 'eq', 'is', 'ilike', 'order', 'limit', 'range', 'in', 'maybeSingle']) value[method] = () => value
+  value.update = (row: unknown) => { writes.push({ table, value: row }); return chain({ id: member?.id }, dbFailure === table ? { message: 'failure' } : null) }
   value.upsert = (row: unknown) => { writes.push({ table, value: row }); return chain(null, dbFailure === table ? { message: 'failure' } : null) }
   value.then = (resolve: (result: unknown) => void) => Promise.resolve({ data, error }).then(resolve)
   return value
@@ -41,6 +42,7 @@ beforeEach(() => {
   })
   mock.createUser.mockResolvedValue({ data: { user: { id: 'new-user' } }, error: null })
   mock.getUserById.mockResolvedValue({ data: { user: { id: 'existing-user' } }, error: null })
+  mock.updateUserById.mockResolvedValue({ error: null })
   mock.deleteUser.mockResolvedValue({ error: null })
 })
 
@@ -111,5 +113,64 @@ describe('agency team authorization and grants', () => {
   })
   it.each([null, {}, { name: 'Ana', email: 'ana@example.com', accesses: [{ ...grants[0], modules: ['not-a-module'] }] }, { name: 'Ana', email: 'ana@example.com', accesses: [grants[0], grants[0]] }])('rejects invalid bodies without mutation', async (body) => {
     expect((await POST(request(body))).status).toBe(400); expect(writes).toEqual([])
+  })
+})
+
+
+describe('account lifecycle', () => {
+  beforeEach(() => { member = { id: 'person', email: 'ana@example.com', role: 'colab', agency_role: 'colaborador' } })
+  it('blocks access without destroying saved memberships', async () => {
+    const response = await PATCH(request({ userId: 'person', action: 'block' }, 'PATCH'))
+    expect(response.status).toBe(200)
+    expect(writes).toEqual([{ table: 'profiles', value: { blocked_at: expect.any(String) } }])
+    expect(mock.updateUserById).toHaveBeenCalledWith('person', { ban_duration: '876000h' })
+    expect(mock.deleteUser).not.toHaveBeenCalled()
+  })
+  it('unblocks login and restores existing permissions without recreating them', async () => {
+    const response = await PATCH(request({ userId: 'person', action: 'unblock' }, 'PATCH'))
+    expect(response.status).toBe(200)
+    expect(mock.updateUserById).toHaveBeenCalledWith('person', { ban_duration: 'none' })
+    expect(writes).toEqual([{ table: 'profiles', value: { blocked_at: null } }])
+  })
+  it('requires exact email confirmation before deletion', async () => {
+    expect((await DELETE(request({ userId: 'person', confirmEmail: 'wrong@example.com' }, 'DELETE'))).status).toBe(400)
+    expect(writes).toEqual([]); expect(mock.updateUserById).not.toHaveBeenCalled()
+  })
+  it('removes a confirmed account while preserving project and authorship records', async () => {
+    expect((await DELETE(request({ userId: 'person', confirmEmail: 'ana@example.com' }, 'DELETE'))).status).toBe(200)
+    expect(writes).toEqual([{ table: 'profiles', value: { blocked_at: expect.any(String), deleted_at: expect.any(String) } }])
+    expect(mock.deleteUser).not.toHaveBeenCalled()
+  })
+  it.each(['block', 'unblock', 'delete'])('protects agency administrators from %s', async (action) => {
+    member = { ...member, agency_role: 'admin' }
+    expect((await PATCH(request({ userId: 'person', action }, 'PATCH'))).status).toBe(409)
+    expect(writes).toEqual([])
+  })
+  it('rejects targets absent from the agency', async () => {
+    member = null
+    expect((await PATCH(request({ userId: 'foreign', action: 'block' }, 'PATCH'))).status).toBe(404)
+    expect(writes).toEqual([])
+  })
+  it('keeps access closed when unbanning fails', async () => {
+    mock.updateUserById.mockResolvedValue({ error: new Error('auth unavailable') })
+    expect((await PATCH(request({ userId: 'person', action: 'unblock' }, 'PATCH'))).status).toBe(500)
+    expect(writes).toEqual([])
+  })
+  it('reports auth synchronization failure after the durable block is saved', async () => {
+    mock.updateUserById.mockResolvedValue({ error: new Error('auth unavailable') })
+    const response = await PATCH(request({ userId: 'person', action: 'block' }, 'PATCH'))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ saved: true, warning: expect.any(String) })
+    expect(writes).toHaveLength(1)
+  })
+  it('does not unban deleted accounts', async () => {
+    member = { ...member, deleted_at: '2026-09-03' }
+    expect((await PATCH(request({ userId: 'person', action: 'unblock' }, 'PATCH'))).status).toBe(409)
+    expect(mock.updateUserById).not.toHaveBeenCalled()
+  })
+  it('does not grant access to a blocked account through a new invitation', async () => {
+    member = { ...member, agency_id: 'agency-a', blocked_at: '2026-09-03' }
+    expect((await POST(request({ name: 'Ana', email: 'ana@example.com', accesses: grants }))).status).toBe(409)
+    expect(writes).toEqual([])
   })
 })

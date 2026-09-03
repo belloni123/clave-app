@@ -46,6 +46,8 @@ interface ProfileLookup {
   agency_role: string | null
   agency_id: string | null
   email: string | null
+  blocked_at: string | null
+  deleted_at: string | null
 }
 
 const UUID_PATTERN =
@@ -149,7 +151,7 @@ async function findProfileByEmail(
     const from = page * pageSize
     const { data, error } = await admin
       .from('profiles')
-      .select('id, role, agency_role, agency_id, email')
+      .select('id, role, agency_role, agency_id, email, blocked_at, deleted_at')
       .not('email', 'is', null)
       .order('id', { ascending: true })
       .range(from, from + pageSize - 1)
@@ -222,6 +224,10 @@ export async function POST(request: NextRequest) {
       && existingProfile.agency_id !== project.agency_id
     ) {
       return jsonError('Este e-mail já pertence a outra agência.', 409)
+    }
+
+    if (existingProfile?.blocked_at || existingProfile?.deleted_at) {
+      return jsonError('Esta conta está bloqueada ou excluída. Consulte Equipe e acessos.', 409)
     }
 
     const existingAuthUser = await findAuthUserByEmail(parsed.email, admin)

@@ -410,3 +410,19 @@ up to 50 people, with a shared project selection and optional per-project
 exceptions. Existing members can be edited individually, including revocations.
 Selecting all includes only current projects. Project ownership and global/agency
 admin access remain explicit and cannot be restricted in this screen.
+
+### Account lifecycle
+
+Apply `20260903233402_team_user_lifecycle.sql` before deploying the block/delete
+controls. It preserves existing accounts and grants, adds `profiles.blocked_at`,
+and installs the Data API pre-request guard plus restrictive RLS guards for
+Realtime and Storage. It intentionally refuses to replace a pre-existing
+`pgrst.db_pre_request` hook; compose the hooks if a future installation has one.
+Run `tests/sql/team-user-lifecycle.sql` on staging (fixtures roll back).
+
+Blocking is reversible and keeps saved permissions. Deleting is a soft deletion:
+the person disappears from the team and cannot access the app, while projects,
+authorship and history remain. The UI requires the person's email to confirm.
+Admins cannot block/delete themselves or other agency administrators. The Auth
+ban is supplementary; the database status gate also rejects existing JWTs.
+Do not remove the status guard during rollback while any account is suspended.
