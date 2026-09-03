@@ -88,3 +88,30 @@ describe('central team access flow', () => {
     expect(fetchMock.mock.calls.filter((call) => call[1]?.method)).toHaveLength(2)
   })
 })
+
+
+describe('account lifecycle controls', () => {
+  it('confirms block and does not expose destructive controls for administrators', async () => {
+    mount(); fireEvent.click(await screen.findByRole('button', { name: 'Bloquear Ana' }))
+    expect(screen.queryByRole('button', { name: 'Excluir Admin' })).toBeNull()
+    expect(fetchMock.mock.calls.filter((call) => call[1]?.method)).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar bloqueio' }))
+    await waitFor(() => expect(fetchMock.mock.calls.filter((call) => call[1]?.method)).toHaveLength(1))
+    expect(JSON.parse(fetchMock.mock.calls.find((call) => call[1]?.method)![1].body)).toMatchObject({ userId: 'collaborator', action: 'block' })
+    await screen.findByText(/Colaborador bloqueado/)
+  })
+  it('requires typing the email and allows cancellation without deleting', async () => {
+    mount(); fireEvent.click(await screen.findByRole('button', { name: 'Excluir Ana' }))
+    expect((screen.getByRole('button', { name: 'Confirmar exclusão' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+    expect(fetchMock.mock.calls.filter((call) => call[1]?.method)).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: 'Excluir Ana' }))
+    fireEvent.change(screen.getByLabelText('E-mail para confirmar exclusão'), { target: { value: 'ana@example.com' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar exclusão' }))
+    await waitFor(() => expect(fetchMock.mock.calls.filter((call) => call[1]?.method)).toHaveLength(1))
+    const call = fetchMock.mock.calls.find((call) => call[1]?.method)!
+    expect(call[1].method).toBe('DELETE')
+    expect(JSON.parse(call[1].body)).toMatchObject({ confirmEmail: 'ana@example.com' })
+    await screen.findByText(/Colaborador excluído/)
+  })
+})

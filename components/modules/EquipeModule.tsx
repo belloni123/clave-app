@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Users, Plus, Search, ChevronLeft, Check, Loader2, X } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
@@ -55,6 +55,15 @@ export default function EquipeModule() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [results, setResults] = useState<Result[]>([])
+  const [accountAction, setAccountAction] = useState<{ member: TeamMember; action: 'block' | 'unblock' | 'delete' } | null>(null)
+  const [confirmEmail, setConfirmEmail] = useState('')
+  const actionPanel = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (accountAction) {
+      actionPanel.current?.focus()
+      actionPanel.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+    }
+  }, [accountAction])
   const canManage = isAgencyAdmin(profile)
   const query = useQuery({
     queryKey: ['agency_team', profile?.agency_id], enabled: canManage,
@@ -131,6 +140,25 @@ export default function EquipeModule() {
     } finally { setBusy(false) }
   }
 
+  async function changeAccount() {
+    if (!accountAction) return
+    setBusy(true); setError(''); setResults([])
+    try {
+      const { member, action } = accountAction
+      const response = await fetch('/api/agency-team', {
+        method: action === 'delete' ? 'DELETE' : 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: member.id, action, confirmEmail }),
+      })
+      const body = await response.json()
+      if (!response.ok) throw new Error(body.error || 'Não foi possível atualizar a conta.')
+      setResults([{ email: member.email || '', ok: true, message: body.warning || ({ block: 'Colaborador bloqueado.', unblock: 'Colaborador desbloqueado.', delete: 'Colaborador excluído. Projetos e histórico preservados.' })[action] }])
+      setAccountAction(null)
+      await queryClient.invalidateQueries({ queryKey: ['agency_team'] })
+      await queryClient.invalidateQueries({ queryKey: ['agency_profiles'] })
+    } catch (cause) { setError((cause as Error).message) }
+    finally { setBusy(false) }
+  }
+
   if (!canManage) return <p>Acesso exclusivo aos administradores da agência.</p>
   if (query.isLoading) return <p role="status">Carregando equipe e projetos…</p>
   if (query.isError) return <div role="alert" className="space-y-3"><p>{query.error.message}</p><button className={secondaryClass} onClick={() => query.refetch()}>Tentar novamente</button></div>
@@ -139,9 +167,16 @@ export default function EquipeModule() {
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div><h2 className="flex items-center gap-2 text-2xl font-semibold text-text-custom"><Users className="text-amber-t" />Equipe e acessos</h2>
         <p className="mt-2 text-sm text-text2">Gerencie os colaboradores e os projetos da agência em um só lugar.</p></div>
-      {mode === 'list' ? <button className={primaryClass} onClick={() => open()} disabled={!data.projects.length}><Plus size={16} />Adicionar colaboradores</button>
+      {mode === 'list' ? <button className={primaryClass} onClick={() => open()} disabled={!data.projects.length || !!accountAction || busy}><Plus size={16} />Adicionar colaboradores</button>
         : <button className={secondaryClass} disabled={busy} onClick={() => { setMode('list'); setError(''); setResults([]) }}><ChevronLeft className="mr-1 inline" size={16} />Voltar à equipe</button>}
     </div>
+    {accountAction && <section ref={actionPanel} tabIndex={-1} role="dialog" aria-modal="false" aria-label="Confirmar ação sobre colaborador" className="space-y-4 rounded-xl border border-border-custom bg-surface p-5">
+      <h3 className="text-lg font-semibold">{accountAction.action === 'delete' ? 'Excluir' : accountAction.action === 'block' ? 'Bloquear' : 'Desbloquear'} {accountAction.member.nome || accountAction.member.email}?</h3>
+      <p className="text-sm text-text2">{accountAction.action === 'delete' ? 'Esta pessoa será removida da equipe e perderá acesso ao sistema. Os projetos e o histórico serão preservados. A exclusão não pode ser desfeita nesta tela.' : accountAction.action === 'block' ? 'O acesso ao sistema será suspenso, inclusive para sessões já abertas. As permissões ficam salvas para um futuro desbloqueio.' : 'A pessoa poderá entrar novamente com a mesma senha e as permissões que já estavam salvas.'}</p>
+      {accountAction.action === 'delete' && <label className="block text-sm">Digite {accountAction.member.email} para confirmar<input aria-label="E-mail para confirmar exclusão" className={`${fieldClass} mt-2`} value={confirmEmail} disabled={busy} onChange={(event) => setConfirmEmail(event.target.value)} /></label>}
+      <div className="flex flex-wrap gap-3"><button className={secondaryClass} disabled={busy} onClick={() => { setAccountAction(null); setError('') }}>Cancelar</button>
+        <button className={primaryClass} disabled={busy || (accountAction.action === 'delete' && confirmEmail.trim().toLowerCase() !== accountAction.member.email?.toLowerCase())} onClick={changeAccount}>{busy ? 'Salvando…' : accountAction.action === 'delete' ? 'Confirmar exclusão' : accountAction.action === 'block' ? 'Confirmar bloqueio' : 'Confirmar desbloqueio'}</button></div>
+    </section>}
     {error && <p role="alert" className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-500">{error}</p>}
     {results.length > 0 && <div aria-live="polite" className="space-y-2 rounded-xl border border-border-custom bg-surface p-4">
       {results.map((result) => <p key={result.email} className={`text-sm ${result.ok ? 'text-text-custom' : 'text-red-500'}`}><strong>{result.email}</strong> — {result.message}</p>)}
@@ -154,8 +189,12 @@ export default function EquipeModule() {
         {data.members.filter((member) => `${member.nome} ${member.email}`.toLowerCase().includes(search.toLowerCase())).sort((a, b) => (a.nome || '').localeCompare(b.nome || '')).map((member) => {
           const admin = isAgencyAdmin(member)
           const count = new Set([...data.memberships.filter((access) => access.user_id === member.id).map((access) => access.project_id), ...data.projects.filter((project) => project.user_id === member.id).map((project) => project.id)]).size
-          return <div key={member.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div className="min-w-0"><p className="font-medium">{member.nome || 'Sem nome'}</p><p className="break-all text-sm text-text2">{member.email}</p><p className="mt-1 text-xs text-text2">{admin ? 'Administrador · acesso total à agência' : `${count} projeto(s) com acesso`}</p></div>
-            {!admin && <button className={secondaryClass} onClick={() => open(member)}>Gerenciar acessos<span className="sr-only"> de {member.nome || member.email}</span></button>}
+          return <div key={member.id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div className="min-w-0"><p className="font-medium">{member.nome || 'Sem nome'}</p><p className="break-all text-sm text-text2">{member.email}</p><p className="mt-1 text-xs text-text2">{admin ? 'Administrador · acesso total à agência' : member.blocked_at ? 'Bloqueado · acesso suspenso' : `Ativo · ${count} projeto(s) com acesso`}</p></div>
+            {!admin && <div className="flex flex-wrap gap-2">
+              <button className={secondaryClass} disabled={busy || !!accountAction || !!member.blocked_at} onClick={() => open(member)}>Gerenciar acessos<span className="sr-only"> de {member.nome || member.email}</span></button>
+              <button className={secondaryClass} disabled={busy || !!accountAction} onClick={() => { setAccountAction({ member, action: member.blocked_at ? 'unblock' : 'block' }); setError(''); setResults([]) }}>{member.blocked_at ? 'Desbloquear' : 'Bloquear'}<span className="sr-only"> {member.nome || member.email}</span></button>
+              <button className={`${secondaryClass} text-red-500`} disabled={busy || !!accountAction} onClick={() => { setAccountAction({ member, action: 'delete' }); setConfirmEmail(''); setError(''); setResults([]) }}>Excluir<span className="sr-only"> {member.nome || member.email}</span></button>
+            </div>}
           </div>
         })}
         {!data.members.some((member) => `${member.nome} ${member.email}`.toLowerCase().includes(search.toLowerCase())) && <p className="p-5 text-sm text-text2">Nenhum colaborador encontrado.</p>}

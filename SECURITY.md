@@ -155,3 +155,19 @@ Restrictive `project_editor_*` policies complement module-level authorization
 for client-written content, including child tables and story audio. Viewers
 may read authorized modules but cannot write their data. The restrictive project
 SELECT policy prevents legacy `colab_assignments` from overriding revocation.
+
+Lifecycle actions validate agency ownership and protect administrator accounts.
+Blocking/deleting first closes a durable profile status gate, then bans Auth
+login; unblocking removes the Auth ban before opening the profile gate. Failed
+Auth synchronization never opens an account that should remain suspended.
+Deleting keeps the identity/profile as a tombstone to retain authorship and
+avoid cascade deletion of projects. It is not a personal-data erasure workflow.
+
+`private.team_account_active()` is an identity-bound SECURITY DEFINER lookup
+outside the exposed API schema. It returns only the caller's active status,
+avoiding profile-policy recursion. Restrictive account policies protect all
+existing public RLS tables and storage objects; new tables must include this
+gate too. `private.check_team_account()` runs before every authenticated Data
+API call, including definer RPCs. The Next proxy checks the account before
+service-role route side effects. Old JWTs therefore cannot bypass suspension.
+Already downloaded data or previously issued public/signed links are not erased.

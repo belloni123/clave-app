@@ -4,7 +4,7 @@ export type PermissionLevel = 'viewer' | 'editor' | 'admin'
 export type ProjectAccess = { projectId: string; level: PermissionLevel; modules: ProjectModuleKey[] }
 export type TeamProject = { id: string; name: string; user_id: string }
 export type TeamMember = {
-  id: string; nome: string | null; email: string | null; role: string; agency_role: string | null
+  id: string; nome: string | null; email: string | null; role: string; agency_role: string | null; blocked_at?: string | null
 }
 export type TeamMembership = {
   project_id: string; user_id: string; permission_level: PermissionLevel; allowed_modules: ProjectModuleKey[]
