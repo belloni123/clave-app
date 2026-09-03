@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Users, Plus, Search, ChevronLeft, Check, Loader2, X } from 'lucide-react'
 import { useAppStore } from '@/store/useAppStore'
@@ -57,6 +57,13 @@ export default function EquipeModule() {
   const [results, setResults] = useState<Result[]>([])
   const [accountAction, setAccountAction] = useState<{ member: TeamMember; action: 'block' | 'unblock' | 'delete' } | null>(null)
   const [confirmEmail, setConfirmEmail] = useState('')
+  const actionPanel = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (accountAction) {
+      actionPanel.current?.focus()
+      actionPanel.current?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+    }
+  }, [accountAction])
   const canManage = isAgencyAdmin(profile)
   const query = useQuery({
     queryKey: ['agency_team', profile?.agency_id], enabled: canManage,
@@ -163,7 +170,7 @@ export default function EquipeModule() {
       {mode === 'list' ? <button className={primaryClass} onClick={() => open()} disabled={!data.projects.length || !!accountAction || busy}><Plus size={16} />Adicionar colaboradores</button>
         : <button className={secondaryClass} disabled={busy} onClick={() => { setMode('list'); setError(''); setResults([]) }}><ChevronLeft className="mr-1 inline" size={16} />Voltar à equipe</button>}
     </div>
-    {accountAction && <section role="dialog" aria-modal="false" aria-label="Confirmar ação sobre colaborador" className="space-y-4 rounded-xl border border-border-custom bg-surface p-5">
+    {accountAction && <section ref={actionPanel} tabIndex={-1} role="dialog" aria-modal="false" aria-label="Confirmar ação sobre colaborador" className="space-y-4 rounded-xl border border-border-custom bg-surface p-5">
       <h3 className="text-lg font-semibold">{accountAction.action === 'delete' ? 'Excluir' : accountAction.action === 'block' ? 'Bloquear' : 'Desbloquear'} {accountAction.member.nome || accountAction.member.email}?</h3>
       <p className="text-sm text-text2">{accountAction.action === 'delete' ? 'Esta pessoa será removida da equipe e perderá acesso ao sistema. Os projetos e o histórico serão preservados. A exclusão não pode ser desfeita nesta tela.' : accountAction.action === 'block' ? 'O acesso ao sistema será suspenso, inclusive para sessões já abertas. As permissões ficam salvas para um futuro desbloqueio.' : 'A pessoa poderá entrar novamente com a mesma senha e as permissões que já estavam salvas.'}</p>
       {accountAction.action === 'delete' && <label className="block text-sm">Digite {accountAction.member.email} para confirmar<input aria-label="E-mail para confirmar exclusão" className={`${fieldClass} mt-2`} value={confirmEmail} disabled={busy} onChange={(event) => setConfirmEmail(event.target.value)} /></label>}
