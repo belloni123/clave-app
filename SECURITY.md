@@ -136,3 +136,22 @@ Authenticated administrators may update only `status` and `admin_notes`.
 `resolved_at` and `resolved_by` are filled by a `SECURITY INVOKER` trigger from
 the current authenticated actor, so a REST client cannot forge who resolved an
 occurrence.
+
+## Agency Team Administration
+
+`/api/agency-team` authenticates with `getUser()` and reads the active operator
+profile before creating the administrative client. Only global/agency admins
+with an agency may use it, and all listed/changed projects and profiles must
+belong to that agency. New accounts receive the collaborator role; existing
+accounts keep their identity, password and role. Admin profiles cannot be
+restricted by this screen. Project ownership cannot be revoked here.
+
+Each person's project grants and revocations are a single atomic upsert, with
+`concedido_por` derived from the authenticated operator for the existing audit
+trigger. Invitations are sent only after persistence, once per person. A mail
+failure does not delete saved access. Batch failures are reported individually.
+
+Restrictive `project_editor_*` policies complement module-level authorization
+for client-written content, including child tables and story audio. Viewers
+may read authorized modules but cannot write their data. The restrictive project
+SELECT policy prevents legacy `colab_assignments` from overriding revocation.

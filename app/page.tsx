@@ -41,6 +41,8 @@ const AdminSmtpModule = dynamic(() => import('@/components/modules/AdminSmtpModu
 const CandidaturasModule = dynamic(() => import('@/components/modules/CandidaturasModule'), { loading: ModuleLoading })
 const MonitoramentoModule = dynamic(() => import('@/components/modules/MonitoramentoModule'), { loading: ModuleLoading })
 
+const EquipeModule = dynamic(() => import('@/components/modules/EquipeModule'), { loading: ModuleLoading })
+
 export default function Home() {
   const { activeModule } = useAppStore()
 
@@ -74,6 +76,8 @@ export default function Home() {
         return <InstagramModule />
       case 'acesso':
         return <AcessoModule />
+      case 'equipe':
+        return <EquipeModule />
       case 'configuracoes':
         return <AdminSmtpModule />
       case 'candidaturas':
