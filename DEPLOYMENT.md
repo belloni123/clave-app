@@ -13,7 +13,7 @@ uma imagem não aplica migrações no Supabase.
 | `SUPABASE_SERVICE_ROLE_KEY` | Sim | Somente backend/runtime | Chave administrativa usada exclusivamente para convidar usuários e sincronizar seus vínculos. |
 | `SUPABASE_MANAGEMENT_ACCESS_TOKEN` | SMTP | Somente backend/runtime | Token da Supabase Management API usado exclusivamente para sincronizar o SMTP do Supabase Auth. Nunca use `NEXT_PUBLIC_`. |
 | `SUPABASE_PROJECT_REF` | Opcional | Somente backend/runtime | Referência do projeto Supabase. Se omitida, é derivada de `NEXT_PUBLIC_SUPABASE_URL`. |
-| `APP_URL` | Recomendado | Somente backend/runtime | Origem pública usada nos e-mails, por exemplo `https://clave.agenciab16.com.br`. Em produção, o Clave usa esse domínio como fallback e nunca publica `0.0.0.0`. |
+| `APP_URL` | Recomendado | Somente backend/runtime | Origem pública usada nos e-mails, por exemplo `https://useclave.com.br`. Em produção, o Clave usa esse domínio como fallback e nunca publica `0.0.0.0`. |
 | `ERROR_ALERT_EMAIL` | Opcional | Somente backend/runtime | Destinatário dos alertas de erro. Se omitido, usa `felipe@agenciab16.com.br`. |
 | `META_APP_ID` | Instagram | Somente backend/runtime | ID do app da Meta usado pelo Login do Facebook para Empresas. |
 | `INSTAGRAM_APP_SECRET` | Instagram | Somente backend/runtime | Segredo do app usado para validar solicitações e trocar a autorização curta por uma autorização de longa duração. Nunca use `NEXT_PUBLIC_`. |
@@ -273,9 +273,9 @@ Resposta esperada: `{"status":"ok"}`.
    build desmarcada. OpenAI e Claude não são variáveis do Coolify: cada chave é
    cadastrada no projeto e protegida pelo Supabase Vault.
 6. No Supabase Auth > URL Configuration, defina a **Site URL** como
-   `https://clave.agenciab16.com.br` e permita
-   `https://clave.agenciab16.com.br/auth/callback` e
-   `https://clave.agenciab16.com.br/definir-senha` como URLs de
+   `https://useclave.com.br` e permita
+   `https://useclave.com.br/auth/callback` e
+   `https://useclave.com.br/definir-senha` como URLs de
    redirecionamento. Não mantenha `0.0.0.0`, `localhost` ou a porta interna do
    container como Site URL de produção. Mantenha também um SMTP apto a enviar
    convites aos usuários finais. A Central de acesso permite informar uma senha
@@ -284,7 +284,7 @@ Resposta esperada: `{"status":"ok"}`.
    da senha é obrigatória no primeiro acesso e termina no dashboard autorizado.
    Após adicionar, a interface permite copiar uma mensagem com link e
    credenciais temporárias para envio por WhatsApp. O link deve começar com
-   `https://clave.agenciab16.com.br`, nunca com o endereço interno do container.
+   `https://useclave.com.br`, nunca com o endereço interno do container.
 7. Cadastre `SUPABASE_MANAGEMENT_ACCESS_TOKEN` somente no runtime do Coolify;
    mantenha `SUPABASE_PROJECT_REF` como runtime ou deixe o sistema derivá-lo.
 8. Cadastre `META_APP_ID`, `INSTAGRAM_APP_SECRET`, `META_BUSINESS_ID`,

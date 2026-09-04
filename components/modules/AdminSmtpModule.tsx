@@ -32,7 +32,7 @@ interface SmtpSettings {
 }
 
 const DEFAULT_SETTINGS: SmtpSettings = {
-  domain: 'https://clave.agenciab16.com.br',
+  domain: 'https://useclave.com.br',
   supportWhatsapp: '',
   tutorialUrl: '',
   smtpHost: 'smtp.gmail.com',
@@ -246,7 +246,7 @@ export default function AdminSmtpModule() {
         <div className="grid gap-4 md:grid-cols-2">
           <label>
             <span className={labelClass}>Domínio</span>
-            <input className={inputClass} value={settings.domain} onChange={(event) => updateSetting('domain', event.target.value)} disabled={readOnly} placeholder="https://clave.agenciab16.com.br" />
+            <input className={inputClass} value={settings.domain} onChange={(event) => updateSetting('domain', event.target.value)} disabled={readOnly} placeholder="https://useclave.com.br" />
           </label>
           <label>
             <span className={labelClass}>Contato de suporte (WhatsApp)</span>

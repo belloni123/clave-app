@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 
-const PRODUCTION_APP_ORIGIN = 'https://clave.agenciab16.com.br'
+const PRODUCTION_APP_ORIGIN = 'https://useclave.com.br'
 
 function parseConfiguredOrigin(value: string | undefined) {
   if (!value) return null

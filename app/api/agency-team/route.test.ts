@@ -28,7 +28,7 @@ function chain(data: unknown, error: unknown = null, table = '') {
   value.then = (resolve: (result: unknown) => void) => Promise.resolve({ data, error }).then(resolve)
   return value
 }
-const request = (body: unknown, method = 'POST') => new NextRequest('https://clave.agenciab16.com.br/api/agency-team', { method, body: JSON.stringify(body) })
+const request = (body: unknown, method = 'POST') => new NextRequest('https://useclave.com.br/api/agency-team', { method, body: JSON.stringify(body) })
 beforeEach(() => {
   vi.resetAllMocks(); writes.length = 0; dbFailure = null; memberships = []
   actor = { id: 'operator', role: 'admin', agency_role: 'colaborador', agency_id: 'agency-a' }

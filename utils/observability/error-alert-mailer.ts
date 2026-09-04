@@ -11,7 +11,7 @@ import type { createAdminClient } from '@/utils/supabase/admin'
 type AdminClient = ReturnType<typeof createAdminClient>
 
 const DEFAULT_ALERT_RECIPIENT = 'felipe@agenciab16.com.br'
-const PRODUCTION_APP_ORIGIN = 'https://clave.agenciab16.com.br'
+const PRODUCTION_APP_ORIGIN = 'https://useclave.com.br'
 
 const CATEGORY_LABELS: Record<AppErrorEventCategory, string> = {
   public_briefing: 'Briefing público',

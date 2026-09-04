@@ -108,7 +108,7 @@ obrigatória no próximo acesso. A revogação mantém o vínculo e a auditoria 
 banco, mas remove a pessoa da lista ativa; uma nova concessão é feita por
 `Adicionar usuário`, que reativa o mesmo vínculo por `upsert`.
 Os links de e-mail usam `APP_URL` quando configurada. Em produção, o domínio
-canônico `https://clave.agenciab16.com.br` é o fallback, impedindo que o
+canônico `https://useclave.com.br` é o fallback, impedindo que o
 endereço interno `0.0.0.0:3000` seja exposto ao usuário.
 Ao concluir a troca, `POST /api/auth/complete-password-change` atualiza a senha
 pela própria sessão autenticada e usa `service_role` somente para limpar o
