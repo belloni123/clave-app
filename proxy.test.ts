@@ -25,6 +25,20 @@ describe('canonical domain redirect', () => {
     expect(updateSession).not.toHaveBeenCalled()
   })
 
+  it('uses the forwarded hostname behind the production reverse proxy', async () => {
+    const response = await proxy(
+      new NextRequest('http://localhost:3000/login?from=legacy', {
+        headers: { 'x-forwarded-host': 'clave.agenciab16.com.br' },
+      }),
+    )
+
+    expect(response.status).toBe(308)
+    expect(response.headers.get('location')).toBe(
+      'https://useclave.com.br/login?from=legacy',
+    )
+    expect(updateSession).not.toHaveBeenCalled()
+  })
+
   it('continues the normal session flow on the canonical hostname', async () => {
     const request = new NextRequest('https://useclave.com.br/login')
 

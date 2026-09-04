@@ -5,7 +5,11 @@ const LEGACY_APP_HOSTNAME = 'clave.agenciab16.com.br'
 const PRODUCTION_APP_HOSTNAME = 'useclave.com.br'
 
 export async function proxy(request: NextRequest) {
-  if (request.nextUrl.hostname === LEGACY_APP_HOSTNAME) {
+  const forwardedHost = request.headers.get('x-forwarded-host')
+  const requestHost = forwardedHost?.split(',')[0]?.trim() || request.headers.get('host')
+  const hostname = requestHost?.split(':')[0]?.toLowerCase() || request.nextUrl.hostname
+
+  if (hostname === LEGACY_APP_HOSTNAME) {
     const canonicalUrl = request.nextUrl.clone()
     canonicalUrl.protocol = 'https:'
     canonicalUrl.hostname = PRODUCTION_APP_HOSTNAME
