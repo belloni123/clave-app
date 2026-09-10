@@ -75,11 +75,23 @@ interface EventoPagoFunnel {
   conversao_mentoria_pct: number
 }
 
+interface EventoPresencialProjection {
+  capacidade: number
+  ingressos_vendidos: number
+  ticket_ingresso: number
+  patrocinios: number
+  parcerias: number
+  conversao_pitch_pct: number
+  ticket_pitch: number
+  custos: CostItem[]
+}
+
 interface ProvisionamentoData {
   cenario_ativo: string
   dados: {
     scenarios?: Scenario[]
     eventoPago?: EventoPagoFunnel
+    eventoPresencial?: EventoPresencialProjection
   }
 }
 
@@ -138,11 +150,29 @@ interface BriefingData {
     preco_por?: number
     preco_12x?: number
     faq?: string
+    itens_brindes?: string
   }
   materiais_apoio: { nome: string; url: string }[]
   tag?: string
   dores_principais?: string
 }
+
+const EVENTO_PRESENCIAL_VAZIO: EventoPresencialProjection = {
+  capacidade: 0,
+  ingressos_vendidos: 0,
+  ticket_ingresso: 0,
+  patrocinios: 0,
+  parcerias: 0,
+  conversao_pitch_pct: 0,
+  ticket_pitch: 0,
+  custos: [],
+}
+
+const getEventoPresencialProjection = (dados?: ProvisionamentoData['dados']): EventoPresencialProjection => ({
+  ...EVENTO_PRESENCIAL_VAZIO,
+  ...(dados?.eventoPresencial || {}),
+  custos: Array.isArray(dados?.eventoPresencial?.custos) ? dados.eventoPresencial.custos : [],
+})
 
 const TEMPLATE_NAMES: Record<LaunchTemplate, string> = {
   lancamento: 'Lançamento (PLF Clássico)',
@@ -750,6 +780,15 @@ export default function LancamentosModule() {
       if (realFaturamento >= targetFaturamento) return 'Verde'
       if (realFaturamento >= targetFaturamento * 0.6) return 'Amarelo'
       return 'Vermelho'
+    } else if (template === 'evento_presencial') {
+      const evento = getEventoPresencialProjection(prov)
+      const faturamentoIngressos = evento.ingressos_vendidos * evento.ticket_ingresso
+      const faturamentoPitch = evento.ingressos_vendidos * (evento.conversao_pitch_pct / 100) * evento.ticket_pitch
+      const targetFaturamento = faturamentoIngressos + evento.patrocinios + evento.parcerias + faturamentoPitch
+      if (targetFaturamento <= 0) return 'Vermelho'
+      if (realFaturamento >= targetFaturamento) return 'Verde'
+      if (realFaturamento >= targetFaturamento * 0.6) return 'Amarelo'
+      return 'Vermelho'
     } else {
       // PLF Scenario comparison
       const scenarios = prov.scenarios || []
@@ -932,7 +971,16 @@ export default function LancamentosModule() {
                 let verbaInvestidaProvisionada = cronoVal.verba_total
                 let roasPrevisto = 0
 
-                if (template !== 'evento_pago') {
+                if (template === 'evento_presencial') {
+                  const evento = getEventoPresencialProjection(provVal.dados)
+                  const faturamentoIngressos = evento.ingressos_vendidos * evento.ticket_ingresso
+                  const faturamentoPitch = evento.ingressos_vendidos * (evento.conversao_pitch_pct / 100) * evento.ticket_pitch
+                  const totalCustosEvento = evento.custos.reduce((total, custo) => total + (Number(custo.valor) || 0), 0)
+
+                  faturamentoProvisionado = faturamentoIngressos + evento.patrocinios + evento.parcerias + faturamentoPitch
+                  verbaInvestidaProvisionada = totalCustosEvento
+                  roasPrevisto = totalCustosEvento > 0 ? faturamentoProvisionado / totalCustosEvento : 0
+                } else if (template !== 'evento_pago') {
                   const scenarios = provVal.dados.scenarios || []
                   const activeScenario = scenarios.find(s => s.nome === activeCenarioNome) || scenarios[1] || scenarios[0]
                   if (activeScenario) {
@@ -1349,7 +1397,9 @@ function BriefingTab({ briefing, template, onSave }: BriefingTabProps) {
   const [bPrecoPor, setBPrecoPor] = useState(briefing.oferta?.preco_por ?? 0)
   const [bPreco12x, setBPreco12x] = useState(briefing.oferta?.preco_12x ?? 0)
   const [bFaq, setBFaq] = useState(briefing.oferta?.faq || '')
+  const [bItensBrindes, setBItensBrindes] = useState(briefing.oferta?.itens_brindes || '')
   const isWebnario = template === 'webnario'
+  const isEventoPresencial = template === 'evento_presencial'
 
   const handleSaveBriefing = () => {
     onSave({
@@ -1368,6 +1418,9 @@ function BriefingTab({ briefing, template, onSave }: BriefingTabProps) {
           preco_por: Number(bPrecoPor),
           preco_12x: Number(bPreco12x),
           faq: bFaq,
+        } : {}),
+        ...(isEventoPresencial ? {
+          itens_brindes: bItensBrindes,
         } : {}),
       }
     })
@@ -1502,6 +1555,19 @@ function BriefingTab({ briefing, template, onSave }: BriefingTabProps) {
               />
             </div>
           </>
+        )}
+
+        {isEventoPresencial && (
+          <div className="flex flex-col gap-1 border-t border-border-custom pt-4">
+            <label className="text-[10px] font-bold text-text2 uppercase block">Itens e brindes do evento</label>
+            <textarea
+              rows={5}
+              className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs resize-y"
+              placeholder="Liste o que será oferecido, por exemplo: coffee break, kit, brindes e materiais. Os valores consolidados entram na projeção."
+              value={bItensBrindes}
+              onChange={(e) => setBItensBrindes(e.target.value)}
+            />
+          </div>
         )}
 
         <button
@@ -1680,7 +1746,15 @@ function RealizadoTab({ real, verba, provisionamento, template, onSave }: Realiz
   let provFaturamento = 0
   let provRoas = 0
 
-  if (template !== 'evento_pago') {
+  if (template === 'evento_presencial') {
+    const evento = getEventoPresencialProjection(provisionamento.dados)
+    const faturamentoIngressos = evento.ingressos_vendidos * evento.ticket_ingresso
+    const faturamentoPitch = evento.ingressos_vendidos * (evento.conversao_pitch_pct / 100) * evento.ticket_pitch
+    const totalCustosEvento = evento.custos.reduce((total, custo) => total + (Number(custo.valor) || 0), 0)
+
+    provFaturamento = faturamentoIngressos + evento.patrocinios + evento.parcerias + faturamentoPitch
+    provRoas = totalCustosEvento > 0 ? provFaturamento / totalCustosEvento : 0
+  } else if (template !== 'evento_pago') {
     const scenarios = provisionamento.dados.scenarios || []
     const activeScenario = scenarios.find(s => s.nome === activeCenarioNome) || scenarios[1] || scenarios[0]
     if (activeScenario) {
@@ -1910,6 +1984,7 @@ interface ProvisionamentoTabProps {
 function ProvisionamentoTab({ provisionamento, verba, template, briefingTicket, onSave }: ProvisionamentoTabProps) {
   const [cenarioAtivo, setCenarioAtivo] = useState(provisionamento.cenario_ativo || 'Médio')
   const [scenarios, setScenarios] = useState<Scenario[]>(provisionamento.dados.scenarios || [])
+  const [eventoPresencial, setEventoPresencial] = useState<EventoPresencialProjection>(() => getEventoPresencialProjection(provisionamento.dados))
   const [ev, setEv] = useState<EventoPagoFunnel>(provisionamento.dados.eventoPago || {
     faturamento_desejado: 20000,
     ticket_ingresso: briefingTicket || 197,
@@ -1937,6 +2012,16 @@ function ProvisionamentoTab({ provisionamento, verba, template, briefingTicket, 
     setEv({ ...ev, [field]: val === '' ? 0 : Number(val) })
   }
 
+  const handleEventoPresencialChange = (field: Exclude<keyof EventoPresencialProjection, 'custos'>, val: string) => {
+    setEventoPresencial({ ...eventoPresencial, [field]: val === '' ? 0 : Number(val) })
+  }
+
+  const handleCustoEventoChange = (idx: number, field: keyof CostItem, val: string) => {
+    const custos = [...eventoPresencial.custos]
+    custos[idx] = { ...custos[idx], [field]: field === 'valor' ? (val === '' ? 0 : Number(val)) : val }
+    setEventoPresencial({ ...eventoPresencial, custos })
+  }
+
   const handleSave = () => {
     onSave({
       cenario_ativo: cenarioAtivo,
@@ -1945,6 +2030,126 @@ function ProvisionamentoTab({ provisionamento, verba, template, briefingTicket, 
         eventoPago: { ...ev, ticket_ingresso: briefingTicket }
       }
     })
+  }
+
+  const handleSaveEventoPresencial = () => {
+    onSave({
+      cenario_ativo: cenarioAtivo,
+      dados: {
+        ...provisionamento.dados,
+        eventoPresencial,
+      }
+    })
+  }
+
+  if (template === 'evento_presencial') {
+    const receitaIngressos = eventoPresencial.ingressos_vendidos * eventoPresencial.ticket_ingresso
+    const vendasPitch = eventoPresencial.ingressos_vendidos * (eventoPresencial.conversao_pitch_pct / 100)
+    const receitaPitch = vendasPitch * eventoPresencial.ticket_pitch
+    const totalReceitas = receitaIngressos + eventoPresencial.patrocinios + eventoPresencial.parcerias + receitaPitch
+    const totalCustos = eventoPresencial.custos.reduce((total, custo) => total + (Number(custo.valor) || 0), 0)
+    const resultado = totalReceitas - totalCustos
+    const custoPorCadeira = eventoPresencial.capacidade > 0 ? totalCustos / eventoPresencial.capacidade : 0
+    const ingressosNecessarios = eventoPresencial.ticket_ingresso > 0
+      ? Math.max(0, totalCustos - eventoPresencial.patrocinios - eventoPresencial.parcerias - receitaPitch) / eventoPresencial.ticket_ingresso
+      : 0
+    const patrocinioNecessario = Math.max(0, totalCustos - receitaIngressos - eventoPresencial.parcerias - receitaPitch)
+    const ticketMinimo = eventoPresencial.capacidade > 0
+      ? Math.max(0, totalCustos - eventoPresencial.patrocinios - eventoPresencial.parcerias - receitaPitch) / eventoPresencial.capacidade
+      : 0
+
+    return (
+      <div className="space-y-6 text-xs animate-[fadeUp_0.15s_ease_both]">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="xl:col-span-2 bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+            <div className="border-b border-border-custom pb-2">
+              <h4 className="text-xs font-bold text-text-custom">Projeção financeira do evento</h4>
+              <p className="text-[10px] text-text3 mt-1">Cadastre os custos consolidados, as receitas esperadas e a venda complementar feita durante o evento.</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label className="flex flex-col gap-1 text-[10px] text-text3 uppercase font-bold">
+                Capacidade do evento
+                <input type="number" min="0" className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs normal-case font-normal" value={eventoPresencial.capacidade || ''} onChange={(e) => handleEventoPresencialChange('capacidade', e.target.value)} />
+              </label>
+              <label className="flex flex-col gap-1 text-[10px] text-text3 uppercase font-bold">
+                Ingressos vendidos (projeção)
+                <input type="number" min="0" className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs normal-case font-normal" value={eventoPresencial.ingressos_vendidos || ''} onChange={(e) => handleEventoPresencialChange('ingressos_vendidos', e.target.value)} />
+              </label>
+              <label className="flex flex-col gap-1 text-[10px] text-text3 uppercase font-bold">
+                Ticket do ingresso (R$)
+                <input type="number" min="0" step="0.01" className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs normal-case font-normal" value={eventoPresencial.ticket_ingresso || ''} onChange={(e) => handleEventoPresencialChange('ticket_ingresso', e.target.value)} />
+              </label>
+            </div>
+
+            <div className="space-y-3 pt-2 border-t border-border-custom">
+              <div className="flex items-center justify-between">
+                <h5 className="text-[10px] font-bold text-text2 uppercase">Custos operacionais</h5>
+                <button onClick={() => setEventoPresencial({ ...eventoPresencial, custos: [...eventoPresencial.custos, { nome: '', valor: 0 }] })} className="px-2 py-1 border border-border-custom rounded text-[10px] font-semibold text-text2 hover:text-text-custom hover:bg-surface2 cursor-pointer">+ Adicionar custo</button>
+              </div>
+              {eventoPresencial.custos.length === 0 ? (
+                <p className="text-[11px] text-text3">Nenhum custo informado. Adicione locação, equipe, coffee break, brindes consolidados e demais despesas.</p>
+              ) : (
+                <div className="space-y-2">
+                  {eventoPresencial.custos.map((custo, idx) => (
+                    <div key={idx} className="grid grid-cols-[1fr_130px_auto] gap-2 items-center">
+                      <input type="text" placeholder="Ex.: Locação" className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs" value={custo.nome} onChange={(e) => handleCustoEventoChange(idx, 'nome', e.target.value)} />
+                      <input type="number" min="0" step="0.01" placeholder="Valor (R$)" className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs" value={custo.valor || ''} onChange={(e) => handleCustoEventoChange(idx, 'valor', e.target.value)} />
+                      <button onClick={() => setEventoPresencial({ ...eventoPresencial, custos: eventoPresencial.custos.filter((_, costIdx) => costIdx !== idx) })} aria-label={`Remover ${custo.nome || 'custo'}`} className="p-2 border border-border-custom rounded text-text3 hover:text-red-400 hover:border-red-500/30 cursor-pointer"><Trash className="w-3.5 h-3.5" /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border-custom">
+              <label className="flex flex-col gap-1 text-[10px] text-text3 uppercase font-bold">
+                Patrocínios (R$)
+                <input type="number" min="0" step="0.01" className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs normal-case font-normal" value={eventoPresencial.patrocinios || ''} onChange={(e) => handleEventoPresencialChange('patrocinios', e.target.value)} />
+              </label>
+              <label className="flex flex-col gap-1 text-[10px] text-text3 uppercase font-bold">
+                Parcerias (R$)
+                <input type="number" min="0" step="0.01" className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs normal-case font-normal" value={eventoPresencial.parcerias || ''} onChange={(e) => handleEventoPresencialChange('parcerias', e.target.value)} />
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border-custom">
+              <div className="sm:col-span-2"><h5 className="text-[10px] font-bold text-text2 uppercase">Venda complementar no evento (pitch)</h5></div>
+              <label className="flex flex-col gap-1 text-[10px] text-text3 uppercase font-bold">
+                Conversão esperada (%)
+                <input type="number" min="0" max="100" step="0.1" className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs normal-case font-normal" value={eventoPresencial.conversao_pitch_pct || ''} onChange={(e) => handleEventoPresencialChange('conversao_pitch_pct', e.target.value)} />
+              </label>
+              <label className="flex flex-col gap-1 text-[10px] text-text3 uppercase font-bold">
+                Ticket do pitch (R$)
+                <input type="number" min="0" step="0.01" className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs normal-case font-normal" value={eventoPresencial.ticket_pitch || ''} onChange={(e) => handleEventoPresencialChange('ticket_pitch', e.target.value)} />
+              </label>
+            </div>
+          </div>
+
+          <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-3 h-fit">
+            <h4 className="text-xs font-bold text-text-custom border-b border-border-custom pb-2">Resumo da projeção</h4>
+            <div className="space-y-2 text-[11px] text-text3">
+              <div className="flex justify-between gap-3"><span>Custos operacionais</span><strong className="text-text-custom">R$ {totalCustos.toLocaleString('pt-BR')}</strong></div>
+              <div className="flex justify-between gap-3"><span>Receita de ingressos</span><strong className="text-emerald-400">R$ {receitaIngressos.toLocaleString('pt-BR')}</strong></div>
+              <div className="flex justify-between gap-3"><span>Patrocínios e parcerias</span><strong className="text-emerald-400">R$ {(eventoPresencial.patrocinios + eventoPresencial.parcerias).toLocaleString('pt-BR')}</strong></div>
+              <div className="flex justify-between gap-3"><span>Vendas do pitch ({vendasPitch.toFixed(1)})</span><strong className="text-emerald-400">R$ {receitaPitch.toLocaleString('pt-BR')}</strong></div>
+              <div className="flex justify-between gap-3 pt-2 border-t border-border-custom"><span>Total de receitas</span><strong className="text-text-custom">R$ {totalReceitas.toLocaleString('pt-BR')}</strong></div>
+              <div className="flex justify-between gap-3"><span>Resultado projetado</span><strong className={resultado >= 0 ? 'text-emerald-400' : 'text-red-400'}>R$ {resultado.toLocaleString('pt-BR')}</strong></div>
+            </div>
+            <div className="space-y-2 pt-3 border-t border-border-custom text-[11px] text-text3">
+              <div className="flex justify-between gap-3"><span>Custo por cadeira</span><strong className="text-text-custom">R$ {custoPorCadeira.toFixed(2)}</strong></div>
+              <div className="flex justify-between gap-3"><span>Ingresso mínimo (lotação)</span><strong className="text-text-custom">R$ {ticketMinimo.toFixed(2)}</strong></div>
+              <div className="flex justify-between gap-3"><span>Ingressos para se pagar</span><strong className="text-text-custom">{Math.ceil(ingressosNecessarios)}</strong></div>
+              <div className="flex justify-between gap-3"><span>Patrocínio ainda necessário</span><strong className="text-text-custom">R$ {patrocinioNecessario.toLocaleString('pt-BR')}</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <button onClick={handleSaveEventoPresencial} className="w-full py-2 bg-purple-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-sm">
+          Salvar Projeção do Evento
+        </button>
+      </div>
+    )
   }
 
   if (template !== 'evento_pago') {
