@@ -20,6 +20,7 @@ type LaunchTemplate =
   | 'evento_presencial'
   | 'lancamento_interno'
   | 'lancamento_meteorico'
+  | 'webnario'
 
 interface Launch {
   id: string
@@ -131,6 +132,12 @@ interface BriefingData {
     nome: string
     ticket: number
     formato: string
+    tipo_acesso?: 'gratuito' | 'pago'
+    recorrencia?: 'unico' | 'diario' | 'semanal' | 'quinzenal' | 'mensal'
+    preco_de?: number
+    preco_por?: number
+    preco_12x?: number
+    faq?: string
   }
   materiais_apoio: { nome: string; url: string }[]
   tag?: string
@@ -144,6 +151,7 @@ const TEMPLATE_NAMES: Record<LaunchTemplate, string> = {
   evento_presencial: 'Evento Presencial',
   lancamento_interno: 'Lançamento Interno',
   lancamento_meteorico: 'Lançamento Meteórico',
+  webnario: 'Webnário',
 }
 
 export default function LancamentosModule() {
@@ -637,6 +645,16 @@ export default function LancamentosModule() {
         { nome: 'Aquecimento', pct_verba: 15, dias: 3, inicio: adjustDate(anchor, -4), fim: adjustDate(anchor, -2) },
         { nome: 'Oferta Meteórica', pct_verba: 10, dias: 1, inicio: anchor, fim: anchor },
         { nome: 'Carrinho / Follow-up', pct_verba: 10, dias: 4, inicio: adjustDate(anchor, 1), fim: adjustDate(anchor, 4) },
+      ]
+    }
+
+    if (template === 'webnario') {
+      return [
+        { nome: 'Captação de inscritos', pct_verba: 60, dias: 14, inicio: adjustDate(anchor, -15), fim: adjustDate(anchor, -2) },
+        { nome: 'Aquecimento', pct_verba: 20, dias: 7, inicio: adjustDate(anchor, -8), fim: adjustDate(anchor, -2) },
+        { nome: 'Lembrete', pct_verba: 10, dias: 3, inicio: adjustDate(anchor, -4), fim: adjustDate(anchor, -2) },
+        { nome: 'Webnário', pct_verba: 0, dias: 1, inicio: anchor, fim: anchor },
+        { nome: 'Oferta / Follow-up', pct_verba: 10, dias: 5, inicio: adjustDate(anchor, 1), fim: adjustDate(anchor, 5) },
       ]
     }
 
@@ -1159,6 +1177,7 @@ export default function LancamentosModule() {
               {activeSubTab === 'briefing' && (
                 <BriefingTab
                   briefing={activeLaunchData.briefing}
+                  template={activeLaunchData.launch.template}
                   onSave={(data) => saveBriefingMutation.mutate(data)}
                 />
               )}
@@ -1261,6 +1280,7 @@ export default function LancamentosModule() {
                   <option value="evento_presencial">Evento Presencial</option>
                   <option value="lancamento_interno">Lançamento Interno</option>
                   <option value="lancamento_meteorico">Lançamento Meteórico</option>
+                  <option value="webnario">Webnário</option>
                 </select>
               </div>
 
@@ -1312,16 +1332,24 @@ export default function LancamentosModule() {
 
 interface BriefingTabProps {
   briefing: BriefingData
+  template: LaunchTemplate
   onSave: (data: { mote: string; publico_alvo: string; dores_principais?: string; tag?: string; oferta: any }) => void
 }
 
-function BriefingTab({ briefing, onSave }: BriefingTabProps) {
+function BriefingTab({ briefing, template, onSave }: BriefingTabProps) {
   const [bMote, setBMote] = useState(briefing.mote || '')
   const [bPublico, setBPublico] = useState(briefing.publico_alvo || '')
   const [bDores, setBDores] = useState(briefing.dores_principais || '')
   const [bOfertaNome, setBOfertaNome] = useState(briefing.oferta?.nome || '')
   const [bOfertaTicket, setBOfertaTicket] = useState(briefing.oferta?.ticket || 997)
   const [bTag, setBTag] = useState(briefing.tag || '')
+  const [bTipoAcesso, setBTipoAcesso] = useState(briefing.oferta?.tipo_acesso || 'gratuito')
+  const [bRecorrencia, setBRecorrencia] = useState(briefing.oferta?.recorrencia || 'unico')
+  const [bPrecoDe, setBPrecoDe] = useState(briefing.oferta?.preco_de ?? 0)
+  const [bPrecoPor, setBPrecoPor] = useState(briefing.oferta?.preco_por ?? 0)
+  const [bPreco12x, setBPreco12x] = useState(briefing.oferta?.preco_12x ?? 0)
+  const [bFaq, setBFaq] = useState(briefing.oferta?.faq || '')
+  const isWebnario = template === 'webnario'
 
   const handleSaveBriefing = () => {
     onSave({
@@ -1329,7 +1357,19 @@ function BriefingTab({ briefing, onSave }: BriefingTabProps) {
       publico_alvo: bPublico,
       dores_principais: bDores,
       tag: bTag,
-      oferta: { nome: bOfertaNome, ticket: Number(bOfertaTicket), formato: 'Curso Online' }
+      oferta: {
+        nome: bOfertaNome,
+        ticket: Number(bOfertaTicket),
+        formato: isWebnario ? 'Webnário' : 'Curso Online',
+        ...(isWebnario ? {
+          tipo_acesso: bTipoAcesso,
+          recorrencia: bRecorrencia,
+          preco_de: Number(bPrecoDe),
+          preco_por: Number(bPrecoPor),
+          preco_12x: Number(bPreco12x),
+          faq: bFaq,
+        } : {}),
+      }
     })
   }
 
@@ -1403,6 +1443,67 @@ function BriefingTab({ briefing, onSave }: BriefingTabProps) {
           </div>
         </div>
 
+        {isWebnario && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-border-custom pt-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-text2 uppercase block">Acesso ao Webnário</label>
+                <select
+                  className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs"
+                  value={bTipoAcesso}
+                  onChange={(e) => setBTipoAcesso(e.target.value as 'gratuito' | 'pago')}
+                >
+                  <option value="gratuito">Gratuito</option>
+                  <option value="pago">Pago</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-[10px] font-bold text-text2 uppercase block">Recorrência</label>
+                <select
+                  className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs"
+                  value={bRecorrencia}
+                  onChange={(e) => setBRecorrencia(e.target.value as 'unico' | 'diario' | 'semanal' | 'quinzenal' | 'mensal')}
+                >
+                  <option value="unico">Único</option>
+                  <option value="diario">Diário</option>
+                  <option value="semanal">Semanal</option>
+                  <option value="quinzenal">Quinzenal</option>
+                  <option value="mensal">Mensal</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-text2 uppercase block">Oferta</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <label className="flex flex-col gap-1 text-[10px] text-text3">
+                  De (R$)
+                  <input type="number" min="0" step="0.01" className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs" value={bPrecoDe || ''} onChange={(e) => setBPrecoDe(Number(e.target.value))} />
+                </label>
+                <label className="flex flex-col gap-1 text-[10px] text-text3">
+                  Por (R$)
+                  <input type="number" min="0" step="0.01" className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs" value={bPrecoPor || ''} onChange={(e) => setBPrecoPor(Number(e.target.value))} />
+                </label>
+                <label className="flex flex-col gap-1 text-[10px] text-text3">
+                  12x de (R$)
+                  <input type="number" min="0" step="0.01" className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs" value={bPreco12x || ''} onChange={(e) => setBPreco12x(Number(e.target.value))} />
+                </label>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-[10px] font-bold text-text2 uppercase block">FAQ</label>
+              <textarea
+                rows={5}
+                className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs resize-y"
+                placeholder="Registre as perguntas frequentes e as respectivas respostas."
+                value={bFaq}
+                onChange={(e) => setBFaq(e.target.value)}
+              />
+            </div>
+          </>
+        )}
+
         <button
           onClick={handleSaveBriefing}
           className="w-full py-2 bg-purple-custom text-white hover:opacity-90 rounded-lg text-xs font-semibold cursor-pointer transition-colors shadow-sm"
@@ -1429,6 +1530,8 @@ function CronogramaTab({ crono, template, onSave }: CronogramaTabProps) {
     ? 'Data do Evento Pago (âncora)'
     : template === 'evento_presencial'
       ? 'Data do Evento Presencial (âncora)'
+      : template === 'webnario'
+        ? 'Data do Webnário (âncora)'
       : template === 'lancamento_meteorico'
         ? 'Data da Oferta Meteórica (âncora)'
         : 'Data do 1º conteúdo do lançamento (âncora)'
