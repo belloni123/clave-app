@@ -50,7 +50,10 @@ export async function POST(request: Request) {
     // Fixed, minimal, read-only query. No arbitrary SQL, tools or private answers sent to the model.
     let formState = 'Não consultado: a pergunta não solicitou formulário.'
     const links: Array<{ label: string; path: string }> = []
-    const formQuestion = /formular|briefing.*cliente|link.*cliente/.test(normalizeHelpText(question + ' ' + history.map((item) => item.content).join(' ')))
+    const normalizedQuestion = normalizeHelpText(question)
+    const previousQuestion = history.filter((item) => item.role === 'user').at(-1)?.content ?? ''
+    const formQuestion = /formular|briefing.*cliente|link.*cliente/.test(normalizedQuestion)
+      || (/link|endereco/.test(normalizedQuestion) && /formular|briefing.*cliente/.test(normalizeHelpText(previousQuestion)))
     if (formQuestion && allowed.includes('formularios')) {
       const { data: forms, error } = await client.from('project_forms').select('title,public_token,active').eq('project_id', projectId).eq('kind', 'client_briefing').limit(5)
       formState = error ? 'Consulta indisponível; oriente conferir na tela Formulários.' : !forms?.length ? 'Ainda não há formulário visível para este usuário.' : 'Formulários encontrados: ' + JSON.stringify(forms.map((form) => ({ title: String(form.title).slice(0, 160), active: form.active })))
@@ -75,7 +78,7 @@ export async function POST(request: Request) {
       return json({ answer: result.answer, sources: sourcesFor(Array.isArray(result.articleIds) ? result.articleIds.filter((id): id is string => typeof id === 'string') : []), links, mode: 'ai', version: HELP_VERSION })
     } catch (error) {
       // Honest fallback: the guide remains useful, but is never presented as an AI answer.
-      const articles = findHelpArticles(question)
+      const articles = findHelpArticles(question).slice(0, 1)
       const notice = error instanceof AiProviderError && error.status === 409
         ? 'A IA deste projeto ainda não está configurada. Um administrador pode configurar OpenAI ou Claude no Banco de histórias. Enquanto isso, aqui está a ajuda do Clave.'
         : 'A IA não conseguiu responder agora. Você pode tentar novamente; enquanto isso, consulte a ajuda do Clave abaixo.'

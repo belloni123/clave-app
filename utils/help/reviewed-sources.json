@@ -1,6 +1,6 @@
 {
-  "version": "2026-09-14.1",
-  "knowledgeHash": "b7941154934eac85ffc25e2b1314a6534a7d237f55f554f89085d81e70abc791",
+  "version": "2026-09-14.2",
+  "knowledgeHash": "ec2f2ffeac01160c0d26957ee963aa82b845912e9cc75ad02c7e77ba273b8e74",
   "files": {
     "components/AppShell.tsx": "2695ff1d6f0de2598e83b0cf37130554732bf3b7c8f48c6026fca6c1c4a7efe9",
     "components/HelpAssistant.tsx": "11d1a0eff8938e4d84a98a8523563d771a7334f7c2b77161d0e36fbad72cd859",
