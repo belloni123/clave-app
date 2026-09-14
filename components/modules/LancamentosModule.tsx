@@ -150,6 +150,7 @@ interface BriefingData {
     preco_por?: number
     preco_12x?: number
     faq?: string
+    script_comentarios?: string
     itens_brindes?: string
   }
   materiais_apoio: { nome: string; url: string }[]
@@ -1397,6 +1398,7 @@ function BriefingTab({ briefing, template, onSave }: BriefingTabProps) {
   const [bPrecoPor, setBPrecoPor] = useState(briefing.oferta?.preco_por ?? 0)
   const [bPreco12x, setBPreco12x] = useState(briefing.oferta?.preco_12x ?? 0)
   const [bFaq, setBFaq] = useState(briefing.oferta?.faq || '')
+  const [bScriptComentarios, setBScriptComentarios] = useState(briefing.oferta?.script_comentarios || '')
   const [bItensBrindes, setBItensBrindes] = useState(briefing.oferta?.itens_brindes || '')
   const isWebnario = template === 'webnario'
   const isEventoPresencial = template === 'evento_presencial'
@@ -1418,6 +1420,7 @@ function BriefingTab({ briefing, template, onSave }: BriefingTabProps) {
           preco_por: Number(bPrecoPor),
           preco_12x: Number(bPreco12x),
           faq: bFaq,
+          script_comentarios: bScriptComentarios,
         } : {}),
         ...(isEventoPresencial ? {
           itens_brindes: bItensBrindes,
@@ -1552,6 +1555,17 @@ function BriefingTab({ briefing, template, onSave }: BriefingTabProps) {
                 placeholder="Registre as perguntas frequentes e as respectivas respostas."
                 value={bFaq}
                 onChange={(e) => setBFaq(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label htmlFor="webnario-script-comentarios" className="text-[10px] font-bold text-text2 uppercase block">Script de comentários</label>
+              <textarea
+                id="webnario-script-comentarios"
+                rows={5}
+                className="px-3 py-2 border border-border2 rounded bg-surface text-text-custom outline-none text-xs resize-y"
+                placeholder="Registre o script de comentários do Webnário."
+                value={bScriptComentarios}
+                onChange={(e) => setBScriptComentarios(e.target.value)}
               />
             </div>
           </>
