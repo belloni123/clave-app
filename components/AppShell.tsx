@@ -13,6 +13,7 @@ import {
 import ProjectSwitcher from './ProjectSwitcher'
 import LevelSelector from './LevelSelector'
 import Toast from './Toast'
+import HelpAssistant from './HelpAssistant'
 import {
   LayoutDashboard,
   Lightbulb,
@@ -549,7 +550,7 @@ export default function AppShell({ children }: AppShellProps) {
       </main>
 
       {/* Floating Notifications */}
-      <div className="print:hidden"><Toast /></div>
+      <div className="print:hidden"><Toast /><HelpAssistant /></div>
     </div>
   )
 }

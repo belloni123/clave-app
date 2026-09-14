@@ -8,7 +8,9 @@
   "scripts": {
     "predev": "node scripts/copy-transformers-assets.mjs",
     "dev": "next dev",
-    "prebuild": "node scripts/copy-transformers-assets.mjs",
+    "prebuild": "npm run help:check && node scripts/copy-transformers-assets.mjs",
+    "help:check": "node scripts/check-help-knowledge.mjs",
+    "help:review": "node scripts/check-help-knowledge.mjs --review",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

@@ -151,6 +151,7 @@ export async function generateProjectAiText(
   provider: AiProvider,
   apiKey: string,
   prompt: string,
+  instructions?: string,
 ): Promise<string> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 90_000)
@@ -166,6 +167,7 @@ export async function generateProjectAiText(
           body: JSON.stringify({
             model: 'gpt-5.4-mini',
             input: prompt,
+            ...(instructions ? { instructions, store: false } : {}),
             max_output_tokens: 4_000,
           }),
           signal: controller.signal,
@@ -181,6 +183,7 @@ export async function generateProjectAiText(
           body: JSON.stringify({
             model: 'claude-sonnet-5',
             max_tokens: 4_000,
+            ...(instructions ? { system: instructions } : {}),
             messages: [{ role: 'user', content: prompt }],
           }),
           signal: controller.signal,
