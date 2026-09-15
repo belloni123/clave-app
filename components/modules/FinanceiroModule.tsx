@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
 import SourceCredit from '@/components/SourceCredit'
+import FinancialPlanningWorkspace from '@/components/modules/FinancialPlanningWorkspace'
 import { SOURCE_CREDITS } from '@/utils/source-credits'
 import { Trash, AlertTriangle, Check, Plus, Sparkles, ExternalLink, Copy, Link2, Users, ShieldCheck } from 'lucide-react'
 
@@ -822,7 +823,7 @@ export default function FinanceiroModule() {
       {/* Subtabs Navigation */}
       <div className="flex gap-1 border-b border-border-custom flex-wrap mb-4">
         {([
-          { id: 'sheets', name: 'Central de Planilhas' },
+          { id: 'sheets', name: 'Planejamento de Mídia' },
           { id: 'brief', name: 'Briefing' },
           { id: 'params', name: 'Parâmetros' },
           { id: 'price', name: 'Precificação' },
@@ -847,7 +848,11 @@ export default function FinanceiroModule() {
         ))}
       </div>
 
-      {activeSubTab === 'sheets' && (
+      {activeSubTab === 'sheets' && activeProjectId && (
+        <FinancialPlanningWorkspace projectId={activeProjectId} projectName={activeProject?.name || 'Projeto atual'} />
+      )}
+
+      {false && (
         <div className="space-y-5 animate-[fadeUp_0.15s_ease_both]">
           <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm">
             <div className="flex items-start gap-3">
