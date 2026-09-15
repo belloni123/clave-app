@@ -6,7 +6,7 @@ import { createClient } from '@/utils/supabase/client'
 import { useAppStore } from '@/store/useAppStore'
 import SourceCredit from '@/components/SourceCredit'
 import { SOURCE_CREDITS } from '@/utils/source-credits'
-import { Trash, AlertTriangle, Check, Plus, Sparkles } from 'lucide-react'
+import { Trash, AlertTriangle, Check, Plus, Sparkles, ExternalLink, Copy, Link2, Users, ShieldCheck } from 'lucide-react'
 
 interface Offer {
   n: string
@@ -56,6 +56,33 @@ interface FinancialDataPayload {
   trafego_real?: number | string
   curCen: number
 }
+
+type SpreadsheetKind = 'fixedClient' | 'infoProduct'
+
+interface ProjectSpreadsheet {
+  url: string
+  publicEditingConfirmed: boolean
+}
+
+type ProjectSpreadsheets = Record<SpreadsheetKind, ProjectSpreadsheet>
+
+const spreadsheetTemplates: Record<SpreadsheetKind, { title: string; description: string; templateUrl: string }> = {
+  fixedClient: {
+    title: 'Cliente fixo',
+    description: 'Planejamento de mídia paga e metas para contratos recorrentes.',
+    templateUrl: 'https://docs.google.com/spreadsheets/d/1oCdGQ4VIjtk8FDPJjjkVoNOX2qKmw-Xo/copy',
+  },
+  infoProduct: {
+    title: 'Infoproduto',
+    description: 'Planejamento de leads, CAC, CPL e vendas para infoprodutos.',
+    templateUrl: 'https://docs.google.com/spreadsheets/d/1uGqyku9zNOwpLuJ-D4xvQSwOA834h4WU/copy',
+  },
+}
+
+const emptyProjectSpreadsheets = (): ProjectSpreadsheets => ({
+  fixedClient: { url: '', publicEditingConfirmed: false },
+  infoProduct: { url: '', publicEditingConfirmed: false },
+})
 
 // DEFAULT OBJECT FOR FINANCIAL SHEETS
 const finDefaultData = () => ({
@@ -115,9 +142,48 @@ const finDefaultData = () => ({
 export default function FinanceiroModule() {
   const queryClient = useQueryClient()
   const supabase = createClient()
-  const { activeProjectId, showToast } = useAppStore()
+  const { activeProjectId, getActiveProject, showToast } = useAppStore()
+  const activeProject = getActiveProject()
 
-  const [activeSubTab, setActiveSubTab] = useState<'brief' | 'params' | 'price' | 'serv' | 'prov' | 'real' | 'inv' | 'dre' | 'comm'>('brief')
+  const [activeSubTab, setActiveSubTab] = useState<'sheets' | 'brief' | 'params' | 'price' | 'serv' | 'prov' | 'real' | 'inv' | 'dre' | 'comm'>('sheets')
+  const [projectSpreadsheets, setProjectSpreadsheets] = useState<ProjectSpreadsheets>(emptyProjectSpreadsheets)
+
+  const { data: savedProjectSpreadsheets } = useQuery({
+    queryKey: ['project_spreadsheets', activeProjectId],
+    queryFn: async () => {
+      if (!activeProjectId) return emptyProjectSpreadsheets()
+      const { data, error } = await supabase.from('text_fields').select('value').eq('project_id', activeProjectId).eq('key', 'financial-spreadsheets').maybeSingle()
+      if (error) throw error
+      if (!data?.value) return emptyProjectSpreadsheets()
+      try { return { ...emptyProjectSpreadsheets(), ...JSON.parse(data.value) } as ProjectSpreadsheets } catch { return emptyProjectSpreadsheets() }
+    },
+    enabled: !!activeProjectId,
+  })
+
+  useEffect(() => {
+    const timer = setTimeout(() => setProjectSpreadsheets(savedProjectSpreadsheets || emptyProjectSpreadsheets()), 0)
+    return () => clearTimeout(timer)
+  }, [savedProjectSpreadsheets, activeProjectId])
+
+  const saveProjectSpreadsheetsMutation = useMutation({
+    mutationFn: async (value: ProjectSpreadsheets) => {
+      if (!activeProjectId) return
+      const { error } = await supabase.from('text_fields').upsert({ project_id: activeProjectId, key: 'financial-spreadsheets', value: JSON.stringify(value) }, { onConflict: 'project_id,key' })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project_spreadsheets', activeProjectId] })
+      showToast('Planilhas do projeto salvas!')
+    },
+    onError: (err: Error) => showToast('Erro ao salvar planilhas: ' + err.message, 'err'),
+  })
+
+  const updateProjectSpreadsheet = (kind: SpreadsheetKind, patch: Partial<ProjectSpreadsheet>) => setProjectSpreadsheets((current) => ({ ...current, [kind]: { ...current[kind], ...patch } }))
+  const copySpreadsheetLink = async (url: string) => {
+    if (!url) return
+    await navigator.clipboard.writeText(url)
+    showToast('Link copiado!')
+  }
 
   // ==========================================
   // SERVICES PRICING CALCULATOR LOGIC & STATE
@@ -756,6 +822,7 @@ export default function FinanceiroModule() {
       {/* Subtabs Navigation */}
       <div className="flex gap-1 border-b border-border-custom flex-wrap mb-4">
         {([
+          { id: 'sheets', name: 'Central de Planilhas' },
           { id: 'brief', name: 'Briefing' },
           { id: 'params', name: 'Parâmetros' },
           { id: 'price', name: 'Precificação' },
@@ -779,6 +846,55 @@ export default function FinanceiroModule() {
           </button>
         ))}
       </div>
+
+      {activeSubTab === 'sheets' && (
+        <div className="space-y-5 animate-[fadeUp_0.15s_ease_both]">
+          <div className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-green-bg text-green-t"><Users className="w-4 h-4" /></div>
+              <div>
+                <h4 className="text-sm font-bold text-text-custom">Planilhas financeiras — {activeProject?.name || 'Projeto atual'}</h4>
+                <p className="text-xs text-text2 mt-1 max-w-3xl">Este conjunto pertence somente a este projeto. Crie uma cópia de cada modelo, renomeie com o nome do projeto e salve o link abaixo para centralizar o trabalho do gestor de tráfego, gestor do projeto, coprodutor e cliente.</p>
+              </div>
+            </div>
+            {activeProjectId && (
+              <div className="mt-4 pt-4 border-t border-border-custom flex flex-wrap items-center gap-2">
+                <a href={`/planilhas/${activeProjectId}`} target="_blank" rel="noreferrer" className="px-3 py-2 border border-border2 rounded-lg text-xs font-semibold text-text-custom inline-flex items-center gap-2 hover:bg-bg"><ExternalLink className="w-3.5 h-3.5" /> Abrir portal do cliente</a>
+                <button type="button" onClick={() => copySpreadsheetLink(`${window.location.origin}/planilhas/${activeProjectId}`)} className="px-3 py-2 border border-border2 rounded-lg text-xs font-semibold text-text2 inline-flex items-center gap-2 hover:text-text-custom"><Copy className="w-3.5 h-3.5" /> Copiar link do portal</button>
+                <span className="text-[10px] text-text3">Usuários logados entram direto; convidados usam a senha padrão.</span>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            {(Object.entries(spreadsheetTemplates) as [SpreadsheetKind, typeof spreadsheetTemplates[SpreadsheetKind]][]).map(([kind, template]) => {
+              const sheet = projectSpreadsheets[kind]
+              return (
+                <section key={kind} className="bg-surface border border-border-custom rounded-xl p-5 shadow-sm space-y-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><h4 className="text-sm font-bold text-text-custom">{template.title}</h4><p className="text-[11px] text-text2 mt-1">{template.description}</p></div>
+                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${sheet.url && sheet.publicEditingConfirmed ? 'bg-green-bg text-green-t' : 'bg-amber-bg text-amber-t'}`}>{sheet.url && sheet.publicEditingConfirmed ? 'Pronta para compartilhar' : 'Configuração pendente'}</span>
+                  </div>
+                  <a href={template.templateUrl} target="_blank" rel="noreferrer" className="w-full px-3 py-2 rounded-lg bg-text-custom text-surface text-xs font-bold flex items-center justify-center gap-2 hover:opacity-90"><ExternalLink className="w-3.5 h-3.5" /> Criar cópia para {activeProject?.name || 'este projeto'}</a>
+                  <div>
+                    <label className="text-[10px] font-bold text-text2 mb-1.5 block">Link da cópia deste projeto</label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1"><Link2 className="w-3.5 h-3.5 text-text3 absolute left-3 top-1/2 -translate-y-1/2" /><input type="url" value={sheet.url} onChange={(event) => updateProjectSpreadsheet(kind, { url: event.target.value, publicEditingConfirmed: false })} placeholder="Cole aqui o link da cópia criada" className="w-full pl-9 pr-3 py-2 border border-border2 rounded-lg bg-surface text-text-custom text-xs outline-none focus:border-text3" /></div>
+                      {sheet.url && <button type="button" onClick={() => copySpreadsheetLink(sheet.url)} className="p-2 border border-border2 rounded-lg text-text2 hover:text-text-custom" title="Copiar link"><Copy className="w-4 h-4" /></button>}
+                    </div>
+                  </div>
+                  <label className="flex items-start gap-2.5 p-3 rounded-lg border border-border-custom bg-bg cursor-pointer">
+                    <input type="checkbox" checked={sheet.publicEditingConfirmed} disabled={!sheet.url} onChange={(event) => updateProjectSpreadsheet(kind, { publicEditingConfirmed: event.target.checked })} className="mt-0.5" />
+                    <span><span className="text-xs font-semibold text-text-custom flex items-center gap-1.5"><ShieldCheck className="w-3.5 h-3.5" /> Acesso público para edição confirmado</span><span className="text-[10px] text-text3 block mt-1">No Google: Compartilhar → Acesso geral → Qualquer pessoa com o link → Editor.</span></span>
+                  </label>
+                  {sheet.url && <a href={sheet.url} target="_blank" rel="noreferrer" className="text-xs font-semibold text-text-custom inline-flex items-center gap-1.5 hover:underline">Abrir planilha do projeto <ExternalLink className="w-3.5 h-3.5" /></a>}
+                </section>
+              )
+            })}
+          </div>
+          <div className="flex justify-end"><button type="button" onClick={() => saveProjectSpreadsheetsMutation.mutate(projectSpreadsheets)} disabled={saveProjectSpreadsheetsMutation.isPending} className="px-4 py-2 bg-green-custom text-white rounded-lg text-xs font-bold hover:opacity-90 disabled:opacity-60">{saveProjectSpreadsheetsMutation.isPending ? 'Salvando...' : 'Salvar planilhas do projeto'}</button></div>
+        </div>
+      )}
 
       {/* ==========================================
           TAB: BRIEFING
