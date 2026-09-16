@@ -41,6 +41,36 @@ import {
 type Authorization = '' | 'yes' | 'no'
 type SubmissionState = 'idle' | 'submitting' | 'success' | 'error'
 
+const SUBMISSION_TIMEOUT_MS = 20_000
+
+async function sendApplication(payload: Record<string, unknown>) {
+  let lastError: unknown
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), SUBMISSION_TIMEOUT_MS)
+    try {
+      return await fetch('/api/public/expert-applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      })
+    } catch (error) {
+      lastError = error
+      if (attempt === 1) break
+    } finally {
+      window.clearTimeout(timeout)
+    }
+  }
+
+  throw new Error(
+    lastError instanceof DOMException && lastError.name === 'AbortError'
+      ? 'O envio demorou mais que o esperado. Verifique sua conexão e tente novamente.'
+      : 'Não foi possível conectar ao Clave. Verifique sua conexão e tente novamente.',
+  )
+}
+
 interface FieldProps {
   id: keyof ExpertApplicationAnswers
   label: string
@@ -274,18 +304,14 @@ export default function ExpertApplicationForm() {
     setErrors({})
 
     try {
-      const response = await fetch('/api/public/expert-applications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...answers,
-          authorization: 'yes',
-          idempotencyKey: idempotencyKey.current,
-          startedAt: startedAt.current,
-          companyWebsite,
-        }),
+      const response = await sendApplication({
+        ...answers,
+        authorization: 'yes',
+        idempotencyKey: idempotencyKey.current,
+        startedAt: startedAt.current,
+        companyWebsite,
       })
-      const data = await response.json() as {
+      const data = await response.json().catch(() => ({})) as {
         error?: string
         errors?: ExpertApplicationErrors
         reported?: boolean
@@ -529,8 +555,8 @@ export default function ExpertApplicationForm() {
                 <input id="field-fullName" value={answers.fullName} onChange={(event) => update('fullName', event.target.value)} autoComplete="name" className={inputClass} aria-invalid={Boolean(errors.fullName)} />
               </Field>
 
-              <Field id="whatsapp" label="WhatsApp (DDD + número)" error={errors.whatsapp}>
-                <input id="field-whatsapp" value={answers.whatsapp} onChange={(event) => update('whatsapp', formatWhatsapp(event.target.value))} inputMode="tel" autoComplete="tel" placeholder="(00) 00000-0000" maxLength={15} className={inputClass} aria-invalid={Boolean(errors.whatsapp)} />
+              <Field id="whatsapp" label="WhatsApp (código do país + número)" help="Brasil: use o DDD. Outros países: comece com + e o código do país." error={errors.whatsapp}>
+                <input id="field-whatsapp" value={answers.whatsapp} onChange={(event) => update('whatsapp', formatWhatsapp(event.target.value))} inputMode="tel" autoComplete="tel" placeholder="(62) 99999-9999 ou +353871234567" maxLength={16} className={inputClass} aria-invalid={Boolean(errors.whatsapp)} />
               </Field>
 
               <Field id="email" label="E-mail" error={errors.email}>

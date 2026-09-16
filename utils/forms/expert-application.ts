@@ -116,11 +116,14 @@ function stringArray<T extends string>(value: unknown, allowed: Set<T>): T[] {
 }
 
 export function whatsappDigits(value: string) {
-  return value.replace(/\D/g, '').slice(0, 11)
+  return value.replace(/\D/g, '').slice(0, 15)
 }
 
 export function formatWhatsapp(value: string) {
   const digits = whatsappDigits(value)
+  const isInternational = value.trimStart().startsWith('+') || digits.startsWith('55') && digits.length > 11
+
+  if (isInternational) return digits ? `+${digits}` : '+'
   if (digits.length <= 2) return digits.length ? `(${digits}` : ''
   if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
@@ -128,6 +131,9 @@ export function formatWhatsapp(value: string) {
 
 export function isValidWhatsapp(value: string) {
   const digits = whatsappDigits(value)
+  if (value.trimStart().startsWith('+')) {
+    return digits.length >= 8 && digits.length <= 15 && digits[0] !== '0'
+  }
   return digits.length === 11 && digits[0] !== '0' && digits[1] !== '0' && digits[2] === '9'
 }
 
@@ -167,7 +173,7 @@ export function validateExpertApplication(answers: ExpertApplicationAnswers) {
     errors.fullName = 'Informe seu nome e sobrenome.'
   }
   if (!isValidWhatsapp(answers.whatsapp)) {
-    errors.whatsapp = 'Informe um celular válido com DDD.'
+    errors.whatsapp = 'Informe um celular válido com DDD ou código do país.'
   }
   if (!EMAIL_PATTERN.test(answers.email.trim()) || answers.email.trim().length > 254) {
     errors.email = 'Informe um e-mail válido.'

@@ -1,6 +1,6 @@
 {
-  "version": "2026-09-15.3",
-  "knowledgeHash": "e9ba3954f22746945f592b0c6552ac85846d799bffabb9b389c6d5ad041486df",
+  "version": "2026-09-16.1",
+  "knowledgeHash": "c2fade7db5b2fb9e0a09a66e97b50f4e96655cbfd86db7fec14edbd121adc226",
   "files": {
     "components/AppShell.tsx": "2695ff1d6f0de2598e83b0cf37130554732bf3b7c8f48c6026fca6c1c4a7efe9",
     "components/HelpAssistant.tsx": "11d1a0eff8938e4d84a98a8523563d771a7334f7c2b77161d0e36fbad72cd859",
@@ -9,7 +9,7 @@
     "components/Providers.tsx": "9ab8993939e624f5d5cdb0484463b6b41571fc47fec27ef30004c8f54e276aed",
     "components/SourceCredit.tsx": "e8ffcc677f43aa59068463aead24a4778a322d7866872d577e57800bc288f01c",
     "components/Toast.tsx": "d33814b20995010518b95cf8bec1ebbd711e271be644edb5fa523af85fd4d5ea",
-    "components/forms/ExpertApplicationForm.tsx": "a51ee41de04474c7ea82b9db894b17738e5c2aa0e6b90c7c321802ce1db0a974",
+    "components/forms/ExpertApplicationForm.tsx": "bffce6cd6ac2253efe780ffab91e30a6bf2f90af1fa48b8033efc9a9d41d92de",
     "components/forms/PublicBriefingForm.tsx": "e4a636b93827d5d1be62498902bfd686303a254ba4334b4b432c78980e1d13c5",
     "components/launches/BiSyncPanel.tsx": "17b1b02bd2e00007a80059c93af2a795380aced399a84cc4dfc32bf5e0e8dde9",
     "components/modules/AcessoModule.tsx": "8b9c3de31eec6b8fdfc3d8c469132cc22ccf7fb95e8e97645563e40645ce3724",
@@ -91,7 +91,7 @@
     "utils/b16-dashboard.ts": "64f00d8e0dbb1dd9d0433650b49c53619dbc5725beb86eadad7f4ae455900242",
     "utils/forms/client-briefing-server.ts": "5e3caeab8b5ca43574aaf2fe1306d20ccc11cd8beca7bfb10456370b0fbee8c6",
     "utils/forms/client-briefing.ts": "64b6d5e6006decf6516f42f7d7b6cdab51c0aad00add0ad7a122e7ca19c79a1b",
-    "utils/forms/expert-application.ts": "d6bcf19af1717810ec7cb4a879a324686c5546ac0cebfdfbfdd4b7087691d058",
+    "utils/forms/expert-application.ts": "00f13bc443ff8783e1dfb8b75cdb2dea4eca617eae619bcd9300a72835fedadc",
     "utils/google-calendar.ts": "311a1a486362ca568d1cbe9d05ab68ad796d76a2de702fdb8f7d83d1d528dcb7",
     "utils/http/public-app-origin.ts": "2aebec5b6cef4a5f82365eb499c8133c3fedfec8daec76123a5f6471e1e66937",
     "utils/http/read-json-body.ts": "d8ca8d56f00881d3ff2cde20a1654007c1d7c1454764d5a63261047bd7c1c1f8",
